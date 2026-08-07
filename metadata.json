@@ -1,0 +1,6 @@
+{
+  "name": "Rota Fácil Delivery - Rastreio & Gestão Cloud",
+  "description": "Sistema completo de gestão, despacho e rastreio de entregas em tempo real para estabelecimentos de delivery com notificação de saída para o cliente via WhatsApp.",
+  "requestFramePermissions": ["geolocation", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "StoreShift": {
+      "title": "Store Shift",
+      "description": "Store operational state and settings",
+      "type": "object",
+      "properties": {
+        "isOpen": { "type": "boolean" },
+        "openedAt": { "type": "string" },
+        "initialCash": { "type": "number" },
+        "storeName": { "type": "string" },
+        "storeAddress": { "type": "string" },
+        "storeLat": { "type": "number" },
+        "storeLng": { "type": "number" }
+      }
+    },
+    "Motoboy": {
+      "title": "Motoboy Profile",
+      "description": "Motoboy registration data and app access credentials",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "vehicleModel": { "type": "string" },
+        "plate": { "type": "string" },
+        "status": { "type": "string" },
+        "activeOrdersCount": { "type": "number" },
+        "currentLat": { "type": "number" },
+        "currentLng": { "type": "number" },
+        "fixedFee": { "type": "number" },
+        "perDeliveryFee": { "type": "number" },
+        "totalEarnedToday": { "type": "number" }
+      }
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Delivery order record",
+      "type": "object",
+      "properties": {
+        "codeNumber": { "type": "number" },
+        "clientName": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "address": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "itemsSummary": { "type": "string" },
+        "subtotal": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "total": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "changeFor": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "estimatedMinutes": { "type": "number" },
+        "assignedMotoboyId": { "type": "string" },
+        "assignedMotoboyName": { "type": "string" },
+        "trackingCode": { "type": "string" }
+      }
+    }
+  }
+}
