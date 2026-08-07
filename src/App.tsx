@@ -194,11 +194,16 @@ export default function App() {
     const orderObj = orders.find((o) => o.id === orderId);
     if (!orderObj) return;
 
+    const newStatus =
+      orderObj.status === 'in_transit' || orderObj.status === 'picked_up' || orderObj.status === 'ready_at_counter'
+        ? orderObj.status
+        : 'preparing';
+
     const updatedOrder: Order = {
       ...orderObj,
       assignedMotoboyId: targetMotoboy.id,
       assignedMotoboyName: targetMotoboy.name,
-      status: orderObj.status === 'in_transit' || orderObj.status === 'picked_up' ? orderObj.status : 'ready_at_counter',
+      status: newStatus,
     };
 
     const updatedMotoboy: Motoboy = {
@@ -209,11 +214,11 @@ export default function App() {
 
     // Update local & cloud
     setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
-    setMotoboys((prev) => prev.map((m) => (m.id === motoboyId ? updatedMotoboy : m)));
+    setMotoboys((prev) => prev.map((m) => (m.id === targetMotoboy.id ? updatedMotoboy : m)));
     saveOrderToCloud(updatedOrder);
     saveMotoboyToCloud(updatedMotoboy);
 
-    showToast(`Pedido #${updatedOrder.codeNumber} atribuído a ${targetMotoboy.name}! Lanche marcado como PRONTO no balcão. 🛍️`);
+    showToast(`Pedido #${updatedOrder.codeNumber} vinculado a ${targetMotoboy.name}! 🛵`);
   };
 
   const handleAssignBatchToMotoboy = (orderIds: string[], motoboyId: string) => {
@@ -227,11 +232,16 @@ export default function App() {
 
     const updatedOrdersList = orders.map((o) => {
       if (orderIds.includes(o.id)) {
+        const newStatus =
+          o.status === 'in_transit' || o.status === 'picked_up' || o.status === 'ready_at_counter'
+            ? o.status
+            : 'preparing';
+
         const updated: Order = {
           ...o,
           assignedMotoboyId: targetMotoboy.id,
           assignedMotoboyName: targetMotoboy.name,
-          status: o.status === 'in_transit' || o.status === 'picked_up' ? o.status : 'ready_at_counter',
+          status: newStatus,
         };
         saveOrderToCloud(updated);
         return updated;
@@ -246,10 +256,10 @@ export default function App() {
     };
 
     setOrders(updatedOrdersList);
-    setMotoboys((prev) => prev.map((m) => (m.id === motoboyId ? updatedMotoboy : m)));
+    setMotoboys((prev) => prev.map((m) => (m.id === targetMotoboy.id ? updatedMotoboy : m)));
     saveMotoboyToCloud(updatedMotoboy);
 
-    showToast(`Bag de Rota com ${orderIds.length} pedidos atribuída a ${targetMotoboy.name}! Pronta para retirada no balcão. 🎒🛍️`);
+    showToast(`Bag de Rota com ${orderIds.length} pedidos vinculada a ${targetMotoboy.name}! 🎒🛵`);
   };
 
   const handleConfirmArrivalAtStore = (motoboyId: string) => {
@@ -398,7 +408,9 @@ export default function App() {
       ...newOrdData,
       id: `ord-${nextCode}`,
       codeNumber: nextCode,
-      status: 'ready_at_counter',
+      status: 'pending',
+      assignedMotoboyId: null,
+      assignedMotoboyName: null,
       createdAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       trackingCode: `RF-${Math.floor(1000 + Math.random() * 9000)}`,
     };

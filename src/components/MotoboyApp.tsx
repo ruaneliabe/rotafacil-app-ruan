@@ -110,6 +110,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
     const mId = (effectiveMotoboyId || '').toLowerCase().trim();
     const mActiveId = (activeMotoboyId || '').toLowerCase().trim();
+    const mInitId = (initialMotoboyId || '').toLowerCase().trim();
     const mName = (activeMotoboy?.name || '').toLowerCase().trim();
     const mUsername = (activeMotoboy?.username || '').toLowerCase().trim();
 
@@ -119,6 +120,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     const isIdMatch =
       (mId && assignedId === mId) ||
       (mActiveId && assignedId === mActiveId) ||
+      (mInitId && assignedId === mInitId) ||
       (mUsername && assignedId === mUsername) ||
       (mName && assignedId === mName);
 
@@ -128,7 +130,8 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       (mId && assignedName === mId) ||
       (mActiveId && assignedName === mActiveId) ||
       (mName && (assignedName.includes(mName) || mName.includes(assignedName))) ||
-      (mName && (assignedId.includes(mName) || mName.includes(assignedId)));
+      (mName && (assignedId.includes(mName) || mName.includes(assignedId))) ||
+      (assignedName && (mName.includes(assignedName) || mUsername.includes(assignedName)));
 
     return isIdMatch || isNameMatch;
   };
@@ -769,7 +772,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                               ? 'bg-slate-900 text-white'
                               : order.status === 'picked_up'
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              : order.status === 'ready_at_counter'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
+                              : 'bg-slate-100 text-slate-700 border border-slate-200'
                           }`}
                         >
                           {hasArrived ? (
@@ -784,9 +789,13 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             <>
                               <ShoppingBag className="w-3 h-3" /> RETIRADO (NA BAG)
                             </>
+                          ) : order.status === 'ready_at_counter' ? (
+                            <>
+                              <Clock className="w-3 h-3 text-amber-600" /> PRONTO NO BALCÃO
+                            </>
                           ) : (
                             <>
-                              <Clock className="w-3 h-3" /> PRONTO NO BALCÃO
+                              <Clock className="w-3 h-3 text-slate-500" /> VINCULADO À BAG
                             </>
                           )}
                         </span>
@@ -794,12 +803,24 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                       <div className="p-3.5 space-y-3">
                         {/* NOTICE BANNERS FOR STEPS */}
-                        {order.status !== 'picked_up' && order.status !== 'in_transit' ? (
-                          <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex items-center gap-2.5 text-xs text-amber-900 shadow-2xs">
+                        {order.status === 'preparing' || order.status === 'pending' ? (
+                          <div className="bg-slate-100 border border-slate-300 p-3 rounded-xl flex items-center gap-2.5 text-xs text-slate-800 shadow-2xs">
+                            <Clock className="w-5 h-5 text-slate-600 shrink-0" />
+                            <div>
+                              <span className="font-bold text-slate-900 block text-xs uppercase tracking-wide">
+                                👨‍🍳 PEDIDO VINCULADO À SUA BAG
+                              </span>
+                              <span className="text-[11px] text-slate-600 font-medium leading-tight block">
+                                A loja atrelou este pedido à sua bag. Aguardando a cozinha finalizar para avisar a retirada no balcão.
+                              </span>
+                            </div>
+                          </div>
+                        ) : order.status === 'ready_at_counter' ? (
+                          <div className="bg-amber-50 border border-amber-300 p-3 rounded-xl flex items-center gap-2.5 text-xs text-amber-900 shadow-2xs">
                             <ShoppingBag className="w-5 h-5 text-amber-600 shrink-0" />
                             <div>
                               <span className="font-bold text-amber-900 block text-xs uppercase tracking-wide">
-                                PRONTO PARA RETIRADA NO BALCÃO
+                                🛍️ PRONTO PARA RETIRADA NO BALCÃO
                               </span>
                               <span className="text-[11px] text-amber-800 font-medium leading-tight block">
                                 A loja avisou que está pronto! Pegue o pacote e clique em "Confirma retirada do pedido".
@@ -811,7 +832,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                             <div>
                               <span className="font-bold text-emerald-900 block text-xs uppercase tracking-wide">
-                                RETIRADA CONFIRMADA (NA BAG)
+                                ✅ RETIRADA CONFIRMADA (NA BAG)
                               </span>
                               <span className="text-[11px] text-emerald-800 font-medium leading-tight block">
                                 Quando subir na moto para iniciar o trajeto, clique em "Iniciar rota".
@@ -1055,7 +1076,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         )}
       </div>
 
-      {/* 5. Footer Summary Bar & Logout CTA */}
+      {/* 5. Footer Summary Bar */}
       <div className="bg-white px-4 py-3 border-t border-slate-200 flex flex-col gap-2">
         <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
           <span>📍 Blumenau - SC</span>
@@ -1063,17 +1084,6 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             {completedOrders.length} {completedOrders.length === 1 ? 'entrega finalizada' : 'entregas finalizadas'}
           </span>
         </div>
-
-        {isLockedToMotoboy && (
-          <button
-            type="button"
-            onClick={handleLogoutAccount}
-            className="w-full py-2 px-3 bg-rose-50 hover:bg-rose-100 active:scale-98 text-rose-700 border border-rose-200 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer"
-          >
-            <LogOut className="w-4 h-4 text-rose-600" />
-            <span>Sair da Conta (Trocar Entregador)</span>
-          </button>
-        )}
       </div>
     </div>
   );

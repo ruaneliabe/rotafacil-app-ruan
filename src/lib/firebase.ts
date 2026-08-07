@@ -79,11 +79,16 @@ export function subscribeToShift(callback: (shift: StoreShift) => void) {
   );
 }
 
+// Clean undefined values to prevent Firestore error
+function cleanForFirestore(obj: any): any {
+  return JSON.parse(JSON.stringify(obj, (key, value) => (value === undefined ? null : value)));
+}
+
 // Write functions
 export async function saveOrderToCloud(order: Order) {
   try {
     const docRef = doc(db, 'orders', order.id);
-    await setDoc(docRef, order, { merge: true });
+    await setDoc(docRef, cleanForFirestore(order), { merge: true });
   } catch (err) {
     console.error('Error saving order to cloud:', err);
   }
@@ -92,7 +97,7 @@ export async function saveOrderToCloud(order: Order) {
 export async function saveMotoboyToCloud(motoboy: Motoboy) {
   try {
     const docRef = doc(db, 'motoboys', motoboy.id);
-    await setDoc(docRef, motoboy, { merge: true });
+    await setDoc(docRef, cleanForFirestore(motoboy), { merge: true });
   } catch (err) {
     console.error('Error saving motoboy to cloud:', err);
   }

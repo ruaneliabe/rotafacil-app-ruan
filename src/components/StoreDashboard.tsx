@@ -88,6 +88,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     const mOrders = orders.filter((o) => o.assignedMotoboyId === m.id && o.status !== 'delivered' && o.status !== 'cancelled');
     if (mOrders.length === 0) return;
 
+    // Step 3: Mark orders as ready_at_counter when notifying motoboy
+    mOrders.forEach((ord) => {
+      if (ord.status !== 'ready_at_counter' && ord.status !== 'picked_up' && ord.status !== 'in_transit') {
+        onUpdateOrderStatus(ord.id, 'ready_at_counter');
+      }
+    });
+
     const cleanedPhone = (m.phone || '').replace(/\D/g, '');
     let msg = `🛵 *ROTA FÁCIL - PEDIDO(S) PRONTO(S) PARA RETIRADA!*\n\n`;
     msg += `Olá *${m.name}*!\n`;
