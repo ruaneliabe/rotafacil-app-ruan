@@ -21,7 +21,8 @@ import {
   ChevronRight,
   ArrowRight,
   Store,
-  User
+  User,
+  Pause
 } from 'lucide-react';
 
 interface MotoboyAppProps {
@@ -317,26 +318,26 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   return (
     <div className="w-full max-w-md mx-auto bg-slate-50 text-slate-900 rounded-3xl border border-slate-200 shadow-md overflow-hidden flex flex-col font-sans min-h-[680px] relative">
       
-      {/* Toast Alert when new order is assigned */}
+      {/* Top Mobile Status Notification Bar */}
       {showNotificationToast && (
-        <div className="absolute top-16 left-3 right-3 z-50 bg-white/95 border-2 border-emerald-500 text-slate-900 p-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-3 animate-fadeIn backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center font-bold shrink-0">
-              <BellRing className="w-5 h-5 text-emerald-700" />
+        <div className="absolute top-0 left-0 right-0 z-50 bg-slate-900/95 border-b-2 border-emerald-500 text-white p-2.5 px-3.5 shadow-2xl flex items-center justify-between gap-2.5 animate-slideDown backdrop-blur-md rounded-t-3xl">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
+              <BellRing className="w-4 h-4 text-slate-950" />
             </div>
-            <div>
-              <span className="font-extrabold text-xs text-emerald-800 uppercase tracking-wide block">
-                {notificationToastTitle}
+            <div className="min-w-0">
+              <span className="font-extrabold text-[10px] text-emerald-400 uppercase tracking-wider block">
+                ROTA FÁCIL • NOTIFICAÇÃO
               </span>
-              <span className="text-xs font-semibold text-slate-700">
-                {notificationToastMessage}
+              <span className="text-xs font-bold text-white truncate block">
+                {notificationToastTitle}
               </span>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setShowNotificationToast(false)}
-            className="text-white bg-slate-900 hover:bg-slate-800 font-extrabold text-xs px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs shrink-0"
+            className="text-slate-950 bg-emerald-400 hover:bg-emerald-300 font-extrabold text-[11px] px-2.5 py-1 rounded-lg transition-all cursor-pointer shrink-0"
           >
             OK
           </button>
@@ -345,11 +346,11 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
       {/* Official Store Automation Notification Toast */}
       {actionToast && (
-        <div className="absolute top-16 left-3 right-3 z-50 bg-white/95 border-2 border-slate-900 text-slate-900 p-3.5 rounded-2xl shadow-xl flex items-center gap-3 animate-fadeIn backdrop-blur-md">
-          <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 font-black text-base border border-emerald-300">
+        <div className="absolute top-0 left-0 right-0 z-50 bg-slate-900/95 border-b-2 border-amber-400 text-white p-2.5 px-3.5 shadow-2xl flex items-center gap-2.5 animate-slideDown backdrop-blur-md rounded-t-3xl">
+          <div className="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 font-black text-sm">
             ✓
           </div>
-          <div className="text-xs font-extrabold leading-snug">
+          <div className="text-xs font-bold text-slate-100 leading-snug">
             {actionToast}
           </div>
         </div>
@@ -707,12 +708,12 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             type="button"
                             onClick={() => {
                               onUpdateMotoboyStatus(activeMotoboy.id, 'busy');
-                              triggerSystemActionToast("⏸️ Você saiu da fila da loja e pausou seu atendimento.");
+                              triggerSystemActionToast("⏸️ Atendimento pausado.");
                             }}
-                            className="w-full sm:w-auto py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs rounded-xl border border-rose-200 transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                            className="w-full sm:w-auto py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl border border-slate-200 transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
                           >
-                            <LogOut className="w-4 h-4 text-rose-600" />
-                            <span>Sair da Fila / Pausar</span>
+                            <Pause className="w-4 h-4 text-slate-600" />
+                            <span>Pausar Atendimento</span>
                           </button>
                         )}
                       </div>
@@ -972,15 +973,33 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                         {/* 5º PROGRESSIVE ACTION BUTTONS (PASSOS DA ENTREGA) */}
                         <div className="pt-1.5 space-y-2 border-t border-slate-200">
-                          {order.status !== 'picked_up' && !isInTransit ? (
-                            /* PASSO 2: CONFIRMAR RETIRADA DO PEDIDO */
+                          {order.status === 'preparing' || order.status === 'pending' ? (
+                            /* PASSO 1: AGUARDANDO PRONTIDÃO DA COZINHA */
+                            <div className="space-y-1.5">
+                              <div className="w-full py-3 px-3 bg-amber-50 border border-amber-300 text-amber-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 text-center">
+                                <Clock className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+                                <span>⏳ AGUARDANDO A LOJA AVISAR QUE ESTÁ PRONTO</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onUpdateOrderStatus(order.id, 'picked_up');
+                                  triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada adiantadamente!`);
+                                }}
+                                className="w-full text-center text-[11px] font-bold text-slate-500 hover:text-slate-800 underline py-1 cursor-pointer transition-colors"
+                              >
+                                Já estou no balcão com o pacote (Confirmar Retirada Agora)
+                              </button>
+                            </div>
+                          ) : order.status === 'ready_at_counter' ? (
+                            /* PASSO 2: CONFIRMAR RETIRADA DO PEDIDO NO BALCÃO */
                             <button
                               type="button"
                               onClick={() => {
                                 onUpdateOrderStatus(order.id, 'picked_up');
                                 triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada! Próximo passo: Iniciar Rota.`);
                               }}
-                              className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
+                              className="w-full py-3.5 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer animate-pulse"
                             >
                               <ShoppingBag className="w-5 h-5 text-slate-950 fill-current" />
                               Confirma retirada do pedido

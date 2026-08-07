@@ -71,6 +71,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const [ticketOrder, setTicketOrder] = useState<Order | null>(null);
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
+  const [actionToast, setActionToast] = useState<string | null>(null);
+
+  const triggerActionToast = (msg: string) => {
+    setActionToast(msg);
+    setTimeout(() => setActionToast(null), 3500);
+  };
 
   // Derived metrics matching screenshot
   const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled');
@@ -84,21 +90,27 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const formattedCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  const handleSendWhatsAppToMotoboy = (m: Motoboy) => {
+  const handleNotifyMotoboyInApp = (m: Motoboy) => {
     const mOrders = orders.filter((o) => o.assignedMotoboyId === m.id && o.status !== 'delivered' && o.status !== 'cancelled');
     if (mOrders.length === 0) return;
 
-    // Step 3: Mark orders as ready_at_counter when notifying motoboy
     mOrders.forEach((ord) => {
       if (ord.status !== 'ready_at_counter' && ord.status !== 'picked_up' && ord.status !== 'in_transit') {
         onUpdateOrderStatus(ord.id, 'ready_at_counter');
       }
     });
 
+    triggerActionToast(`🔔 Aviso de retirada enviado ao App do entregador ${m.name.split(' ')[0]}!`);
+  };
+
+  const handleSendWhatsAppToMotoboy = (m: Motoboy) => {
+    const mOrders = orders.filter((o) => o.assignedMotoboyId === m.id && o.status !== 'delivered' && o.status !== 'cancelled');
+    if (mOrders.length === 0) return;
+
     const cleanedPhone = (m.phone || '').replace(/\D/g, '');
     let msg = `🛵 *ROTA FÁCIL - PEDIDO(S) PRONTO(S) PARA RETIRADA!*\n\n`;
     msg += `Olá *${m.name}*!\n`;
-    msg += `A loja *${shift.storeName}* atribuiu *${mOrders.length}* pedido(s) a você PRONTI(S) no balcão para retirar:\n\n`;
+    msg += `A loja *${shift.storeName}* atribuiu *${mOrders.length}* pedido(s) a você PRONTO(S) no balcão para retirar:\n\n`;
 
     mOrders.forEach((ord, i) => {
       msg += `📦 *${i + 1}. Pedido #${ord.codeNumber}* (${ord.clientName})\n`;
@@ -108,18 +120,23 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       msg += `\n`;
     });
 
-    msg += `📲 Acesse seu App de Entregador para ver a rota:\n`;
-    msg += `${window.location.origin}\n`;
+    const url = cleanedPhone
+      ? `https://wa.me/55${cleanedPhone}?text=${encodeURIComponent(msg)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
 
-    const encoded = encodeURIComponent(msg);
-    const targetUrl = cleanedPhone
-      ? `https://wa.me/55${cleanedPhone}?text=${encoded}`
-      : `https://api.whatsapp.com/send?text=${encoded}`;
-    window.open(targetUrl, '_blank');
+    window.open(url, '_blank');
   };
 
   return (
-    <div className="space-y-4 text-slate-100">
+    <div className="space-y-4 text-slate-100 relative">
+      {/* Real-time Store Action Toast */}
+      {actionToast && (
+        <div className="fixed top-4 right-4 z-50 bg-slate-900 border-2 border-amber-500 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-slideDown">
+          <span className="text-amber-400 font-extrabold text-lg">🔔</span>
+          <span className="text-xs font-bold text-slate-100">{actionToast}</span>
+        </div>
+      )}
+
       {/* 1. HUMANIZED GREETING & EXPEDIENTE BANNER */}
       <div className="bg-slate-800 border border-slate-700/80 rounded-2xl p-3.5 text-white flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -784,17 +801,28 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                           {mOrders.length > 0 && (
                             <div className="space-y-1.5 pt-1">
-                              <div className="flex items-center justify-between pb-1 border-b border-slate-700">
+                              <div className="flex items-center justify-between pb-1 border-b border-slate-700 gap-1.5">
                                 <span className="text-[10px] font-bold text-slate-400 uppercase">Pedidos vinculados</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSendWhatsAppToMotoboy(m)}
-                                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
-                                  title="Avisar o motoboy via WhatsApp que os pedidos estão prontos para retirada"
-                                >
-                                  <span>📱</span>
-                                  <span>Avisar {m.name.split(' ')[0]} (WhatsApp)</span>
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleNotifyMotoboyInApp(m)}
+                                    className="px-2 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-[10px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                                    title="Notificar no aplicativo do motoboy que todos os pedidos estão prontos para retirada"
+                                  >
+                                    <span>🔔</span>
+                                    <span>Avisar no App</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendWhatsAppToMotoboy(m)}
+                                    className="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-[10px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                                    title="Avisar o motoboy via WhatsApp"
+                                  >
+                                    <span>📱</span>
+                                    <span>WhatsApp</span>
+                                  </button>
+                                </div>
                               </div>
 
                               {mOrders.map((ord, idx) => (
@@ -829,46 +857,64 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                         ? '🎒 Retirado pelo Motoboy'
                                         : ord.status === 'in_transit'
                                         ? '🛵 Em Rota'
-                                        : '⏳ Aguardando'}
+                                        : '⏳ Em Cozinha'}
                                     </span>
                                   </div>
 
                                   <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-700 text-[11px]">
                                     {ord.status !== 'ready_at_counter' && ord.status !== 'picked_up' && ord.status !== 'in_transit' ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          onUpdateOrderStatus(ord.id, 'ready_at_counter');
-                                          const msg = `Olá ${m.name}! 🛍️ O pedido #${ord.codeNumber} (${ord.clientName} - ${ord.address}) está PRONTO NO BALCÃO! Por favor, confirme a retirada no seu app de entregas! 🛵`;
-                                          const phone = m.phone ? m.phone.replace(/\D/g, '') : '';
-                                          const url = phone
-                                            ? `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`
-                                            : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                                          window.open(url, '_blank');
-                                        }}
-                                        className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-bold rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
-                                        title="Avisar ao motoboy que o pedido está pronto no balcão"
-                                      >
-                                        <span>🔔</span>
-                                        <span>Avisar que está pronto</span>
-                                      </button>
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            onUpdateOrderStatus(ord.id, 'ready_at_counter');
+                                            triggerActionToast(`🔔 Pedido #${ord.codeNumber} marcado como PRONTO no App de ${m.name.split(' ')[0]}!`);
+                                          }}
+                                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                                          title="Enviar aviso direto para o App do motoboy"
+                                        >
+                                          <span>🔔</span>
+                                          <span>Avisar no App (Pronto)</span>
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            onUpdateOrderStatus(ord.id, 'ready_at_counter');
+                                            const msg = `Olá ${m.name}! 🛍️ O pedido #${ord.codeNumber} (${ord.clientName} - ${ord.address}) está PRONTO NO BALCÃO! Por favor, confirme a retirada no seu app! 🛵`;
+                                            const phone = m.phone ? m.phone.replace(/\D/g, '') : '';
+                                            const url = phone
+                                              ? `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`
+                                              : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                                            window.open(url, '_blank');
+                                          }}
+                                          className="p-1 bg-emerald-800 hover:bg-emerald-700 text-white font-bold rounded-lg transition-all"
+                                          title="Avisar também pelo WhatsApp"
+                                        >
+                                          <span>📱</span>
+                                        </button>
+                                      </div>
                                     ) : ord.status === 'ready_at_counter' ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const msg = `Olá ${m.name}! 🛍️ O pedido #${ord.codeNumber} (${ord.clientName} - ${ord.address}) está PRONTO NO BALCÃO! Pode vir retirar na loja para sair para entrega! 🛵`;
-                                          const phone = m.phone ? m.phone.replace(/\D/g, '') : '';
-                                          const url = phone
-                                            ? `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`
-                                            : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                                          window.open(url, '_blank');
-                                        }}
-                                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
-                                        title="Avisar no WhatsApp do Motoboy que o pedido está pronto"
-                                      >
-                                        <span>📱</span>
-                                        <span>Avisar {m.name.split(' ')[0]}</span>
-                                      </button>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-extrabold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                                          ✓ Avisado no App
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const msg = `Olá ${m.name}! 🛍️ O pedido #${ord.codeNumber} (${ord.clientName} - ${ord.address}) está PRONTO NO BALCÃO! Pode vir retirar na loja para sair para entrega! 🛵`;
+                                            const phone = m.phone ? m.phone.replace(/\D/g, '') : '';
+                                            const url = phone
+                                              ? `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`
+                                              : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                                            window.open(url, '_blank');
+                                          }}
+                                          className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[10px] rounded-md transition-all"
+                                          title="Reforçar mensagem via WhatsApp"
+                                        >
+                                          📱 Reforçar Zap
+                                        </button>
+                                      </div>
                                     ) : ord.status === 'picked_up' ? (
                                       <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
                                         ✓ Retirado (Aguardando Rota)
