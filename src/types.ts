@@ -1,4 +1,4 @@
-export type OrderStatus = 'pending' | 'preparing' | 'ready_at_counter' | 'in_transit' | 'delivered' | 'cancelled';
+export type OrderStatus = 'pending' | 'preparing' | 'ready_at_counter' | 'picked_up' | 'in_transit' | 'delivered' | 'cancelled';
 export type PaymentMethod = 'pix' | 'cartao_maquininha' | 'dinheiro';
 
 export interface OrderItem {

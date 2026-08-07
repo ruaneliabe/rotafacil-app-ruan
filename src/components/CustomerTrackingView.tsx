@@ -46,6 +46,7 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
       case 'preparing':
         return 1;
       case 'ready_at_counter':
+      case 'picked_up':
         return 2;
       case 'in_transit':
         return 3;
@@ -97,7 +98,9 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
                 : order.status === 'in_transit'
                 ? 'O motoboy está a caminho do seu endereço! 🛵'
                 : order.status === 'ready_at_counter'
-                ? 'Seu pedido está pronto e aguardando o motoboy!'
+                ? 'Seu pedido está pronto no balcão e aguardando a retirada!'
+                : order.status === 'picked_up'
+                ? 'O motoboy retirou seu pedido na loja e iniciará o trajeto em instantes! 🎒'
                 : 'Seu pedido está sendo preparado na cozinha! 🔥'}
             </h1>
             <p className="text-xs text-slate-500 mt-1">Código de Rastreio: {order.trackingCode}</p>

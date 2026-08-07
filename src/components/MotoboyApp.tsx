@@ -556,20 +556,39 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                     Entrega {assignedOrders.findIndex(o => o.status === 'in_transit') >= 0 ? assignedOrders.findIndex(o => o.status === 'in_transit') + 1 : 1} de {assignedOrders.length}
                   </span>
                 </div>
-              ) : assignedOrders.length > 1 ? (
-                /* BATCH START BUTTON ONLY IF ALL ARE STILL PENDING IN BAG */
+              ) : assignedOrders.some((o) => o.status !== 'picked_up' && o.status !== 'in_transit') ? (
+                /* BATCH PICKUP CONFIRMATION BUTTON */
                 <button
                   type="button"
                   onClick={() => {
                     assignedOrders.forEach((o) => {
-                      onUpdateOrderStatus(o.id, 'in_transit');
+                      if (o.status !== 'picked_up' && o.status !== 'in_transit') {
+                        onUpdateOrderStatus(o.id, 'picked_up');
+                      }
+                    });
+                    triggerSystemActionToast("✅ Retirada de todos os pedidos confirmada! Clique em Iniciar Rota ao sair.");
+                  }}
+                  className="w-full py-3.5 px-4 bg-amber-400 hover:bg-amber-300 active:scale-[0.98] text-slate-950 font-black text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer"
+                >
+                  <ShoppingBag className="w-4 h-4 fill-current" />
+                  Confirma retirada de todos os pedidos ({assignedOrders.length})
+                </button>
+              ) : assignedOrders.some((o) => o.status === 'picked_up') ? (
+                /* BATCH START ROUTE BUTTON */
+                <button
+                  type="button"
+                  onClick={() => {
+                    assignedOrders.forEach((o) => {
+                      if (o.status === 'picked_up') {
+                        onUpdateOrderStatus(o.id, 'in_transit');
+                      }
                     });
                     triggerSystemActionToast("🚀 Rota Iniciada! Todas as entregas estão em andamento.");
                   }}
-                  className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer"
+                  className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer animate-pulse"
                 >
                   <Zap className="w-4 h-4 fill-current" />
-                  Iniciar Rota Completa ({assignedOrders.length} Entregas)
+                  Iniciar rota completa ({assignedOrders.length} Entregas)
                 </button>
               ) : null
             )}
@@ -714,8 +733,8 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                               ? 'bg-amber-400 text-slate-950 font-black'
                               : isInTransit
                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse'
-                              : order.status === 'ready_at_counter'
-                              ? 'bg-emerald-400 text-slate-950 font-black animate-pulse'
+                              : order.status === 'picked_up'
+                              ? 'bg-emerald-400 text-slate-950 font-black'
                               : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                           }`}
                         >
@@ -727,21 +746,21 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             <>
                               <Navigation className="w-3 h-3" /> EM ROTA
                             </>
-                          ) : order.status === 'ready_at_counter' ? (
+                          ) : order.status === 'picked_up' ? (
                             <>
-                              <ShoppingBag className="w-3 h-3" /> RETIRAR NO BALCÃO
+                              <ShoppingBag className="w-3 h-3" /> RETIRADO (NA BAG)
                             </>
                           ) : (
                             <>
-                              <Clock className="w-3 h-3" /> Na Bolsa
+                              <Clock className="w-3 h-3" /> PRONTO NO BALCÃO
                             </>
                           )}
                         </span>
                       </div>
 
                       <div className="p-3.5 space-y-3">
-                        {/* READY AT COUNTER NOTICE BANNER */}
-                        {order.status === 'ready_at_counter' && (
+                        {/* NOTICE BANNERS FOR STEPS */}
+                        {order.status !== 'picked_up' && order.status !== 'in_transit' ? (
                           <div className="bg-amber-500/20 border-2 border-amber-400/80 p-3 rounded-xl flex items-center gap-2.5 text-xs text-amber-100 shadow-md">
                             <ShoppingBag className="w-5 h-5 text-amber-300 shrink-0" />
                             <div>
@@ -749,11 +768,23 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                 PRONTO PARA RETIRADA NO BALCÃO
                               </span>
                               <span className="text-[11px] text-amber-300 font-medium leading-tight block">
-                                Pegue a bag na cozinha/balcão e clique em "Retirei no Balcão" para iniciar a rota.
+                                A loja avisou que está pronto! Pegue o pacote e clique em "Confirma retirada do pedido".
                               </span>
                             </div>
                           </div>
-                        )}
+                        ) : order.status === 'picked_up' ? (
+                          <div className="bg-emerald-500/20 border-2 border-emerald-400/80 p-3 rounded-xl flex items-center gap-2.5 text-xs text-emerald-100 shadow-md">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-300 shrink-0" />
+                            <div>
+                              <span className="font-black text-emerald-200 block text-xs uppercase tracking-wide">
+                                RETIRADA CONFIRMADA (NA BAG)
+                              </span>
+                              <span className="text-[11px] text-emerald-300 font-medium leading-tight block">
+                                Quando subir na moto para iniciar o trajeto, clique em "Iniciar rota".
+                              </span>
+                            </div>
+                          </div>
+                        ) : null}
                         {/* 1º ONDE EU VOU? (ADDRESS IS THE PROTAGONIST) */}
                         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
                           <div className="flex items-center justify-between">
@@ -884,25 +915,36 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                           </button>
                         </div>
 
-                        {/* 5º PROGRESSIVE ACTION BUTTONS (VERDE = AÇÃO PRINCIPAL) */}
+                        {/* 5º PROGRESSIVE ACTION BUTTONS (PASSOS DA ENTREGA) */}
                         <div className="pt-1.5 space-y-2 border-t border-slate-800">
-                          {!isInTransit ? (
-                            /* STATE 1: NA BOLSA -> INICIAR ENTREGA ONLY (VERDE) */
+                          {order.status !== 'picked_up' && !isInTransit ? (
+                            /* PASSO 2: CONFIRMAR RETIRADA DO PEDIDO */
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onUpdateOrderStatus(order.id, 'picked_up');
+                                triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada! Próximo passo: Iniciar Rota.`);
+                              }}
+                              className="w-full py-3.5 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all uppercase cursor-pointer"
+                            >
+                              <ShoppingBag className="w-5 h-5 text-slate-950 fill-current" />
+                              Confirma retirada do pedido
+                            </button>
+                          ) : order.status === 'picked_up' ? (
+                            /* PASSO 3: INICIAR ROTA */
                             <button
                               type="button"
                               onClick={() => {
                                 onUpdateOrderStatus(order.id, 'in_transit');
-                                triggerSystemActionToast("🚀 Pedido retirado no balcão! Rota iniciada e cliente notificado.");
+                                triggerSystemActionToast(`🚀 Rota iniciada para o pedido #${order.codeNumber}! Cliente notificado.`);
                               }}
-                              className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all uppercase cursor-pointer"
+                              className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-950/50 transition-all uppercase cursor-pointer animate-pulse"
                             >
-                              <Zap className="w-4 h-4 fill-current" />
-                              {order.status === 'ready_at_counter'
-                                ? '🛍️ RETIREI NO BALCÃO E SAÍ PARA ENTREGA'
-                                : '🚀 Iniciar Entrega'}
+                              <Zap className="w-5 h-5 fill-current" />
+                              Iniciar rota
                             </button>
                           ) : !hasArrived ? (
-                            /* STATE 2: EM ROTA -> BOTÃO "CHEGUEI AO LOCAL" EM DESTAQUE */
+                            /* STATE: EM ROTA -> BOTÃO "CHEGUEI AO LOCAL" */
                             <button
                               type="button"
                               onClick={() => {
@@ -916,7 +958,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                               CHEGUEI AO LOCAL
                             </button>
                           ) : (
-                            /* STATE 3: CHEGOU -> CONCLUIR ENTREGA & CARREGAR PRÓXIMA PARADA */
+                            /* STATE: CHEGOU -> CONCLUIR ENTREGA */
                             <button
                               type="button"
                               onClick={() => {

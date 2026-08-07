@@ -187,13 +187,13 @@ export default function App() {
       ...orderObj,
       assignedMotoboyId: targetMotoboy.id,
       assignedMotoboyName: targetMotoboy.name,
-      status: 'in_transit',
+      status: orderObj.status === 'in_transit' || orderObj.status === 'picked_up' ? orderObj.status : 'ready_at_counter',
     };
 
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
       activeOrdersCount: targetMotoboy.activeOrdersCount + 1,
-      status: 'delivering',
+      status: targetMotoboy.status === 'delivering' ? 'delivering' : 'available',
     };
 
     // Update local & cloud
@@ -202,7 +202,7 @@ export default function App() {
     saveOrderToCloud(updatedOrder);
     saveMotoboyToCloud(updatedMotoboy);
 
-    showToast(`Pedido #${updatedOrder.codeNumber} atribuído a ${targetMotoboy.name}! 🛵`);
+    showToast(`Pedido #${updatedOrder.codeNumber} atribuído a ${targetMotoboy.name}! Lanche marcado como PRONTO no balcão. 🛍️`);
   };
 
   const handleAssignBatchToMotoboy = (orderIds: string[], motoboyId: string) => {
@@ -220,7 +220,7 @@ export default function App() {
           ...o,
           assignedMotoboyId: targetMotoboy.id,
           assignedMotoboyName: targetMotoboy.name,
-          status: 'in_transit',
+          status: o.status === 'in_transit' || o.status === 'picked_up' ? o.status : 'ready_at_counter',
         };
         saveOrderToCloud(updated);
         return updated;
@@ -231,14 +231,14 @@ export default function App() {
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
       activeOrdersCount: targetMotoboy.activeOrdersCount + orderIds.length,
-      status: 'delivering',
+      status: targetMotoboy.status === 'delivering' ? 'delivering' : 'available',
     };
 
     setOrders(updatedOrdersList);
     setMotoboys((prev) => prev.map((m) => (m.id === motoboyId ? updatedMotoboy : m)));
     saveMotoboyToCloud(updatedMotoboy);
 
-    showToast(`Bag de Rota com ${orderIds.length} pedidos despachada para ${targetMotoboy.name}! 🎒🛵`);
+    showToast(`Bag de Rota com ${orderIds.length} pedidos atribuída a ${targetMotoboy.name}! Pronta para retirada no balcão. 🎒🛍️`);
   };
 
   const handleConfirmArrivalAtStore = (motoboyId: string) => {
@@ -277,6 +277,19 @@ export default function App() {
     setOrders((prev) => prev.map((ord) => (ord.id === orderId ? updatedOrder : ord)));
     saveOrderToCloud(updatedOrder);
 
+    // If order goes in_transit, update motoboy status to delivering
+    if (status === 'in_transit' && targetOrder.assignedMotoboyId) {
+      const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);
+      if (targetMotoboy && targetMotoboy.status !== 'delivering') {
+        const updatedMotoboy: Motoboy = {
+          ...targetMotoboy,
+          status: 'delivering',
+        };
+        setMotoboys((prev) => prev.map((m) => (m.id === targetMotoboy.id ? updatedMotoboy : m)));
+        saveMotoboyToCloud(updatedMotoboy);
+      }
+    }
+
     // Update motoboy status & earnings if delivered
     if (status === 'delivered' && targetOrder.assignedMotoboyId) {
       const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);
@@ -312,10 +325,20 @@ export default function App() {
           );
         }
       }
+    } else if (status === 'picked_up') {
+      showToast(
+        `✅ Retirada do Pedido #${targetOrder.codeNumber} confirmada pelo motoboy! Próximo passo: Iniciar Rota.`,
+        4000
+      );
     } else if (status === 'in_transit') {
       showToast(
-        `🛵 Pedido #${targetOrder.codeNumber} SAIU PARA ENTREGA! Rastreio enviado via WhatsApp para ${targetOrder.clientName}.`,
+        `🚀 Pedido #${targetOrder.codeNumber} INICIOU A ROTA! Rastreio ativo para ${targetOrder.clientName}.`,
         5000
+      );
+    } else if (status === 'ready_at_counter') {
+      showToast(
+        `🛍️ Motoboy avisado! Pedido #${targetOrder.codeNumber} pronto para retirada no balcão.`,
+        4000
       );
     } else {
       showToast(`Status do pedido #${targetOrder.codeNumber} atualizado!`);

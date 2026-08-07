@@ -794,13 +794,17 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                       className={`px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0 ${
                                         ord.status === 'ready_at_counter'
                                           ? 'bg-amber-400 text-slate-950 shadow-xs animate-pulse'
+                                          : ord.status === 'picked_up'
+                                          ? 'bg-emerald-500 text-slate-950 shadow-xs font-black'
                                           : ord.status === 'in_transit'
-                                          ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                          ? 'bg-blue-100 text-blue-900 border border-blue-300'
                                           : 'bg-slate-200 text-slate-700'
                                       }`}
                                     >
                                       {ord.status === 'ready_at_counter'
                                         ? '🛍️ Pronto Balcão'
+                                        : ord.status === 'picked_up'
+                                        ? '🎒 Retirado pelo Motoboy'
                                         : ord.status === 'in_transit'
                                         ? '🛵 Em Rota'
                                         : '⏳ Aguardando'}
@@ -808,23 +812,29 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   </div>
 
                                   <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 text-[11px]">
-                                    {ord.status !== 'ready_at_counter' && ord.status !== 'in_transit' ? (
+                                    {ord.status !== 'ready_at_counter' && ord.status !== 'picked_up' && ord.status !== 'in_transit' ? (
                                       <button
                                         type="button"
                                         onClick={() => {
                                           onUpdateOrderStatus(ord.id, 'ready_at_counter');
+                                          const msg = `Olá ${m.name}! 🛍️ O pedido #${ord.codeNumber} (${ord.clientName} - ${ord.address}) está PRONTO NO BALCÃO! Por favor, confirme a retirada no seu app de entregas! 🛵`;
+                                          const phone = m.phone ? m.phone.replace(/\D/g, '') : '';
+                                          const url = phone
+                                            ? `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`
+                                            : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                                          window.open(url, '_blank');
                                         }}
-                                        className="px-2 py-1 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
-                                        title="Avisar que o lanche/pizza está embalado no balcão"
+                                        className="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-lg shadow-xs flex items-center gap-1 cursor-pointer transition-all"
+                                        title="Avisar ao motoboy que o pedido está pronto no balcão"
                                       >
-                                        <span>🛍️</span>
-                                        <span>Marcar Pronto no Balcão</span>
+                                        <span>🔔</span>
+                                        <span>Avisar ao motoboy que está pronto</span>
                                       </button>
-                                    ) : (
+                                    ) : ord.status === 'ready_at_counter' ? (
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          const msg = `Olá ${m.name}! 🛍️ O pedido #${ord.codeNumber} (${ord.clientName} - ${ord.address}) está PRONTO NO BALCÃO! Pode vir retirar na loja do Hope Burger para sair para entrega! 🛵`;
+                                          const msg = `Olá ${m.name}! 🛍️ O pedido #${ord.codeNumber} (${ord.clientName} - ${ord.address}) está PRONTO NO BALCÃO! Pode vir retirar na loja para sair para entrega! 🛵`;
                                           const phone = m.phone ? m.phone.replace(/\D/g, '') : '';
                                           const url = phone
                                             ? `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`
@@ -837,7 +847,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                         <span>📱</span>
                                         <span>Avisar {m.name.split(' ')[0]}</span>
                                       </button>
-                                    )}
+                                    ) : ord.status === 'picked_up' ? (
+                                      <span className="text-[11px] font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                                        ✓ Retirado pelo motoboy (Aguardando Iniciar Rota)
+                                      </span>
+                                    ) : null}
 
                                     <button
                                       type="button"
