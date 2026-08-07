@@ -118,6 +118,25 @@ export async function deleteAllMotoboysFromCloud() {
   }
 }
 
+export async function deleteAllOrdersFromCloud() {
+  try {
+    const colRef = collection(db, 'orders');
+    const snapshot = await getDocs(colRef);
+    const deletePromises = snapshot.docs.map((docSnap) => deleteDoc(docSnap.ref));
+    await Promise.all(deletePromises);
+  } catch (err) {
+    console.error('Error deleting all orders from cloud:', err);
+  }
+}
+
+export async function clearAllDatabaseData() {
+  try {
+    await Promise.all([deleteAllOrdersFromCloud(), deleteAllMotoboysFromCloud()]);
+  } catch (err) {
+    console.error('Error clearing all database data:', err);
+  }
+}
+
 export async function saveShiftToCloud(shift: StoreShift) {
   try {
     const docRef = doc(db, 'shifts', 'current_shift');

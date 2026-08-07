@@ -30,6 +30,7 @@ interface MotoboyAppProps {
   onUpdateOrderStatus: (orderId: string, status: Order['status']) => void;
   onSimulateArrival: (order: Order) => void;
   onConfirmArrivalAtStore?: (motoboyId: string) => void;
+  onUpdateMotoboyStatus?: (motoboyId: string, status: Motoboy['status']) => void;
   initialMotoboyId?: string;
   isLockedToMotoboy?: boolean;
   onLogout?: () => void;
@@ -41,6 +42,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   onUpdateOrderStatus,
   onSimulateArrival,
   onConfirmArrivalAtStore,
+  onUpdateMotoboyStatus,
   initialMotoboyId,
   isLockedToMotoboy = false,
   onLogout,
@@ -57,6 +59,8 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [showNotificationToast, setShowNotificationToast] = useState<boolean>(false);
+  const [notificationToastTitle, setNotificationToastTitle] = useState<string>('NOVO PEDIDO OU ROTA DISPONÍVEL');
+  const [notificationToastMessage, setNotificationToastMessage] = useState<string>('Novo pedido ou rota disponível');
   const [actionToast, setActionToast] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallGuide, setShowInstallGuide] = useState<boolean>(false);
@@ -162,7 +166,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   };
 
   // Sound and vibration alert
-  const playNewOrderAlert = () => {
+  const playNewOrderAlert = (bodyMsg: string = 'Novo pedido ou rota disponível') => {
     if (!soundEnabled) return;
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
@@ -214,7 +218,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
         new Notification('Rota Fácil Delivery 🛵', {
-          body: 'Novo pedido ou rota disponível na sua bolsa!',
+          body: bodyMsg,
           tag: 'new-order-alert',
         });
       } catch (err) {
@@ -235,17 +239,31 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       return;
     }
 
-    const hasNewAssignmentOrReady = currentAssignedIds.some(
-      (idStatus) => !prevAssignedIdsRef.current.includes(idStatus)
+    const newOrChanged = assignedOrders.filter(
+      (o) => !prevAssignedIdsRef.current.includes(`${o.id}_${o.status}`)
     );
 
-    if (hasNewAssignmentOrReady) {
-      playNewOrderAlert();
+    if (newOrChanged.length > 0) {
+      const isReadyAtCounter = newOrChanged.some((o) => o.status === 'ready_at_counter');
+      const title = isReadyAtCounter
+        ? 'PEDIDO PRONTO PARA RETIRADA 🛍️'
+        : 'NOVO PEDIDO OU ROTA DISPONÍVEL 🔔';
+      const msg = isReadyAtCounter
+        ? 'Pedido pronto para retirada'
+        : 'Novo pedido ou rota disponível';
+
+      setNotificationToastTitle(title);
+      setNotificationToastMessage(msg);
+      playNewOrderAlert(msg);
       setShowNotificationToast(true);
+
       const timer = setTimeout(() => setShowNotificationToast(false), 7000);
+      // ALWAYS update ref first before returning cleanup timer
+      prevAssignedIdsRef.current = currentAssignedIds;
       return () => clearTimeout(timer);
     }
 
+    // ALWAYS update ref
     prevAssignedIdsRef.current = currentAssignedIds;
   }, [assignedOrders]);
 
@@ -294,28 +312,28 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   };
 
   return (
-    <div className="w-full max-w-md mx-auto bg-slate-950 text-slate-100 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col font-sans min-h-[680px] relative">
+    <div className="w-full max-w-md mx-auto bg-slate-50 text-slate-900 rounded-3xl border border-slate-200 shadow-md overflow-hidden flex flex-col font-sans min-h-[680px] relative">
       
       {/* Toast Alert when new order is assigned */}
       {showNotificationToast && (
-        <div className="absolute top-16 left-3 right-3 z-50 bg-slate-900/95 border-2 border-emerald-500 text-slate-100 p-3.5 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-fadeIn backdrop-blur-md">
+        <div className="absolute top-16 left-3 right-3 z-50 bg-white/95 border-2 border-emerald-500 text-slate-900 p-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-3 animate-fadeIn backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold shrink-0">
-              <BellRing className="w-5 h-5 text-emerald-400" />
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center justify-center font-bold shrink-0">
+              <BellRing className="w-5 h-5 text-emerald-700" />
             </div>
             <div>
-              <span className="font-extrabold text-xs text-emerald-300 uppercase tracking-wide block">
-                NOVA ROTA / PEDIDO DISPONÍVEL 🔔
+              <span className="font-extrabold text-xs text-emerald-800 uppercase tracking-wide block">
+                {notificationToastTitle}
               </span>
-              <span className="text-xs font-semibold text-slate-300">
-                A loja atualizou os pedidos da sua bolsa.
+              <span className="text-xs font-semibold text-slate-700">
+                {notificationToastMessage}
               </span>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setShowNotificationToast(false)}
-            className="text-emerald-950 bg-emerald-400 hover:bg-emerald-300 font-extrabold text-xs px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-sm shrink-0"
+            className="text-white bg-slate-900 hover:bg-slate-800 font-extrabold text-xs px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs shrink-0"
           >
             OK
           </button>
@@ -324,8 +342,8 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
       {/* Official Store Automation Notification Toast */}
       {actionToast && (
-        <div className="absolute top-16 left-3 right-3 z-50 bg-slate-900/95 border-2 border-emerald-500/70 text-emerald-100 p-3.5 rounded-2xl shadow-2xl flex items-center gap-3 animate-fadeIn backdrop-blur-md">
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 font-black text-base border border-emerald-500/40">
+        <div className="absolute top-16 left-3 right-3 z-50 bg-white/95 border-2 border-slate-900 text-slate-900 p-3.5 rounded-2xl shadow-xl flex items-center gap-3 animate-fadeIn backdrop-blur-md">
+          <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 font-black text-base border border-emerald-300">
             ✓
           </div>
           <div className="text-xs font-extrabold leading-snug">
@@ -335,31 +353,31 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       )}
 
       {/* 1. Header Bar - Clean Motoboy Profile & Action Bar */}
-      <div className="bg-slate-900 px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
+      <div className="bg-white px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3">
         {/* Left: Driver Avatar + Protagonist Name + Online Badge + ID */}
         <div className="flex items-center gap-3 min-w-0">
           {/* Motoboy Photo / Avatar */}
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-slate-950 flex items-center justify-center font-black text-lg shadow-md shadow-emerald-500/20 shrink-0 border border-emerald-400/30">
+          <div className="w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-lg shadow-2xs shrink-0 border border-slate-700">
             {activeMotoboy?.name ? activeMotoboy.name.charAt(0).toUpperCase() : '👤'}
           </div>
 
           <div className="min-w-0">
             {/* Protagonist Name */}
-            <h3 className="font-black text-base sm:text-lg text-white leading-snug truncate">
+            <h3 className="font-black text-base sm:text-lg text-slate-900 leading-snug truncate">
               {activeMotoboy?.name || 'Entregador'}
             </h3>
 
             {/* Online Status Badge (+2px larger text) */}
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-              <span className="text-xs font-bold text-emerald-400 truncate">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <span className="text-xs font-bold text-emerald-700 truncate">
                 Modo Entregador • Online
               </span>
             </div>
 
             {/* Driver ID / Vehicle Plate (Smaller & Subtle) */}
-            <div className="text-[11px] font-mono font-medium text-slate-400 mt-0.5">
-              ID: <span className="text-slate-300 font-bold">{activeMotoboy?.plate || activeMotoboy?.id.slice(0, 8).toUpperCase() || 'BNU-9B88'}</span>
+            <div className="text-[11px] font-mono font-medium text-slate-500 mt-0.5">
+              ID: <span className="text-slate-800 font-bold">{activeMotoboy?.plate || activeMotoboy?.id.slice(0, 8).toUpperCase() || 'BNU-9B88'}</span>
             </div>
           </div>
         </div>
@@ -377,10 +395,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               triggerSystemActionToast('Sinal sonoro de entrega testado!');
             }}
             title="Testar sinal sonoro de entregas"
-            className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 active:scale-95 text-amber-400 border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs"
+            className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 border border-slate-200 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer shadow-2xs"
           >
-            <Volume2 className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline text-slate-300">Som</span>
+            <Volume2 className="w-4 h-4 text-amber-600" />
+            <span className="hidden sm:inline text-slate-700">Som</span>
           </button>
 
           {/* PWA Install Button (Hides if already in standalone app mode) */}
@@ -389,7 +407,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               type="button"
               onClick={handleInstallClick}
               title="Instalar App no Celular"
-              className="px-2.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 active:scale-95 text-emerald-300 border border-emerald-500/40 transition-all flex items-center gap-1.5 text-xs font-extrabold cursor-pointer"
+              className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 border border-slate-200 transition-all flex items-center gap-1.5 text-xs font-extrabold cursor-pointer"
             >
               <span>📲</span>
               <span className="hidden sm:inline">Instalar</span>
@@ -402,9 +420,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               type="button"
               onClick={handleLogoutAccount}
               title="Sair da Conta de Entregador"
-              className="px-2.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 text-rose-300 border border-rose-500/30 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+              className="px-2.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
             >
-              <LogOut className="w-4 h-4 text-rose-400" />
+              <LogOut className="w-4 h-4 text-rose-600" />
               <span>Sair</span>
             </button>
           ) : (
@@ -412,7 +430,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               value={activeMotoboyId}
               onChange={(e) => setActiveMotoboyId(e.target.value)}
               title="Alternar Perfil de Entregador"
-              className="bg-slate-800 text-slate-200 font-bold text-xs py-2 px-2.5 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 max-w-[120px] truncate cursor-pointer"
+              className="bg-slate-100 text-slate-800 font-bold text-xs py-2 px-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 max-w-[120px] truncate cursor-pointer"
             >
               {motoboys.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -426,30 +444,30 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
       {/* PWA INSTALL GUIDE MODAL */}
       {showInstallGuide && (
-        <div className="bg-slate-900 border-b border-emerald-500/40 p-4 space-y-3 text-xs text-slate-200">
+        <div className="bg-white border-b border-slate-200 p-4 space-y-3 text-xs text-slate-800">
           <div className="flex items-center justify-between">
-            <span className="font-extrabold text-sm text-emerald-400 flex items-center gap-1.5">
+            <span className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
               📱 Como instalar como App no Celular
             </span>
             <button
               onClick={() => setShowInstallGuide(false)}
-              className="text-slate-400 hover:text-white font-bold text-sm px-2 py-0.5 rounded bg-slate-800"
+              className="text-slate-500 hover:text-slate-900 font-bold text-sm px-2 py-0.5 rounded bg-slate-100"
             >
               ✕
             </button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
-              <span className="font-extrabold text-amber-300 block">🤖 No Android (Chrome):</span>
-              <p className="text-slate-300 leading-relaxed">
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+              <span className="font-extrabold text-slate-900 block">🤖 No Android (Chrome):</span>
+              <p className="text-slate-600 leading-relaxed">
                 1. Toque nos <strong>3 pontinhos (⋮)</strong> no canto superior do navegador.<br />
                 2. Toque em <strong>"Adicionar à tela inicial"</strong> ou <strong>"Instalar aplicativo"</strong>.<br />
                 3. O ícone do Rota Fácil aparecerá na sua tela como um app nativo!
               </p>
             </div>
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
-              <span className="font-extrabold text-cyan-300 block">🍏 No iPhone (Safari):</span>
-              <p className="text-slate-300 leading-relaxed">
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+              <span className="font-extrabold text-slate-900 block">🍏 No iPhone (Safari):</span>
+              <p className="text-slate-600 leading-relaxed">
                 1. Toque no botão de <strong>Compartilhar (↑)</strong> no rodapé do Safari.<br />
                 2. Role para baixo e toque em <strong>"Adicionar à Tela de Início"</strong>.<br />
                 3. Confirme em "Adicionar" no topo direito.
@@ -460,18 +478,18 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       )}
 
       {/* 2. Top Summary Earnings & Progress Bar */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-900 px-4 py-2.5 border-b border-slate-800 space-y-1.5">
+      <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 space-y-1.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-200 font-extrabold flex items-center gap-1.5">
-              <ShoppingBag className="w-4 h-4 text-emerald-400" />
+            <span className="text-xs text-slate-800 font-extrabold flex items-center gap-1.5">
+              <ShoppingBag className="w-4 h-4 text-slate-700" />
               {assignedOrders.length === 1 ? '1 pedido na bolsa' : `${assignedOrders.length} pedidos na bolsa`}
             </span>
           </div>
 
-          <div className="flex items-center gap-2 bg-emerald-950/80 border border-emerald-500/40 px-3 py-1 rounded-xl">
-            <span className="text-[10px] text-emerald-300 font-black uppercase">Hoje:</span>
-            <span className="font-black text-sm text-emerald-400">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1 rounded-xl shadow-2xs">
+            <span className="text-[10px] text-slate-500 font-black uppercase">Hoje:</span>
+            <span className="font-black text-sm text-slate-900">
               {formattedCurrency(activeMotoboy?.totalEarnedToday || 0)}
             </span>
           </div>
@@ -480,13 +498,13 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         {/* PROGRESS BAR FOR DELIVERY RUN */}
         {(assignedOrders.length > 0 || completedOrders.length > 0) && (
           <div className="pt-1">
-            <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-400 mb-1">
+            <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-500 mb-1">
               <span>PROGRESSO DA ROTA</span>
-              <span className="text-emerald-400">{completedOrders.length} de {assignedOrders.length + completedOrders.length} entregas concluídas</span>
+              <span className="text-slate-800">{completedOrders.length} de {assignedOrders.length + completedOrders.length} entregas concluídas</span>
             </div>
-            <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden flex">
+            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
               <div
-                className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-500 rounded-full"
+                className="bg-slate-900 h-full transition-all duration-500 rounded-full"
                 style={{
                   width: `${
                     (assignedOrders.length + completedOrders.length) > 0
@@ -501,20 +519,20 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       </div>
 
       {/* 3. Navigation Tabs */}
-      <div className="bg-slate-900/80 px-3 py-2 border-b border-slate-800 flex items-center gap-2">
+      <div className="bg-slate-100 px-3 py-2 border-b border-slate-200 flex items-center gap-2">
         <button
           type="button"
           onClick={() => setActiveTab('active')}
-          className={`flex-1 py-3 px-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+          className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
             activeTab === 'active'
-              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-              : 'bg-slate-800/80 text-slate-400 hover:text-white'
+              ? 'bg-slate-900 text-white shadow-2xs'
+              : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200'
           }`}
         >
           <Zap className="w-4 h-4" />
           Minha Bolsa
           <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-            activeTab === 'active' ? 'bg-slate-950 text-emerald-400' : 'bg-slate-700 text-slate-300'
+            activeTab === 'active' ? 'bg-slate-800 text-slate-100' : 'bg-slate-100 text-slate-700'
           }`}>
             {assignedOrders.length}
           </span>
@@ -523,16 +541,16 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         <button
           type="button"
           onClick={() => setActiveTab('completed')}
-          className={`flex-1 py-3 px-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+          className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
             activeTab === 'completed'
-              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-              : 'bg-slate-800/80 text-slate-400 hover:text-white'
+              ? 'bg-slate-900 text-white shadow-2xs'
+              : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200'
           }`}
         >
           <CheckCircle2 className="w-4 h-4" />
           Concluídas
           <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
-            activeTab === 'completed' ? 'bg-slate-950 text-emerald-400' : 'bg-slate-700 text-slate-300'
+            activeTab === 'completed' ? 'bg-slate-800 text-slate-100' : 'bg-slate-100 text-slate-700'
           }`}>
             {completedOrders.length}
           </span>
@@ -540,7 +558,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       </div>
 
       {/* 4. Main Body Content */}
-      <div className="p-3.5 space-y-4 flex-1 overflow-y-auto bg-slate-950 flex flex-col justify-between">
+      <div className="p-3.5 space-y-4 flex-1 overflow-y-auto bg-slate-50 flex flex-col justify-between">
         {activeTab === 'active' ? (
           <>
             {/* Quick Batch Bar or Informative Status Bar */}
@@ -597,16 +615,16 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             {assignedOrders.length === 0 ? (
               <div className="my-auto space-y-4 py-4">
                 {activeMotoboy?.status === 'returning_to_store' ? (
-                  <div className="bg-slate-900/90 rounded-3xl p-6 text-center border border-amber-500/40 space-y-4 shadow-xl">
-                    <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
-                      <Building2 className="w-7 h-7 text-amber-400" />
+                  <div className="bg-white rounded-3xl p-6 text-center border border-amber-300 space-y-4 shadow-sm">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
+                      <Building2 className="w-7 h-7 text-amber-700" />
                     </div>
                     <div>
-                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 inline-block mb-1.5">
+                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-200 inline-block mb-1.5">
                         ROTA CONCLUÍDA
                       </span>
-                      <h4 className="font-black text-white text-lg">Voltando para a Loja</h4>
-                      <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto font-medium">
+                      <h4 className="font-black text-slate-900 text-lg">Voltando para a Loja</h4>
+                      <p className="text-xs text-slate-600 mt-1 max-w-xs mx-auto font-medium">
                         Hope Burger (Rua dos Caçadores, 653)
                       </p>
                     </div>
@@ -619,7 +637,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             onConfirmArrivalAtStore(activeMotoboy.id);
                             triggerSystemActionToast("✅ Status atualizado: Você entrou na fila de rodízio da loja!");
                           }}
-                          className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-extrabold text-xs rounded-xl border border-slate-700 transition-all inline-flex items-center gap-2 cursor-pointer shadow-md"
+                          className="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs"
                         >
                           <MapPin className="w-4 h-4 text-emerald-400" />
                           <span>Cheguei à loja</span>
@@ -629,18 +647,18 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                   </div>
                 ) : (
                   /* NA FILA DE RODÍZIO VIEW */
-                  <div className="bg-slate-900/90 rounded-3xl p-6 text-center border border-emerald-500/40 space-y-4 shadow-xl">
-                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border-2 border-emerald-500/40">
-                      <Store className="w-8 h-8 text-emerald-400" />
+                  <div className="bg-white rounded-3xl p-6 text-center border border-slate-200 space-y-4 shadow-sm">
+                    <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto border-2 border-emerald-200">
+                      <Store className="w-8 h-8 text-emerald-700" />
                     </div>
 
                     <div>
-                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 inline-flex items-center gap-1.5 mb-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1.5 mb-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                         Disponível na Loja
                       </span>
-                      <h4 className="font-black text-white text-xl">Fila de Rodízio</h4>
-                      <p className="text-xs text-slate-400 mt-1 font-medium">
+                      <h4 className="font-black text-slate-900 text-xl">Fila de Rodízio</h4>
+                      <p className="text-xs text-slate-600 mt-1 font-medium">
                         Aguardando próximo despacho de pedidos da cozinha...
                       </p>
                     </div>
@@ -653,11 +671,11 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                       return (
                         <div className="pt-2 text-center">
-                          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-1">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
                               Sua Posição no Rodízio
                             </span>
-                            <span className="text-2xl font-black text-emerald-400 block">
+                            <span className="text-2xl font-black text-slate-900 block">
                               {queuePos}º na fila
                             </span>
                           </div>
@@ -665,19 +683,35 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                       );
                     })()}
 
-                    {onConfirmArrivalAtStore && activeMotoboy && (
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onConfirmArrivalAtStore(activeMotoboy.id);
-                            triggerSystemActionToast("✅ Presença confirmada na fila da loja!");
-                          }}
-                          className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all inline-flex items-center gap-2 cursor-pointer shadow-md"
-                        >
-                          <MapPin className="w-4 h-4 text-emerald-400" />
-                          <span>Confirmar Presença na Loja</span>
-                        </button>
+                    {activeMotoboy && (
+                      <div className="pt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
+                        {onConfirmArrivalAtStore && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onConfirmArrivalAtStore(activeMotoboy.id);
+                              triggerSystemActionToast("✅ Presença confirmada na fila de espera da loja!");
+                            }}
+                            className="w-full sm:w-auto py-2.5 px-4 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                          >
+                            <MapPin className="w-4 h-4 fill-current" />
+                            <span>Confirmar Presença na Loja</span>
+                          </button>
+                        )}
+
+                        {onUpdateMotoboyStatus && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onUpdateMotoboyStatus(activeMotoboy.id, 'busy');
+                              triggerSystemActionToast("⏸️ Você saiu da fila da loja e pausou seu atendimento.");
+                            }}
+                            className="w-full sm:w-auto py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs rounded-xl border border-rose-200 transition-all inline-flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                          >
+                            <LogOut className="w-4 h-4 text-rose-600" />
+                            <span>Sair da Fila / Pausar</span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -694,48 +728,48 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                   return (
                     <div
                       key={order.id}
-                      className={`rounded-2xl border transition-all overflow-hidden ${
+                      className={`rounded-2xl border transition-all overflow-hidden bg-white ${
                         hasArrived
-                          ? 'bg-slate-900 border-amber-400 shadow-xl shadow-amber-950/40 ring-2 ring-amber-400/40'
+                          ? 'border-amber-400 shadow-md ring-1 ring-amber-400/30'
                           : isInTransit
-                          ? 'bg-slate-900 border-emerald-500 shadow-lg shadow-emerald-950/40 ring-1 ring-emerald-500/30'
+                          ? 'border-slate-800 shadow-md'
                           : isFirstOrder
-                          ? 'bg-slate-900 border-slate-700 shadow-md'
-                          : 'bg-slate-900/80 border-slate-800 opacity-90'
+                          ? 'border-slate-300 shadow-xs'
+                          : 'border-slate-200'
                       }`}
                     >
-                      {/* Card Header: 🔥 PRÓXIMA ENTREGA or Parada #, Pedido #, Status */}
-                      <div className="bg-slate-950/90 px-3.5 py-2.5 border-b border-slate-800 flex items-center justify-between">
+                      {/* Card Header: PRÓXIMA ENTREGA or Parada #, Pedido #, Status */}
+                      <div className="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {isFirstOrder ? (
-                            <span className="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1 shadow-md">
+                            <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs flex items-center gap-1 shadow-2xs">
                               <Zap className="w-3.5 h-3.5 fill-current" />
                               PRÓXIMA ENTREGA
                             </span>
                           ) : (
-                            <span className="w-7 h-7 rounded-lg font-black text-xs bg-slate-800 text-slate-200 flex items-center justify-center border border-slate-700">
+                            <span className="w-7 h-7 rounded-lg font-bold text-xs bg-slate-200 text-slate-800 flex items-center justify-center border border-slate-300">
                               #{index + 1}
                             </span>
                           )}
                           <div>
-                            <span className="font-black text-sm text-white block leading-none">
+                            <span className="font-bold text-sm text-slate-900 block leading-none">
                               Pedido #{order.codeNumber}
                             </span>
-                            <span className="text-[10px] font-bold text-slate-400">
+                            <span className="text-[10px] font-semibold text-slate-500">
                               {isFirstOrder ? 'Foco Principal' : `Parada ${index + 1} de ${assignedOrders.length}`}
                             </span>
                           </div>
                         </div>
 
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase flex items-center gap-1 ${
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase flex items-center gap-1 ${
                             hasArrived
-                              ? 'bg-amber-400 text-slate-950 font-black'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
                               : isInTransit
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse'
+                              ? 'bg-slate-900 text-white'
                               : order.status === 'picked_up'
-                              ? 'bg-emerald-400 text-slate-950 font-black'
-                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : 'bg-amber-100 text-amber-800 border border-amber-300'
                           }`}
                         >
                           {hasArrived ? (
@@ -761,49 +795,49 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                       <div className="p-3.5 space-y-3">
                         {/* NOTICE BANNERS FOR STEPS */}
                         {order.status !== 'picked_up' && order.status !== 'in_transit' ? (
-                          <div className="bg-amber-500/20 border-2 border-amber-400/80 p-3 rounded-xl flex items-center gap-2.5 text-xs text-amber-100 shadow-md">
-                            <ShoppingBag className="w-5 h-5 text-amber-300 shrink-0" />
+                          <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex items-center gap-2.5 text-xs text-amber-900 shadow-2xs">
+                            <ShoppingBag className="w-5 h-5 text-amber-600 shrink-0" />
                             <div>
-                              <span className="font-black text-amber-200 block text-xs uppercase tracking-wide">
+                              <span className="font-bold text-amber-900 block text-xs uppercase tracking-wide">
                                 PRONTO PARA RETIRADA NO BALCÃO
                               </span>
-                              <span className="text-[11px] text-amber-300 font-medium leading-tight block">
+                              <span className="text-[11px] text-amber-800 font-medium leading-tight block">
                                 A loja avisou que está pronto! Pegue o pacote e clique em "Confirma retirada do pedido".
                               </span>
                             </div>
                           </div>
                         ) : order.status === 'picked_up' ? (
-                          <div className="bg-emerald-500/20 border-2 border-emerald-400/80 p-3 rounded-xl flex items-center gap-2.5 text-xs text-emerald-100 shadow-md">
-                            <CheckCircle2 className="w-5 h-5 text-emerald-300 shrink-0" />
+                          <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-center gap-2.5 text-xs text-emerald-900 shadow-2xs">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                             <div>
-                              <span className="font-black text-emerald-200 block text-xs uppercase tracking-wide">
+                              <span className="font-bold text-emerald-900 block text-xs uppercase tracking-wide">
                                 RETIRADA CONFIRMADA (NA BAG)
                               </span>
-                              <span className="text-[11px] text-emerald-300 font-medium leading-tight block">
+                              <span className="text-[11px] text-emerald-800 font-medium leading-tight block">
                                 Quando subir na moto para iniciar o trajeto, clique em "Iniciar rota".
                               </span>
                             </div>
                           </div>
                         ) : null}
                         {/* 1º ONDE EU VOU? (ADDRESS IS THE PROTAGONIST) */}
-                        <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold uppercase text-amber-300/90 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-amber-400" /> {order.neighborhood.toUpperCase()}
+                            <span className="text-[10px] font-bold uppercase text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-slate-600" /> {order.neighborhood.toUpperCase()}
                             </span>
-                            <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
+                            <span className="text-[10px] font-medium text-slate-500 flex items-center gap-1">
                               <Clock className="w-3 h-3 text-slate-400" />
                               {order.createdAt}
                             </span>
                           </div>
 
                           <div className="flex items-start gap-2 pt-0.5">
-                            <MapPin className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                            <MapPin className="w-5 h-5 text-slate-700 shrink-0 mt-0.5" />
                             <div>
-                              <p className="text-base font-black text-white leading-snug">
+                              <p className="text-base font-black text-slate-900 leading-snug">
                                 {order.address}
                               </p>
-                              <span className="text-xs text-slate-400 font-medium block">
+                              <span className="text-xs text-slate-500 font-medium block">
                                 {order.neighborhood} • Blumenau
                               </span>
                             </div>
@@ -811,12 +845,12 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                           {/* ESTIMATED TIME & DISTANCE */}
                           {isInTransit && (
-                            <div className="pt-1.5 flex items-center gap-2 border-t border-slate-900 text-[11px] font-bold">
-                              <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
-                                <Clock className="w-3 h-3" /> ~{7 + (index * 3)} min
+                            <div className="pt-1.5 flex items-center gap-2 border-t border-slate-200 text-[11px] font-bold">
+                              <span className="text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-slate-600" /> ~{7 + (index * 3)} min
                               </span>
-                              <span className="text-slate-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 flex items-center gap-1">
-                                <Navigation className="w-3 h-3 text-slate-400" /> {(1.5 + index * 0.8).toFixed(1)} km
+                              <span className="text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
+                                <Navigation className="w-3 h-3 text-slate-600" /> {(1.5 + index * 0.8).toFixed(1)} km
                               </span>
                             </div>
                           )}
@@ -824,18 +858,18 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                         {/* 2º CLIENT & CONTACT (SHOW WHEN IN TRANSIT) */}
                         {isInTransit && (
-                          <div className="flex items-center justify-between bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">
-                            <div className="flex items-center gap-2 text-xs font-bold text-white">
-                              <User className="w-3.5 h-3.5 text-slate-400" />
+                          <div className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+                              <User className="w-3.5 h-3.5 text-slate-500" />
                               <span>{order.clientName}</span>
                             </div>
 
                             {order.clientPhone && (
                               <a
                                 href={`tel:${order.clientPhone}`}
-                                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1 text-[11px] font-semibold transition-all"
+                                className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 flex items-center gap-1 text-[11px] font-semibold transition-all shadow-2xs"
                               >
-                                <Phone className="w-3 h-3 text-slate-400" /> Ligar
+                                <Phone className="w-3 h-3 text-slate-500" /> Ligar
                               </a>
                             )}
                           </div>
@@ -844,25 +878,25 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                         {/* 3º VOU COBRAR? (PAYMENT CARD - HIGHLIGHTED WHEN ARRIVED) */}
                         <div className={`p-3 rounded-xl transition-all ${
                           hasArrived
-                            ? 'bg-amber-950/60 border-2 border-amber-400 text-amber-100 shadow-lg'
-                            : 'bg-slate-950/90 border border-slate-800/90'
+                            ? 'bg-amber-50 border-2 border-amber-400 text-amber-900 shadow-sm'
+                            : 'bg-slate-50 border border-slate-200'
                         }`}>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
-                                hasArrived ? 'bg-amber-500 text-slate-950 border-amber-400' : 'bg-slate-900 border-slate-800'
+                                hasArrived ? 'bg-amber-400 text-slate-950 border-amber-500' : 'bg-white border-slate-200 text-slate-800'
                               }`}>
-                                {order.paymentMethod === 'dinheiro' && <DollarSign className={`w-4 h-4 ${hasArrived ? 'text-slate-950' : 'text-amber-400'}`} />}
-                                {order.paymentMethod === 'pix' && <QrCode className={`w-4 h-4 ${hasArrived ? 'text-slate-950' : 'text-emerald-400'}`} />}
-                                {order.paymentMethod === 'cartao_maquininha' && <CreditCard className={`w-4 h-4 ${hasArrived ? 'text-slate-950' : 'text-slate-300'}`} />}
+                                {order.paymentMethod === 'dinheiro' && <DollarSign className={`w-4 h-4 ${hasArrived ? 'text-slate-950' : 'text-amber-600'}`} />}
+                                {order.paymentMethod === 'pix' && <QrCode className={`w-4 h-4 ${hasArrived ? 'text-slate-950' : 'text-emerald-700'}`} />}
+                                {order.paymentMethod === 'cartao_maquininha' && <CreditCard className={`w-4 h-4 ${hasArrived ? 'text-slate-950' : 'text-slate-700'}`} />}
                               </div>
                               <div>
                                 <span className={`text-[10px] font-extrabold uppercase block ${
-                                  hasArrived ? 'text-amber-300' : 'text-slate-400'
+                                  hasArrived ? 'text-amber-800' : 'text-slate-500'
                                 }`}>
                                   {hasArrived ? '💰 RECEBER NO LOCAL' : 'Pagamento'}
                                 </span>
-                                <span className="font-bold text-xs uppercase block text-slate-100">
+                                <span className="font-bold text-xs uppercase block text-slate-900">
                                   {order.paymentMethod === 'dinheiro'
                                     ? '💵 Dinheiro'
                                     : order.paymentMethod === 'pix'
@@ -874,10 +908,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                             <div className="text-right">
                               <span className={`text-[10px] font-extrabold uppercase block ${
-                                hasArrived ? 'text-amber-300' : 'text-slate-400'
+                                hasArrived ? 'text-amber-800' : 'text-slate-500'
                               }`}>Cobrar</span>
                               <span className={`font-black text-2xl leading-none ${
-                                hasArrived ? 'text-amber-300' : 'text-white'
+                                hasArrived ? 'text-amber-900' : 'text-slate-900'
                               }`}>
                                 {formattedCurrency(order.total)}
                               </span>
@@ -885,9 +919,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                           </div>
 
                           {order.changeFor && (
-                            <div className="mt-2 pt-1.5 border-t border-slate-900/80 flex items-center justify-between text-xs font-bold text-amber-300">
+                            <div className="mt-2 pt-1.5 border-t border-slate-200 flex items-center justify-between text-xs font-bold text-amber-800">
                               <span>⚠️ TROCO PARA:</span>
-                              <span className="bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 font-mono text-amber-200">
+                              <span className="bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-mono text-amber-900">
                                 {formattedCurrency(order.changeFor)}
                               </span>
                             </div>
@@ -899,7 +933,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenWaze(order.address)}
-                            className="py-2.5 px-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
+                            className="py-2.5 px-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
                           >
                             <Navigation className="w-3.5 h-3.5 fill-current" />
                             WAZE
@@ -908,7 +942,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenGoogleMaps(order.address)}
-                            className="py-2.5 px-2 bg-blue-700 hover:bg-blue-600 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
+                            className="py-2.5 px-2 bg-blue-700 hover:bg-blue-600 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
                           >
                             <MapPin className="w-3.5 h-3.5" />
                             GOOGLE MAPS
@@ -916,7 +950,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                         </div>
 
                         {/* 5º PROGRESSIVE ACTION BUTTONS (PASSOS DA ENTREGA) */}
-                        <div className="pt-1.5 space-y-2 border-t border-slate-800">
+                        <div className="pt-1.5 space-y-2 border-t border-slate-200">
                           {order.status !== 'picked_up' && !isInTransit ? (
                             /* PASSO 2: CONFIRMAR RETIRADA DO PEDIDO */
                             <button
@@ -925,7 +959,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                 onUpdateOrderStatus(order.id, 'picked_up');
                                 triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada! Próximo passo: Iniciar Rota.`);
                               }}
-                              className="w-full py-3.5 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all uppercase cursor-pointer"
+                              className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
                             >
                               <ShoppingBag className="w-5 h-5 text-slate-950 fill-current" />
                               Confirma retirada do pedido
@@ -938,7 +972,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                 onUpdateOrderStatus(order.id, 'in_transit');
                                 triggerSystemActionToast(`🚀 Rota iniciada para o pedido #${order.codeNumber}! Cliente notificado.`);
                               }}
-                              className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-950/50 transition-all uppercase cursor-pointer animate-pulse"
+                              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
                             >
                               <Zap className="w-5 h-5 fill-current" />
                               Iniciar rota
@@ -952,7 +986,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                 onSimulateArrival(order);
                                 triggerSystemActionToast("📍 Status 'Cheguei ao local' atualizado! O cliente foi notificado pelo WhatsApp da Loja.");
                               }}
-                              className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-950/50 transition-all uppercase cursor-pointer"
+                              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
                             >
                               <span className="text-base">📍</span>
                               CHEGUEI AO LOCAL
@@ -965,7 +999,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                 onUpdateOrderStatus(order.id, 'delivered');
                                 triggerSystemActionToast("✓ Entregue! Carregando próxima parada...");
                               }}
-                              className="w-full py-3.5 bg-emerald-400 hover:bg-emerald-300 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-950/60 transition-all uppercase cursor-pointer"
+                              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
                             >
                               <CheckCircle2 className="w-5 h-5" />
                               {assignedOrders.length > 1 && index < assignedOrders.length - 1
@@ -985,32 +1019,32 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           /* COMPLETED ORDERS TAB */
           <div className="space-y-3">
             {completedOrders.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 space-y-2">
-                <CheckCircle2 className="w-12 h-12 mx-auto text-slate-600" />
+              <div className="py-12 text-center text-slate-500 space-y-2">
+                <CheckCircle2 className="w-12 h-12 mx-auto text-slate-400" />
                 <p className="text-xs font-bold">Nenhuma entrega concluída hoje ainda.</p>
               </div>
             ) : (
               completedOrders.map((ord) => (
                 <div
                   key={ord.id}
-                  className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl flex items-center justify-between text-xs"
+                  className="bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-between text-xs shadow-2xs"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-black text-white text-sm">Pedido #{ord.codeNumber}</span>
-                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      <span className="font-black text-slate-900 text-sm">Pedido #{ord.codeNumber}</span>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                         CONCLUÍDO
                       </span>
                     </div>
-                    <p className="text-slate-300 font-medium">{ord.clientName} • {ord.neighborhood}</p>
-                    <span className="text-[10px] text-slate-400 block">{ord.address}</span>
+                    <p className="text-slate-700 font-medium">{ord.clientName} • {ord.neighborhood}</p>
+                    <span className="text-[10px] text-slate-500 block">{ord.address}</span>
                   </div>
 
                   <div className="text-right">
-                    <span className="font-black text-emerald-400 text-base block">
+                    <span className="font-black text-slate-900 text-base block">
                       {formattedCurrency(ord.total)}
                     </span>
-                    <span className="text-[10px] text-slate-400 block font-bold">
+                    <span className="text-[10px] text-slate-500 block font-bold">
                       Taxa: +{formattedCurrency(activeMotoboy?.perDeliveryFee || 8.5)}
                     </span>
                   </div>
@@ -1022,10 +1056,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       </div>
 
       {/* 5. Footer Summary Bar & Logout CTA */}
-      <div className="bg-slate-900 px-4 py-3 border-t border-slate-800 flex flex-col gap-2">
-        <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
+      <div className="bg-white px-4 py-3 border-t border-slate-200 flex flex-col gap-2">
+        <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
           <span>📍 Blumenau - SC</span>
-          <span className="text-emerald-400 font-black">
+          <span className="text-slate-900 font-black">
             {completedOrders.length} {completedOrders.length === 1 ? 'entrega finalizada' : 'entregas finalizadas'}
           </span>
         </div>
@@ -1034,9 +1068,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           <button
             type="button"
             onClick={handleLogoutAccount}
-            className="w-full py-2 px-3 bg-rose-500/10 hover:bg-rose-500/20 active:scale-98 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer"
+            className="w-full py-2 px-3 bg-rose-50 hover:bg-rose-100 active:scale-98 text-rose-700 border border-rose-200 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
-            <LogOut className="w-4 h-4 text-rose-400" />
+            <LogOut className="w-4 h-4 text-rose-600" />
             <span>Sair da Conta (Trocar Entregador)</span>
           </button>
         )}

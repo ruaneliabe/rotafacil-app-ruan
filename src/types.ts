@@ -43,7 +43,7 @@ export interface Motoboy {
   password?: string; // Para login do motoboy
   vehicleModel: string; // e.g. "Honda CG 160 Fan"
   plate: string;
-  status: 'available' | 'delivering' | 'returning_to_store' | 'offline';
+  status: 'available' | 'delivering' | 'returning_to_store' | 'offline' | 'busy';
   activeOrdersCount: number;
   currentLat: number;
   currentLng: number;

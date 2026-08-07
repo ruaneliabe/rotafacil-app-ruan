@@ -21,6 +21,8 @@ import {
   saveMotoboyToCloud,
   deleteMotoboyFromCloud,
   deleteAllMotoboysFromCloud,
+  deleteAllOrdersFromCloud,
+  clearAllDatabaseData,
   saveShiftToCloud,
   seedInitialDataIfEmpty,
 } from './lib/firebase';
@@ -117,6 +119,15 @@ export default function App() {
     seedInitialDataIfEmpty().then(() => {
       setCloudSynced(true);
     });
+
+    // User requested wiping all existing data to start from 0
+    if (!localStorage.getItem('rota_facil_cleared_v2')) {
+      clearAllDatabaseData().then(() => {
+        localStorage.setItem('rota_facil_cleared_v2', 'true');
+        setOrders([]);
+        setMotoboys([]);
+      });
+    }
 
     const unsubOrders = subscribeToOrders((cloudOrders) => {
       setOrders(cloudOrders);
@@ -259,6 +270,40 @@ export default function App() {
 
     saveMotoboyToCloud(updatedMotoboy);
     showToast(`Motoboy ${targetMotoboy.name} chegou à loja e entrou no final da fila de rodízio! 🏁🛵`);
+  };
+
+  const handleUpdateMotoboyStatus = (motoboyId: string, status: Motoboy['status']) => {
+    const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
+    if (!targetMotoboy) return;
+
+    const updatedMotoboy: Motoboy = {
+      ...targetMotoboy,
+      status,
+    };
+
+    setMotoboys((prev) => prev.map((m) => (m.id === motoboyId ? updatedMotoboy : m)));
+    saveMotoboyToCloud(updatedMotoboy);
+
+    if (status === 'busy') {
+      showToast(`Motoboy ${targetMotoboy.name} saiu da fila de espera e pausou atendimento. ⏸️`);
+    } else if (status === 'available') {
+      showToast(`Motoboy ${targetMotoboy.name} entrou na fila de rodízio da loja! 🏁🛵`);
+    }
+  };
+
+  const handleClearAllData = async () => {
+    if (
+      window.confirm(
+        '⚠️ Tem certeza que deseja APAGAR TODOS OS DADOS (pedidos e motoboys)? O sistema será zerado para você começar do zero.'
+      )
+    ) {
+      await clearAllDatabaseData();
+      setOrders([]);
+      setMotoboys([]);
+      localStorage.removeItem('rota_facil_orders');
+      localStorage.removeItem('rota_facil_motoboys');
+      showToast('🧹 Todos os dados foram apagados! Banco zerado para você começar do zero. 🚀', 5000);
+    }
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
@@ -439,9 +484,9 @@ export default function App() {
   // Standalone Login Screen if not authenticated
   if (!session) {
     return (
-      <div className="min-h-screen bg-[#1c0429] text-purple-50 font-sans flex flex-col justify-center items-center p-4">
+      <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col justify-center items-center p-4">
         {toastMessage && (
-          <div className="fixed top-5 right-5 z-50 bg-gradient-to-r from-pink-600 to-purple-800 text-white font-black text-xs px-5 py-3.5 rounded-2xl shadow-2xl border-2 border-yellow-400 flex items-center gap-2 animate-bounce">
+          <div className="fixed top-5 right-5 z-50 bg-slate-800 border border-slate-700 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2">
             <span>{toastMessage}</span>
           </div>
         )}
@@ -457,12 +502,12 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1c0429] text-purple-50 font-sans flex flex-col selection:bg-pink-500 selection:text-white">
-      {/* Toast Notification - Clean, professional dark badge */}
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col selection:bg-slate-700 selection:text-white">
+      {/* Toast Notification - Clean, professional neutral badge */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-slate-900/95 border border-emerald-500/50 text-slate-100 font-bold text-xs px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-2.5 animate-fadeIn">
-          <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-3.5 h-3.5" />
+        <div className="fixed bottom-5 right-5 z-50 bg-slate-800/95 border border-slate-700 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-2.5 animate-fadeIn">
+          <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
           </div>
           <span>{toastMessage}</span>
         </div>
@@ -470,20 +515,20 @@ export default function App() {
 
       {/* Main Top Header Navigation - Store Admin Only */}
       {session.role === 'store_admin' && (
-        <header className="bg-slate-950 border-b border-slate-800 sticky top-0 z-40 shadow-md text-slate-100">
+        <header className="bg-slate-800/90 border-b border-slate-700/80 sticky top-0 z-40 backdrop-blur-md shadow-xs text-white">
           <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
             
             {/* Brand & Logo */}
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-lg shadow-md shadow-emerald-500/20 shrink-0">
-                <Building2 className="w-5 h-5 text-slate-950" />
+              <div className="w-9 h-9 rounded-xl bg-slate-900 text-white border border-slate-700 flex items-center justify-center font-black text-lg shadow-2xs shrink-0">
+                <Building2 className="w-5 h-5 text-slate-200" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="font-extrabold text-white text-base tracking-tight">
                     {shift.storeName || 'Rota Fácil'}
                   </h1>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase">
                     ONLINE 🟢
                   </span>
                 </div>
@@ -491,11 +536,11 @@ export default function App() {
             </div>
 
             {/* Center Info: Live Clock & Store Status */}
-            <div className="hidden md:flex items-center gap-2.5 bg-slate-900 px-3.5 py-1.5 rounded-xl border border-slate-800 text-xs font-semibold">
-              <span className="text-slate-300">{currentTimeStr || 'Hoje'}</span>
+            <div className="hidden md:flex items-center gap-2.5 bg-slate-900/80 px-3.5 py-1.5 rounded-xl border border-slate-700/70 text-xs font-semibold text-slate-300">
+              <span>{currentTimeStr || 'Hoje'}</span>
               <span className="text-slate-600">•</span>
               <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5" />
+                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
                 {shift.storeName || 'Loja Ativa'}
               </span>
             </div>
@@ -503,23 +548,25 @@ export default function App() {
             {/* User Status & Actions */}
             <div className="flex items-center gap-2.5">
               <button
+                type="button"
                 onClick={() => setIsAccountSettingsOpen(true)}
-                className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                 title="Configurações da Conta e Nome da Loja"
               >
-                <Settings className="w-3.5 h-3.5 text-emerald-400" />
+                <Settings className="w-3.5 h-3.5 text-slate-300" />
                 <span className="hidden sm:inline">Configurar Loja</span>
               </button>
 
-              <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
+              <div className="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-700 text-xs">
                 <UserCheck className="w-4 h-4 text-emerald-400" />
-                <span className="font-bold text-white">Loja (Admin)</span>
+                <span className="font-bold text-slate-100">Loja (Admin)</span>
                 <button
+                  type="button"
                   onClick={() => {
                     setSession(null);
                     showToast('Sessão encerrada.');
                   }}
-                  className="ml-1 px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-lg text-xs font-bold flex items-center gap-1 transition-all"
+                  className="ml-1 px-2 py-1 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 rounded-lg text-xs font-bold flex items-center gap-1 transition-all border border-rose-800/60 cursor-pointer"
                   title="Sair"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -567,6 +614,7 @@ export default function App() {
               orders={orders}
               onUpdateOrderStatus={handleUpdateOrderStatus}
               onConfirmArrivalAtStore={handleConfirmArrivalAtStore}
+              onUpdateMotoboyStatus={handleUpdateMotoboyStatus}
               onSimulateArrival={(order) => {
                 showToast(`Status "CHEGUEI" enviado ao cliente ${order.clientName}! 🔔`);
               }}
@@ -608,6 +656,7 @@ export default function App() {
         onClose={() => setIsAccountSettingsOpen(false)}
         shift={shift}
         onSaveSettings={handleSaveStoreSettings}
+        onClearAllData={handleClearAllData}
       />
     </div>
   );

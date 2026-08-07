@@ -94,13 +94,13 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
           <div>
             <h1 className="text-xl font-black text-slate-900">
               {order.status === 'delivered'
-                ? 'Seu pedido chegou! Bom apetite! 😋'
+                ? 'Seu pedido foi entregue! Bom apetite! 😋'
                 : order.status === 'in_transit'
-                ? 'O motoboy está a caminho do seu endereço! 🛵'
-                : order.status === 'ready_at_counter'
-                ? 'Seu pedido está pronto no balcão e aguardando a retirada!'
+                ? 'O entregador está a caminho do seu endereço! 🛵💨'
                 : order.status === 'picked_up'
-                ? 'O motoboy retirou seu pedido na loja e iniciará o trajeto em instantes! 🎒'
+                ? 'O entregador já retirou seu pedido na loja e iniciará a rota de entrega em instantes! 🎒'
+                : order.status === 'ready_at_counter'
+                ? 'Seu pedido está pronto e preparado para a saída do entregador! 📦'
                 : 'Seu pedido está sendo preparado na cozinha! 🔥'}
             </h1>
             <p className="text-xs text-slate-500 mt-1">Código de Rastreio: {order.trackingCode}</p>
@@ -170,6 +170,9 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
                 lat: shift.storeLat,
                 lng: shift.storeLng,
               }}
+              motoboyName={motoboy?.name}
+              motoboyVehicle={motoboy ? `${motoboy.vehicleModel} (${motoboy.plate})` : undefined}
+              showMotoboyMarker={Boolean(motoboy && (order.status === 'in_transit' || order.status === 'picked_up'))}
               stops={[
                 {
                   id: order.id,

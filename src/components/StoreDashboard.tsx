@@ -112,37 +112,41 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 text-slate-100">
       {/* 1. HUMANIZED GREETING & EXPEDIENTE BANNER */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 rounded-2xl p-3.5 text-white flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
+      <div className="bg-slate-800 border border-slate-700/80 rounded-2xl p-3.5 text-white flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 font-extrabold shadow-md">
-            <Building2 className="w-5 h-5 text-slate-950" />
+          <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 text-white flex items-center justify-center shrink-0 font-extrabold shadow-2xs">
+            <Building2 className="w-5 h-5 text-slate-200" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-base font-black text-white">{shift.storeName}</h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase">
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border uppercase ${
+                shift.isOpen ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-slate-700 text-slate-300 border-slate-600'
+              }`}>
                 {shift.isOpen ? 'Expediente Aberto' : 'Fechado'}
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 font-medium">
-              Hoje: <span className="text-slate-100 font-bold">{orders.length} pedidos</span> • <span className="text-emerald-400 font-bold">{deliveredToday.length} entregues</span> • <span className="text-amber-400 font-bold">{unassignedOrders.length} aguardando despacho</span> • <span className="text-blue-400 font-bold">{motoboys.length} motoboys em operação ({motoboysAvailable.length} na fila)</span>
+            <p className="text-xs sm:text-sm text-slate-300 font-medium mt-0.5">
+              Hoje: <span className="text-white font-bold">{orders.length} pedidos</span> • <span className="text-slate-200 font-bold">{deliveredToday.length} entregues</span> • <span className="text-slate-200 font-bold">{unassignedOrders.length} aguardando despacho</span> • <span className="text-slate-200 font-bold">{motoboys.length} motoboys em operação ({motoboysAvailable.length} na fila)</span>
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto justify-end">
           <button
+            type="button"
             onClick={onOpenNewOrderModal}
-            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-md cursor-pointer"
+            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 text-emerald-100" />
             Lançar Pedido
           </button>
           <button
+            type="button"
             onClick={onToggleShift}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs rounded-xl border border-slate-600 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Power className="w-3.5 h-3.5 text-rose-400" />
             {shift.isOpen ? 'Encerrar' : 'Abrir'}
@@ -151,7 +155,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       </div>
 
       {/* 2. TELA VIVA - TICKER DE EVENTOS EM TEMPO REAL */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs overflow-x-auto shadow-2xs">
+      <div className="bg-slate-800 border border-slate-700/80 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs overflow-x-auto shadow-2xs">
         <div className="flex items-center gap-2.5 shrink-0">
           <span className="flex h-2 w-2 relative">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -164,81 +168,87 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
         <div className="flex items-center gap-4 text-slate-300 font-medium text-xs sm:text-sm whitespace-nowrap overflow-x-auto px-2">
           {returningMotoboys.length > 0 ? (
-            <span className="text-amber-400 font-bold flex items-center gap-1 animate-pulse">
+            <span className="text-amber-300 font-bold flex items-center gap-1 animate-pulse">
               <Bike className="w-4 h-4 text-amber-400 inline" /> {returningMotoboys.map(m => m.name).join(', ')} retornando para a loja!
             </span>
           ) : (
-            <span className="text-emerald-300 font-bold flex items-center gap-1">
+            <span className="text-slate-200 font-bold flex items-center gap-1">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 inline" /> Equipe ativa: {motoboys.length} em operação • {motoboysAvailable.length} disponíveis na fila
             </span>
           )}
           <span className="text-slate-600">•</span>
           {unassignedOrders.length > 0 ? (
             <span className="text-amber-300 font-semibold flex items-center gap-1">
-              <Clock className="w-4 h-4 text-amber-300 inline" /> {unassignedOrders.length} {unassignedOrders.length === 1 ? 'pedido aguardando' : 'pedidos aguardando'} despacho
+              <Clock className="w-4 h-4 text-amber-400 inline" /> {unassignedOrders.length} {unassignedOrders.length === 1 ? 'pedido aguardando' : 'pedidos aguardando'} despacho
             </span>
           ) : (
-            <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+            <span className="text-slate-200 flex items-center gap-1 font-semibold">
               <Check className="w-4 h-4 text-emerald-400 inline" /> Todos os pedidos despachados
             </span>
           )}
           <span className="text-slate-600">•</span>
-          <span className="text-slate-300 font-mono text-xs">
+          <span className="text-slate-100 font-mono text-xs font-bold">
             Faturamento: {formattedCurrency(totalRevenue)}
           </span>
         </div>
 
-        <div className="hidden lg:flex items-center gap-1 text-[11px] text-slate-500 shrink-0 font-mono">
+        <div className="hidden lg:flex items-center gap-1 text-[11px] text-slate-400 shrink-0 font-mono">
           <span>Tempo Real</span>
         </div>
       </div>
 
       {/* 3. SUB NAVIGATION TABS */}
-      <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 flex items-center justify-between overflow-x-auto text-xs font-semibold text-slate-300">
+      <div className="bg-slate-800/80 p-1.5 rounded-xl border border-slate-700/80 flex items-center justify-between overflow-x-auto text-xs font-semibold text-slate-300">
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => setActiveTab('operacao')}
-            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'operacao'
-                ? 'bg-emerald-500 text-slate-950 font-black shadow-xs'
-                : 'hover:bg-slate-800 text-slate-300'
+                ? 'bg-slate-700 text-white font-bold shadow-2xs border border-slate-600'
+                : 'hover:bg-slate-700/50 text-slate-300'
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
             Operação
-            <span className="ml-1 px-1.5 py-0.2 rounded-full bg-slate-950 text-emerald-400 text-[10px] font-black">
+            <span className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeTab === 'operacao' ? 'bg-slate-900 text-white' : 'bg-slate-700 text-slate-300'
+            }`}>
               {activeOrders.length}
             </span>
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab('equipe')}
-            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'equipe'
-                ? 'bg-emerald-500 text-slate-950 font-black shadow-xs'
-                : 'hover:bg-slate-800 text-slate-300'
+                ? 'bg-slate-700 text-white font-bold shadow-2xs border border-slate-600'
+                : 'hover:bg-slate-700/50 text-slate-300'
             }`}
           >
             Equipe ({motoboys.length})
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab('financeiro')}
-            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'financeiro'
-                ? 'bg-emerald-500 text-slate-950 font-black shadow-xs'
-                : 'hover:bg-slate-800 text-slate-300'
+                ? 'bg-slate-700 text-white font-bold shadow-2xs border border-slate-600'
+                : 'hover:bg-slate-700/50 text-slate-300'
             }`}
           >
             Financeiro
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab('historico')}
-            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'historico'
-                ? 'bg-emerald-500 text-slate-950 font-black shadow-xs'
-                : 'hover:bg-slate-800 text-slate-300'
+                ? 'bg-slate-700 text-white font-bold shadow-2xs border border-slate-600'
+                : 'hover:bg-slate-700/50 text-slate-300'
             }`}
           >
             Histórico
@@ -247,15 +257,17 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => setIsSettlementOpen(true)}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold shadow-xs transition-all flex items-center gap-1.5 text-xs shrink-0"
+            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold shadow-2xs border border-slate-600 transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
           >
-            <Receipt className="w-3.5 h-3.5 text-emerald-100" /> Acerto Motoboy
+            <Receipt className="w-3.5 h-3.5 text-slate-300" /> Acerto Motoboy
           </button>
 
           <button
+            type="button"
             onClick={onOpenMotoboyModal}
-            className="px-3 py-1.5 bg-slate-800 text-slate-200 rounded-lg font-bold border border-slate-700 hover:bg-slate-700 transition-all flex items-center gap-1.5 text-xs shrink-0"
+            className="px-3 py-1.5 bg-slate-900 text-white rounded-lg font-bold border border-slate-700 hover:bg-slate-850 transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5 text-emerald-400" /> Cadastrar Motoboy
           </button>
@@ -267,20 +279,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
           {/* ALERT BANNER: MOTOBOY RETURNING TO STORE */}
           {returningMotoboys.length > 0 && (
-            <div className="bg-amber-500/10 border border-amber-500/40 p-3.5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm text-white">
+            <div className="bg-amber-950/60 border border-amber-700/80 p-3.5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs text-amber-100">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0">
                   <Bike className="w-5 h-5 text-slate-950" />
                 </div>
                 <div>
-                  <h4 className="font-extrabold text-white text-xs flex items-center gap-2">
+                  <h4 className="font-extrabold text-amber-200 text-xs flex items-center gap-2">
                     <span>MOTOBOY RETORNANDO À LOJA!</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 uppercase">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/30 text-amber-200 border border-amber-500/40 uppercase">
                       {returningMotoboys.length} {returningMotoboys.length === 1 ? 'entregador' : 'entregadores'}
                     </span>
                   </h4>
-                  <p className="text-xs text-slate-300">
-                    <strong>{returningMotoboys.map((m) => m.name).join(', ')}</strong> finalizou entregas e está chegando.
+                  <p className="text-xs text-amber-200/90">
+                    <strong className="text-white">{returningMotoboys.map((m) => m.name).join(', ')}</strong> finalizou entregas e está chegando.
                   </p>
                 </div>
               </div>
@@ -290,8 +302,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   {returningMotoboys.map((m) => (
                     <button
                       key={m.id}
+                      type="button"
                       onClick={() => onConfirmArrivalAtStore(m.id)}
-                      className="px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-lg shadow-xs flex items-center gap-1 transition-all cursor-pointer"
+                      className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-lg shadow-2xs flex items-center gap-1 transition-all cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" /> Confirmar Chegada: {m.name}
                     </button>
@@ -303,41 +316,40 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
           {/* 4. STRIPE-STYLE HIERARCHY METRICS CARDS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
-            {/* MAIN CARD (Bold green accent, main focus): Pedidos Ativos */}
-            <div className="lg:col-span-4 bg-gradient-to-br from-slate-900 to-slate-950 p-3.5 rounded-2xl border-2 border-emerald-500/50 shadow-md relative overflow-hidden flex flex-col justify-between">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
+            {/* MAIN CARD: Pedidos Ativos */}
+            <div className="lg:col-span-4 bg-slate-800 p-3.5 rounded-2xl border border-slate-700/80 shadow-2xs relative overflow-hidden flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-200">
                     <Package className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-xs font-black text-emerald-400 uppercase block">RESUMO DA OPERAÇÃO</span>
+                    <span className="text-xs font-black text-slate-400 uppercase block">RESUMO DA OPERAÇÃO</span>
                     <h3 className="text-sm sm:text-base font-black text-white">Pedidos Ativos</h3>
                   </div>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-black shadow-xs ${
+                <span className={`px-2.5 py-1 rounded-full text-xs font-black shadow-2xs ${
                   unassignedOrders.length > 0
-                    ? 'bg-amber-500 text-slate-950'
-                    : 'bg-emerald-500 text-slate-950'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                 }`}>
                   {unassignedOrders.length} sem motoboy
                 </span>
               </div>
               
-              <div className="mt-2 flex items-baseline gap-3">
+              <div className="mt-3 flex items-baseline gap-3">
                 <span className="text-4xl font-black text-white tracking-tight">{activeOrders.length}</span>
-                <span className="text-xs sm:text-sm text-slate-400 font-medium">
+                <span className="text-xs sm:text-sm text-slate-300 font-medium">
                   {readyAtCounter.length} prontos no balcão
                 </span>
               </div>
             </div>
 
             {/* MEDIUM CARD: Motoboys na Fila */}
-            <div className="lg:col-span-3 bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-xs flex flex-col justify-between">
+            <div className="lg:col-span-3 bg-slate-800 p-3.5 rounded-2xl border border-slate-700/80 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-slate-800 text-slate-300">
+                  <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300">
                     <Bike className="w-4 h-4" />
                   </div>
                   <span className="text-xs font-bold text-slate-400 uppercase">Motoboys na Fila</span>
@@ -350,10 +362,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   Fila de Rodízio
                 </span>
               </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className={`text-3xl font-black ${
-                  motoboysAvailable.length > 0 ? 'text-emerald-400' : 'text-amber-400'
-                }`}>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="text-3xl font-black text-white">
                   {motoboysAvailable.length}/{motoboys.length}
                 </span>
                 <span className="text-xs text-slate-300 font-medium">
@@ -363,35 +373,35 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
 
             {/* SECONDARY COMPACT CARD: Entregues Hoje */}
-            <div className="lg:col-span-2 bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-xs flex flex-col justify-between">
+            <div className="lg:col-span-2 bg-slate-800 p-3.5 rounded-2xl border border-slate-700/80 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center gap-1.5 text-slate-400">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 <span className="text-xs font-bold uppercase">Entregues</span>
               </div>
-              <div className="mt-1">
+              <div className="mt-2">
                 <span className="text-2xl font-black text-white">{deliveredToday.length}</span>
                 <span className="text-xs text-slate-400 block font-medium">concluídos hoje</span>
               </div>
             </div>
 
             {/* SECONDARY COMPACT CARD: Faturamento Hoje */}
-            <div className="lg:col-span-3 bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-xs flex flex-col justify-between">
+            <div className="lg:col-span-3 bg-slate-800 p-3.5 rounded-2xl border border-slate-700/80 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center gap-1.5 text-slate-400">
                 <DollarSign className="w-4 h-4 text-emerald-400" />
                 <span className="text-xs font-bold uppercase">Faturamento Hoje</span>
               </div>
-              <div className="mt-1">
+              <div className="mt-2">
                 <span className="text-xl font-black text-emerald-400">{formattedCurrency(totalRevenue)}</span>
                 <span className="text-xs text-slate-400 block font-medium">{orders.length} pedidos lançados</span>
               </div>
             </div>
           </div>
 
-          {/* 5. DESPACHO VISUAL SECTION (With enlarged map taking ~58% width) */}
-          <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+          {/* 5. DESPACHO VISUAL SECTION */}
+          <div className="bg-slate-800 rounded-2xl border border-slate-700/80 shadow-2xs p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-700 pb-2.5">
               <div>
-                <span className="text-xs font-black text-emerald-400 uppercase">
+                <span className="text-xs font-black text-slate-400 uppercase">
                   DESPACHO VISUAL INTELIGENTE
                 </span>
                 <h3 className="text-base sm:text-lg font-extrabold text-white">Escolha a melhor rota para o próximo despacho</h3>
@@ -404,7 +414,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
               {/* Left Column: Pedidos sem motoboy (42% width) */}
-              <div className="lg:col-span-5 bg-slate-950 rounded-xl p-3 border border-slate-800 space-y-2.5">
+              <div className="lg:col-span-5 bg-slate-900/60 rounded-xl p-3 border border-slate-700/70 space-y-2.5">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="font-bold text-xs text-slate-300 uppercase">
                     Pedidos sem motoboy ({unassignedOrders.length})
@@ -413,13 +423,14 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     <button
                       type="button"
                       onClick={onOpenNewOrderModal}
-                      className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-lg transition-all flex items-center gap-1 shadow-xs cursor-pointer"
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-lg transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5 text-emerald-100" />
                       Lançar Pedido
                     </button>
                     {unassignedOrders.length > 1 && (
                       <button
+                        type="button"
                         onClick={() => {
                           if (selectedOrderIds.length === unassignedOrders.length) {
                             setSelectedOrderIds([]);
@@ -427,7 +438,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             setSelectedOrderIds(unassignedOrders.map((o) => o.id));
                           }
                         }}
-                        className="text-[11px] font-bold text-emerald-400 hover:underline"
+                        className="text-[11px] font-bold text-slate-300 hover:text-white underline cursor-pointer"
                       >
                         {selectedOrderIds.length === unassignedOrders.length
                           ? 'Desmarcar'
@@ -451,13 +462,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   if (proximityGroups.length === 0) return null;
 
                   return (
-                    <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200 text-xs space-y-1.5">
-                      <span className="text-[10px] font-extrabold uppercase text-slate-700 block">
+                    <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 text-xs space-y-1.5 shadow-2xs">
+                      <span className="text-[10px] font-extrabold uppercase text-amber-300 block">
                         📍 Agrupamento de Rota Próxima Detectado
                       </span>
                       {proximityGroups.map(([neigh, list]) => (
-                        <div key={neigh} className="flex items-center justify-between bg-white p-1.5 rounded-lg border border-slate-200">
-                          <span className="text-[11px] font-bold text-slate-900">
+                        <div key={neigh} className="flex items-center justify-between bg-slate-900/80 p-1.5 rounded-lg border border-slate-700">
+                          <span className="text-[11px] font-bold text-slate-200">
                             {list.length} pedidos no bairro <strong>{neigh}</strong>
                           </span>
                           <button
@@ -465,9 +476,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             onClick={() => {
                               setSelectedOrderIds(list.map((o) => o.id));
                             }}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1"
+                            className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-2xs transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1"
                           >
-                            <Zap className="w-3 h-3 text-emerald-200" /> Agrupar Bag
+                            <Zap className="w-3 h-3 text-slate-950" /> Agrupar Bag
                           </button>
                         </div>
                       ))}
@@ -477,14 +488,15 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                 {/* Batch Dispatch Bar when orders are checked */}
                 {selectedOrderIds.length > 0 && (
-                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-700 text-white space-y-2 shadow-md animate-fade-in">
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-white space-y-2 shadow-sm animate-fade-in">
                     <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-emerald-400 flex items-center gap-1 font-extrabold">
+                      <span className="text-white flex items-center gap-1 font-extrabold">
                         🎒 Bag Ativa ({selectedOrderIds.length} {selectedOrderIds.length === 1 ? 'pedido' : 'pedidos'})
                       </span>
                       <button
+                        type="button"
                         onClick={() => setSelectedOrderIds([])}
-                        className="text-[10px] text-slate-400 hover:text-white underline font-semibold"
+                        className="text-[10px] text-slate-300 hover:text-white underline font-semibold cursor-pointer"
                       >
                         Limpar seleção
                       </button>
@@ -515,7 +527,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             setSelectedOrderIds([]);
                           }
                         }}
-                        className="px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-lg shadow-sm shrink-0 flex items-center gap-1"
+                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-2xs shrink-0 flex items-center gap-1 cursor-pointer"
                       >
                         <Zap className="w-3.5 h-3.5" /> Despachar Bag
                       </button>
@@ -525,8 +537,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                 <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
                   {unassignedOrders.length === 0 ? (
-                    <div className="p-5 text-center bg-slate-900/60 rounded-xl border border-slate-800/80 my-2 space-y-2">
-                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto text-lg font-bold">
+                    <div className="p-5 text-center bg-slate-900/80 rounded-xl border border-slate-700/70 my-2 space-y-2 shadow-2xs">
+                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center mx-auto text-lg font-bold">
                         ✓
                       </div>
                       <h5 className="text-sm font-extrabold text-white">Todos os pedidos estão em rota!</h5>
@@ -540,10 +552,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       return (
                         <div
                           key={ord.id}
-                          className={`bg-white p-3 rounded-xl border transition-all space-y-2 shadow-2xs ${
+                          className={`bg-slate-800 p-3 rounded-xl border transition-all space-y-2 shadow-2xs ${
                             isSelected
-                              ? 'border-2 border-emerald-500 bg-emerald-50/40 ring-1 ring-emerald-500/30'
-                              : 'border-slate-200/80 hover:border-slate-400'
+                              ? 'border-2 border-emerald-500 bg-slate-800/90 ring-1 ring-emerald-500/30'
+                              : 'border-slate-700/80 hover:border-slate-600'
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -558,44 +570,46 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     setSelectedOrderIds((prev) => prev.filter((id) => id !== ord.id));
                                   }
                                 }}
-                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 cursor-pointer bg-slate-900 border-slate-700"
                               />
-                              <span className="font-extrabold text-sm text-slate-900">
+                              <span className="font-extrabold text-sm text-white">
                                 #{ord.codeNumber} - {ord.clientName}
                               </span>
                             </div>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-emerald-400 border border-slate-700">
                               {formattedCurrency(ord.total)}
                             </span>
                           </div>
 
                           <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold text-slate-700">📍 {ord.neighborhood}</p>
-                            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
+                            <p className="text-xs font-semibold text-slate-300">📍 {ord.neighborhood}</p>
+                            <span className="text-[10px] bg-slate-900 text-slate-300 px-1.5 py-0.5 rounded font-mono border border-slate-700">
                               {ord.itemsSummary.split('+')[0]}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 line-clamp-1">{ord.address}</p>
+                          <p className="text-xs text-slate-400 line-clamp-1">{ord.address}</p>
 
-                          <div className="pt-2 border-t border-slate-100 space-y-2">
+                          <div className="pt-2 border-t border-slate-700/80 space-y-2">
                             {/* Row 1: Quick Action Links */}
                             <div className="flex items-center justify-between gap-2">
                               <button
+                                type="button"
                                 onClick={() => onSelectOrderForTracking(ord)}
-                                className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-2 py-1 rounded-md transition-colors flex items-center gap-1"
+                                className="text-[11px] font-semibold text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
                               >
                                 Rastreio <ArrowUpRight className="w-3 h-3 text-slate-400" />
                               </button>
 
                               <button
+                                type="button"
                                 onClick={() => {
                                   setTicketOrder(ord);
                                   setIsTicketOpen(true);
                                 }}
-                                className="text-[11px] font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md border border-slate-200/80 flex items-center gap-1 transition-colors"
+                                className="text-[11px] font-bold text-slate-200 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded-md border border-slate-600 flex items-center gap-1 transition-colors cursor-pointer"
                                 title="Imprimir Comanda 80mm / Enviar WhatsApp"
                               >
-                                <Printer className="w-3 h-3 text-slate-500" /> Comanda
+                                <Printer className="w-3 h-3 text-slate-300" /> Comanda
                               </button>
                             </div>
 
@@ -614,10 +628,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                         onAssignOrderToMotoboy(ord.id, firstAvailable.id);
                                       }
                                     }}
-                                    className="flex-1 min-w-0 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-xs flex items-center justify-center gap-1 transition-all cursor-pointer truncate"
+                                    className="flex-1 min-w-0 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center justify-center gap-1 transition-all cursor-pointer truncate"
                                     title={`Despachar imediatamente para 1º da fila: ${firstAvailable?.name}`}
                                   >
-                                    <Zap className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                                    <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                                     <span className="truncate">Despachar 1º ({firstName})</span>
                                   </button>
                                 );
@@ -630,13 +644,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   }
                                 }}
                                 defaultValue=""
-                                className="w-24 shrink-0 px-2 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg cursor-pointer focus:outline-none transition-colors border-0"
+                                className="w-24 shrink-0 px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg cursor-pointer focus:outline-none transition-colors border border-slate-600"
                               >
-                                <option value="" disabled>
+                                <option value="" disabled className="bg-slate-900 text-slate-400">
                                   Fila...
                                 </option>
                                 {motoboys.map((m, idx) => (
-                                  <option key={m.id} value={m.id} className="text-slate-900 bg-white">
+                                  <option key={m.id} value={m.id} className="text-white bg-slate-900">
                                     {idx + 1}º - {m.name}
                                   </option>
                                 ))}
@@ -678,24 +692,24 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </div>
 
                 {/* Rotas disponíveis dos Motoboys */}
-                <div className="md:col-span-5 bg-slate-50/80 rounded-2xl p-3 border border-slate-200/70 space-y-3">
+                <div className="md:col-span-5 bg-slate-900/60 rounded-2xl p-3 border border-slate-700/70 space-y-3">
                   <div className="flex flex-col gap-2">
-                    <h4 className="font-bold text-xs text-slate-700 uppercase">
+                    <h4 className="font-bold text-xs text-slate-300 uppercase">
                       Status da Equipe em Tempo Real
                     </h4>
 
                     {/* STATUS TIMELINE BAR */}
-                    <div className="flex items-center gap-1.5 p-2 bg-white rounded-xl border border-slate-200 text-[10px] font-bold text-slate-700 flex-wrap shadow-2xs">
-                      <span className="flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-emerald-800">
+                    <div className="flex items-center gap-1.5 p-2 bg-slate-800 rounded-xl border border-slate-700 text-[10px] font-bold text-slate-300 flex-wrap shadow-2xs">
+                      <span className="flex items-center gap-1 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 text-emerald-300">
                         🟢 Na fila ({motoboys.filter((m) => m.status === 'available').length})
                       </span>
-                      <span className="flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-amber-800">
+                      <span className="flex items-center gap-1 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 text-amber-300">
                         🟠 Retornando ({motoboys.filter((m) => m.status === 'returning_to_store').length})
                       </span>
-                      <span className="flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-blue-800">
+                      <span className="flex items-center gap-1 bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/30 text-blue-300">
                         🔵 Em rota ({motoboys.filter((m) => m.status === 'delivering').length})
                       </span>
-                      <span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-slate-600">
+                      <span className="flex items-center gap-1 bg-slate-700 px-2 py-0.5 rounded border border-slate-600 text-slate-300">
                         ⚫ Offline ({motoboys.filter((m) => m.status === 'offline').length})
                       </span>
                     </div>
@@ -716,29 +730,30 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       return (
                         <div
                           key={m.id}
-                          className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-2 shadow-2xs"
+                          className="bg-slate-800 p-3 rounded-xl border border-slate-700/80 space-y-2 shadow-2xs"
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-[#1e4d3b] text-white flex items-center justify-center font-black text-xs">
+                              <div className="w-7 h-7 rounded-full bg-slate-900 border border-slate-700 text-white flex items-center justify-center font-black text-xs">
                                 {m.name.charAt(0)}
                               </div>
                               <div>
-                                <h5 className="font-bold text-xs text-slate-900">{m.name}</h5>
-                                <span className="text-[10px] text-slate-500 font-medium">{mOrders.length} {mOrders.length === 1 ? 'parada na rota' : 'paradas na rota'}</span>
+                                <h5 className="font-bold text-xs text-white">{m.name}</h5>
+                                <span className="text-[10px] text-slate-400 font-medium">{mOrders.length} {mOrders.length === 1 ? 'parada na rota' : 'paradas na rota'}</span>
                               </div>
                             </div>
 
                             {/* TIMELINE STATUS BADGES */}
                             {m.status === 'returning_to_store' ? (
                               <div className="flex items-center gap-1">
-                                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
                                   🟠 Retornando
                                 </span>
                                 {onConfirmArrivalAtStore && (
                                   <button
+                                    type="button"
                                     onClick={() => onConfirmArrivalAtStore(m.id)}
-                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xs cursor-pointer"
+                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-2xs cursor-pointer"
                                     title="Confirmar Chegada na Fila"
                                   >
                                     ✓ Chegou
@@ -746,15 +761,15 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 )}
                               </div>
                             ) : m.status === 'available' ? (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                                 🟢 Na fila
                               </span>
                             ) : m.status === 'delivering' ? (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-300 flex items-center gap-1">
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1">
                                 🔵 Em rota
                               </span>
                             ) : (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-slate-200 text-slate-700 border border-slate-300 flex items-center gap-1">
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-slate-700 text-slate-300 border border-slate-600 flex items-center gap-1">
                                 ⚫ Offline
                               </span>
                             )}
@@ -762,8 +777,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                           {mOrders.length > 0 && (
                             <div className="space-y-1.5 pt-1">
-                              <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase">Pedidos vinculados</span>
+                              <div className="flex items-center justify-between pb-1 border-b border-slate-700">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Pedidos vinculados</span>
                                 <button
                                   type="button"
                                   onClick={() => handleSendWhatsAppToMotoboy(m)}
@@ -780,25 +795,25 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   key={ord.id}
                                   className={`text-xs p-2.5 rounded-xl border transition-all space-y-1.5 ${
                                     ord.status === 'ready_at_counter'
-                                      ? 'bg-amber-50/90 border-amber-300 ring-1 ring-amber-300/50'
-                                      : 'bg-slate-50 border-slate-200'
+                                      ? 'bg-amber-950/60 border-amber-600 ring-1 ring-amber-500/50'
+                                      : 'bg-slate-900/80 border-slate-700'
                                   }`}
                                 >
                                   <div className="flex items-center justify-between gap-1">
                                     <div>
-                                      <span className="font-extrabold text-slate-900">#{idx + 1} • #{ord.codeNumber} {ord.clientName}</span>
-                                      <p className="text-[11px] text-slate-600 line-clamp-1">{ord.address}</p>
+                                      <span className="font-extrabold text-white">#{idx + 1} • #{ord.codeNumber} {ord.clientName}</span>
+                                      <p className="text-[11px] text-slate-300 line-clamp-1">{ord.address}</p>
                                     </div>
 
                                     <span
                                       className={`px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0 ${
                                         ord.status === 'ready_at_counter'
-                                          ? 'bg-amber-400 text-slate-950 shadow-xs animate-pulse'
+                                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-2xs animate-pulse'
                                           : ord.status === 'picked_up'
-                                          ? 'bg-emerald-500 text-slate-950 shadow-xs font-black'
+                                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                                           : ord.status === 'in_transit'
-                                          ? 'bg-blue-100 text-blue-900 border border-blue-300'
-                                          : 'bg-slate-200 text-slate-700'
+                                          ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                          : 'bg-slate-700 text-slate-300'
                                       }`}
                                     >
                                       {ord.status === 'ready_at_counter'
@@ -811,7 +826,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     </span>
                                   </div>
 
-                                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 text-[11px]">
+                                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-700 text-[11px]">
                                     {ord.status !== 'ready_at_counter' && ord.status !== 'picked_up' && ord.status !== 'in_transit' ? (
                                       <button
                                         type="button"
@@ -824,11 +839,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                             : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
                                           window.open(url, '_blank');
                                         }}
-                                        className="px-2.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-lg shadow-xs flex items-center gap-1 cursor-pointer transition-all"
+                                        className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-bold rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
                                         title="Avisar ao motoboy que o pedido está pronto no balcão"
                                       >
                                         <span>🔔</span>
-                                        <span>Avisar ao motoboy que está pronto</span>
+                                        <span>Avisar que está pronto</span>
                                       </button>
                                     ) : ord.status === 'ready_at_counter' ? (
                                       <button
@@ -848,15 +863,15 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                         <span>Avisar {m.name.split(' ')[0]}</span>
                                       </button>
                                     ) : ord.status === 'picked_up' ? (
-                                      <span className="text-[11px] font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
-                                        ✓ Retirado pelo motoboy (Aguardando Iniciar Rota)
+                                      <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
+                                        ✓ Retirado (Aguardando Rota)
                                       </span>
                                     ) : null}
 
                                     <button
                                       type="button"
                                       onClick={() => onSelectOrderForTracking(ord)}
-                                      className="text-[10px] font-extrabold text-emerald-700 hover:underline shrink-0"
+                                      className="text-[10px] font-extrabold text-slate-300 hover:text-white underline shrink-0 cursor-pointer"
                                     >
                                       Ver no mapa
                                     </button>
@@ -878,11 +893,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
       {/* TEAM TAB */}
       {activeTab === 'equipe' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4">
+        <div className="bg-slate-800 rounded-2xl border border-slate-700/80 p-5 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-bold text-lg text-slate-900">Gestão da Equipe de Motoboys</h3>
-              <p className="text-xs text-slate-500">Cadastre, edite e controle os entregadores da loja.</p>
+              <h3 className="font-bold text-lg text-white">Gestão da Equipe de Motoboys</h3>
+              <p className="text-xs text-slate-400">Cadastre, edite e controle os entregadores da loja.</p>
             </div>
             <div className="flex items-center gap-2">
               {motoboys.length > 0 && onDeleteAllMotoboys && (
@@ -893,10 +908,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       onDeleteAllMotoboys();
                     }
                   }}
-                  className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 flex items-center gap-1.5 transition-all cursor-pointer"
+                  className="px-3 py-2 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 font-bold text-xs rounded-xl border border-rose-800/60 flex items-center gap-1.5 transition-all cursor-pointer"
                   title="Remover todos os motoboys para cadastrar do zero"
                 >
-                  <Trash2 className="w-4 h-4 text-rose-600" />
+                  <Trash2 className="w-4 h-4 text-rose-400" />
                   <span>Remover Todos ({motoboys.length})</span>
                 </button>
               )}
@@ -904,7 +919,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               <button
                 type="button"
                 onClick={onOpenMotoboyModal}
-                className="px-4 py-2 bg-[#1e4d3b] hover:bg-[#133729] text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
                 <Plus className="w-4 h-4" /> Cadastrar Novo Motoboy
               </button>
@@ -912,27 +927,27 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
 
           {motoboys.length === 0 ? (
-            <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-8 text-center space-y-2">
-              <div className="w-12 h-12 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center mx-auto text-xl">
+            <div className="bg-slate-900/60 border border-dashed border-slate-700 rounded-2xl p-8 text-center space-y-2">
+              <div className="w-12 h-12 bg-slate-800 border border-slate-700 text-slate-300 rounded-full flex items-center justify-center mx-auto text-xl">
                 🛵
               </div>
-              <h4 className="font-bold text-slate-800 text-sm">Nenhum motoboy cadastrado</h4>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <h4 className="font-bold text-white text-sm">Nenhum motoboy cadastrado</h4>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
                 Sua lista de entregadores está limpa. Clique em "Cadastrar Novo Motoboy" acima para adicionar seus entregadores.
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {motoboys.map((m) => (
-                <div key={m.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3 relative group">
+                <div key={m.id} className="p-4 rounded-2xl border border-slate-700 bg-slate-900/70 space-y-3 relative group">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-[#1e4d3b] text-white flex items-center justify-center font-bold text-base shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-white flex items-center justify-center font-bold text-base shrink-0">
                         🛵
                       </div>
                       <div>
-                        <h4 className="font-bold text-sm text-slate-900">{m.name}</h4>
-                        <p className="text-xs text-slate-500">{m.vehicleModel} • {m.plate}</p>
+                        <h4 className="font-bold text-sm text-white">{m.name}</h4>
+                        <p className="text-xs text-slate-400">{m.vehicleModel} • {m.plate}</p>
                       </div>
                     </div>
 
@@ -944,7 +959,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             onDeleteMotoboy(m.id);
                           }
                         }}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition-all cursor-pointer"
                         title={`Remover ${m.name}`}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -952,31 +967,31 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200 grid grid-cols-2 gap-2 text-xs">
+                  <div className="pt-2 border-t border-slate-800 grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <span className="text-slate-400 block text-[10px]">Arranque</span>
-                      <span className="font-bold text-slate-800">{formattedCurrency(m.fixedFee)}</span>
+                      <span className="font-bold text-slate-200">{formattedCurrency(m.fixedFee)}</span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px]">Taxa por corrida</span>
-                      <span className="font-bold text-slate-800">{formattedCurrency(m.perDeliveryFee)}</span>
+                      <span className="font-bold text-slate-200">{formattedCurrency(m.perDeliveryFee)}</span>
                     </div>
                   </div>
 
                   {/* Login credentials box created by store for motoboy */}
-                  <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200 space-y-1 text-xs">
-                    <span className="text-[10px] font-extrabold text-slate-700 uppercase block">
+                  <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-1 text-xs">
+                    <span className="text-[10px] font-extrabold text-amber-300 uppercase block">
                       🔐 Credenciais do App (Motoboy)
                     </span>
-                    <div className="flex items-center justify-between font-mono text-[11px] text-slate-800 font-semibold">
-                      <span>Usuário: <strong className="text-slate-900">{m.username || m.name.toLowerCase().split(' ')[0]}</strong></span>
-                      <span>Senha: <strong className="text-slate-900">{m.password || '123'}</strong></span>
+                    <div className="flex items-center justify-between font-mono text-[11px] text-slate-200 font-semibold">
+                      <span>Usuário: <strong className="text-white">{m.username || m.name.toLowerCase().split(' ')[0]}</strong></span>
+                      <span>Senha: <strong className="text-white">{m.password || '123'}</strong></span>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
-                    <span className="text-slate-500">Ganho acumulado hoje:</span>
-                    <span className="font-black text-emerald-700">{formattedCurrency(m.totalEarnedToday)}</span>
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Ganho acumulado hoje:</span>
+                    <span className="font-black text-emerald-400">{formattedCurrency(m.totalEarnedToday)}</span>
                   </div>
                 </div>
               ))}
@@ -987,32 +1002,33 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
       {/* FINANCE TAB */}
       {activeTab === 'financeiro' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4">
+        <div className="bg-slate-800 rounded-2xl border border-slate-700/80 p-5 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-lg text-slate-900">Resumo Financeiro do Turno</h3>
-              <p className="text-xs text-slate-500">Controle de faturamento e fechamento de caixa com os motoboys.</p>
+              <h3 className="font-bold text-lg text-white">Resumo Financeiro do Turno</h3>
+              <p className="text-xs text-slate-400">Controle de faturamento e fechamento de caixa com os motoboys.</p>
             </div>
             <button
+              type="button"
               onClick={() => setIsSettlementOpen(true)}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-2 transition-all"
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs rounded-xl shadow-2xs border border-slate-600 flex items-center gap-2 transition-all cursor-pointer"
             >
-              <Receipt className="w-4 h-4 text-emerald-100" /> Abrir Acerto de Caixa dos Motoboys
+              <Receipt className="w-4 h-4 text-slate-300" /> Abrir Acerto de Caixa dos Motoboys
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
-              <span className="text-xs font-bold text-emerald-800 block">Faturamento Bruto</span>
-              <span className="text-2xl font-black text-emerald-900">{formattedCurrency(totalRevenue)}</span>
+            <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-700">
+              <span className="text-xs font-bold text-slate-400 block">Faturamento Bruto</span>
+              <span className="text-2xl font-black text-emerald-400">{formattedCurrency(totalRevenue)}</span>
             </div>
-            <div className="p-4 rounded-2xl bg-slate-100 border border-slate-200">
-              <span className="text-xs font-bold text-slate-700 block">Total de Vendas (Pedidos)</span>
-              <span className="text-2xl font-black text-slate-900">{orders.length} pedidos</span>
+            <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-700">
+              <span className="text-xs font-bold text-slate-400 block">Total de Vendas (Pedidos)</span>
+              <span className="text-2xl font-black text-white">{orders.length} pedidos</span>
             </div>
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
-              <span className="text-xs font-bold text-amber-800 block">Comissão Motoboys (A pagar)</span>
-              <span className="text-2xl font-black text-amber-900">
+            <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-800/60">
+              <span className="text-xs font-bold text-amber-300 block">Comissão Motoboys (A pagar)</span>
+              <span className="text-2xl font-black text-amber-200">
                 {formattedCurrency(motoboys.reduce((acc, m) => acc + m.totalEarnedToday, 0))}
               </span>
             </div>
@@ -1022,26 +1038,27 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
       {/* HISTORY TAB */}
       {activeTab === 'historico' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 space-y-4">
-          <h3 className="font-bold text-lg text-slate-900">Histórico Completo de Pedidos Lançados</h3>
+        <div className="bg-slate-800 rounded-2xl border border-slate-700/80 p-5 space-y-4">
+          <h3 className="font-bold text-lg text-white">Histórico Completo de Pedidos Lançados</h3>
           <div className="space-y-2">
             {orders.map((o) => (
-              <div key={o.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between text-xs">
+              <div key={o.id} className="p-3 rounded-xl border border-slate-700 bg-slate-900/70 flex items-center justify-between text-xs">
                 <div>
-                  <span className="font-bold text-slate-900">#{o.codeNumber} • {o.clientName}</span>
-                  <p className="text-slate-500">{o.itemsSummary} — {o.address}</p>
+                  <span className="font-bold text-white">#{o.codeNumber} • {o.clientName}</span>
+                  <p className="text-slate-400">{o.itemsSummary} — {o.address}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                    <span className="font-bold text-emerald-700 block">{formattedCurrency(o.total)}</span>
+                    <span className="font-bold text-emerald-400 block">{formattedCurrency(o.total)}</span>
                     <span className="text-[10px] uppercase font-bold text-slate-400">{o.paymentMethod}</span>
                   </div>
                   <button
+                    type="button"
                     onClick={() => {
                       setTicketOrder(o);
                       setIsTicketOpen(true);
                     }}
-                    className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-bold transition-all"
+                    className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold transition-all cursor-pointer"
                     title="Imprimir comanda 80mm"
                   >
                     <Printer className="w-4 h-4" />

@@ -20,6 +20,7 @@ interface StoreAccountSettingsModalProps {
   onClose: () => void;
   shift: StoreShift;
   onSaveSettings: (updatedShift: StoreShift) => void;
+  onClearAllData?: () => void;
 }
 
 export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps> = ({
@@ -27,6 +28,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   onClose,
   shift,
   onSaveSettings,
+  onClearAllData,
 }) => {
   const [storeName, setStoreName] = useState(shift.storeName || '');
   const [storePhone, setStorePhone] = useState(shift.storePhone || '');
@@ -75,13 +77,13 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-slate-900 text-slate-100 rounded-3xl max-w-lg w-full shadow-2xl border border-slate-800 overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-slate-800 text-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-700 overflow-hidden my-8">
         
         {/* Header */}
-        <div className="p-5 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-5 bg-slate-900 border-b border-slate-700 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-slate-800 text-white border border-slate-700 flex items-center justify-center font-bold shadow-2xs">
               <Building2 className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
@@ -94,6 +96,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
           >
@@ -106,7 +109,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
           
           {/* Saved Toast Alert */}
           {isSaved && (
-            <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 p-3.5 rounded-2xl flex items-center gap-3 text-xs font-bold animate-fadeIn">
+            <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 p-3.5 rounded-2xl flex items-center gap-3 text-xs font-bold animate-fadeIn">
               <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
               <span>Dados da loja e acesso atualizados com sucesso! Todo o sistema se adaptou automaticamente.</span>
             </div>
@@ -118,17 +121,17 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
               Nome da Loja / Estabelecimento
             </label>
             <div className="relative">
-              <Building2 className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
                 required
                 value={storeName}
                 onChange={(e) => setStoreName(e.target.value)}
                 placeholder="Ex: Hope Burger"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
               />
             </div>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-400">
               Aparece no cabeçalho do painel, comandas impressas, mensagens e tela de rastreio dos clientes.
             </p>
           </div>
@@ -139,13 +142,13 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
               Telefone / WhatsApp Comercial
             </label>
             <div className="relative">
-              <Phone className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
                 value={storePhone}
                 onChange={(e) => setStorePhone(e.target.value)}
                 placeholder="Ex: (47) 99887-6655"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
               />
             </div>
           </div>
@@ -156,17 +159,17 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
               Endereço Completo (Ponto de Origem)
             </label>
             <div className="relative">
-              <MapPin className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
                 required
                 value={storeAddress}
                 onChange={(e) => setStoreAddress(e.target.value)}
                 placeholder="Ex: R. dos Caçadores, 653 - Velha Central, Blumenau - SC"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
               />
             </div>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-400">
               Endereço onde a loja está localizada para cálculo de rotas e partidas.
             </p>
           </div>
@@ -182,7 +185,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
                 step="any"
                 value={storeLat}
                 onChange={(e) => setStoreLat(parseFloat(e.target.value) || -26.9388)}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
               />
             </div>
             <div className="space-y-1">
@@ -194,57 +197,76 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
                 step="any"
                 value={storeLng}
                 onChange={(e) => setStoreLng(parseFloat(e.target.value) || -49.1082)}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
 
           {/* Senha de Administrador da Loja */}
-          <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+          <div className="space-y-1.5 pt-2 border-t border-slate-700">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 Senha de Acesso (Admin)
               </label>
-              <span className="text-[10px] text-slate-400 font-bold bg-slate-800 px-2 py-0.5 rounded">
+              <span className="text-[10px] text-amber-300 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
                 Login Padrão: admin
               </span>
             </div>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
                 placeholder="Informe a nova senha de acesso da loja"
-                className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-all"
+                className="w-full pl-10 pr-10 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 transition-colors"
+                className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 transition-colors"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-400">
               Esta senha será exigida no login do perfil Loja (Admin).
             </p>
           </div>
 
+          {/* Danger Zone: Clear Data */}
+          {onClearAllData && (
+            <div className="pt-3 border-t border-slate-700">
+              <div className="bg-rose-950/40 border border-rose-800/60 p-3.5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div>
+                  <span className="font-extrabold text-xs text-rose-300 block">🧹 Zerar Todo o Banco de Dados</span>
+                  <span className="text-[11px] text-slate-400">Apaga todos os pedidos e motoboys salvos para começar do zero.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onClearAllData}
+                  className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs rounded-xl shadow-2xs transition-all shrink-0 cursor-pointer"
+                >
+                  Limpar Dados (Reset 100%)
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Footer Actions */}
-          <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
+          <div className="pt-4 border-t border-slate-700 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 cursor-pointer"
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-xl transition-all shadow-2xs flex items-center gap-2 cursor-pointer"
             >
               <Save className="w-4 h-4" />
               Salvar Alterações

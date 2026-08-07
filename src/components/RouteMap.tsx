@@ -9,6 +9,9 @@ interface RouteMapProps {
   selectedStopId?: string | null;
   onSelectStop?: (stop: Stop) => void;
   onUpdateStopStatus?: (stopId: string, status: Stop['status']) => void;
+  motoboyName?: string;
+  motoboyVehicle?: string;
+  showMotoboyMarker?: boolean;
 }
 
 export const RouteMap: React.FC<RouteMapProps> = ({
@@ -17,6 +20,9 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   selectedStopId,
   onSelectStop,
   onUpdateStopStatus,
+  motoboyName,
+  motoboyVehicle,
+  showMotoboyMarker = true,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -166,7 +172,45 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       markersGroup.addLayer(marker);
     });
 
-    // 3. Draw Route Polyline connecting Origin -> Stop 1 -> Stop 2 -> ...
+    // 3. Draw Motoboy Marker on Map if available
+    if (stops.length > 0 && showMotoboyMarker) {
+      const activeStop = stops.find((s) => s.status === 'in_transit') || stops[0];
+      if (activeStop) {
+        const motoboyLat = origin.lat + (activeStop.lat - origin.lat) * 0.55;
+        const motoboyLng = origin.lng + (activeStop.lng - origin.lng) * 0.55;
+
+        const motoboyIcon = L.divIcon({
+          className: 'custom-motoboy-pin',
+          html: `
+            <div class="relative flex flex-col items-center justify-center">
+              <div class="absolute -inset-2 bg-emerald-500/30 rounded-full animate-ping"></div>
+              <div class="w-11 h-11 bg-slate-950 text-white rounded-2xl shadow-2xl border-2 border-emerald-400 flex items-center justify-center font-extrabold text-lg z-30">
+                🛵
+              </div>
+              <div class="mt-1 bg-slate-950 text-emerald-300 px-2 py-0.5 rounded-md text-[10px] font-black uppercase whitespace-nowrap shadow-md border border-slate-800 z-30">
+                ${motoboyName ? motoboyName.split(' ')[0] : 'Entregador'}
+              </div>
+            </div>
+          `,
+          iconSize: [44, 54],
+          iconAnchor: [22, 27],
+        });
+
+        const motoboyMarker = L.marker([motoboyLat, motoboyLng], { icon: motoboyIcon })
+          .bindPopup(`
+            <div class="p-2.5 min-w-[200px]">
+              <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">🛵 Entregador em Rota</span>
+              <h4 class="font-extrabold text-slate-900 text-sm mt-1">${motoboyName || 'Entregador Dedicado'}</h4>
+              ${motoboyVehicle ? `<p class="text-xs text-slate-500 mt-0.5">${motoboyVehicle}</p>` : ''}
+              <p class="text-xs text-emerald-700 font-bold mt-1">A caminho do destino 📍</p>
+            </div>
+          `);
+        markersGroup.addLayer(motoboyMarker);
+        bounds.push([motoboyLat, motoboyLng]);
+      }
+    }
+
+    // 4. Draw Route Polyline connecting Origin -> Stop 1 -> Stop 2 -> ...
     if (stops.length > 0) {
       const routeCoords: [number, number][] = [
         [origin.lat, origin.lng],
