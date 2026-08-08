@@ -38,6 +38,7 @@ interface StoreDashboardProps {
   onAssignOrderToMotoboy: (orderId: string, motoboyId: string) => void;
   onAssignBatchToMotoboy?: (orderIds: string[], motoboyId: string) => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  onUpdateMotoboyStatus?: (motoboyId: string, status: Motoboy['status']) => void;
   onReorderMotoboyRoute?: (orderedOrderIds: string[]) => void;
   onConfirmArrivalAtStore?: (motoboyId: string) => void;
   onOpenNewOrderModal: () => void;
@@ -55,6 +56,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   onAssignOrderToMotoboy,
   onAssignBatchToMotoboy,
   onUpdateOrderStatus,
+  onUpdateMotoboyStatus,
   onReorderMotoboyRoute,
   onConfirmArrivalAtStore,
   onOpenNewOrderModal,
@@ -648,141 +650,132 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </div>
 
                 {/* Rotas disponíveis dos Motoboys */}
-                <div className="md:col-span-5 bg-slate-900/60 rounded-2xl p-3 border border-slate-700/70 space-y-3">
-                  <div className="flex flex-col gap-2">
-                    <h4 className="font-bold text-xs text-slate-300 uppercase">
-                      Status da Equipe em Tempo Real
-                    </h4>
+                <div className="md:col-span-5 bg-slate-900/60 rounded-2xl p-3 border border-slate-700/70 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
+                      <h4 className="font-extrabold text-sm text-white tracking-tight">Equipe</h4>
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        {(() => {
+                          const activeCount = motoboys.filter((m) => m.status !== 'offline').length;
+                          const availableCount = motoboys.filter((m) => m.status === 'available').length;
+                          const deliveringCount = motoboys.filter((m) => m.status === 'delivering').length;
+                          const returningCount = motoboys.filter((m) => m.status === 'returning_to_store').length;
 
-                    {/* STATUS TIMELINE BAR */}
-                    <div className="flex items-center gap-1.5 p-2 bg-slate-800 rounded-xl border border-slate-700 text-[10px] font-bold text-slate-300 flex-wrap shadow-2xs">
-                      <span className="flex items-center gap-1 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 text-emerald-300">
-                        🟢 Na fila ({motoboys.filter((m) => m.status === 'available').length})
-                      </span>
-                      <span className="flex items-center gap-1 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 text-amber-300">
-                        🟠 Retornando ({motoboys.filter((m) => m.status === 'returning_to_store').length})
-                      </span>
-                      <span className="flex items-center gap-1 bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/30 text-blue-300">
-                        🔵 Em rota ({motoboys.filter((m) => m.status === 'delivering').length})
-                      </span>
-                      <span className="flex items-center gap-1 bg-slate-700 px-2 py-0.5 rounded border border-slate-600 text-slate-300">
-                        ⚫ Offline ({motoboys.filter((m) => m.status === 'offline').length})
+                          const parts = [
+                            `${activeCount} ${activeCount === 1 ? 'motoboy ativo' : 'motoboys ativos'}`,
+                            `${availableCount} na loja`
+                          ];
+                          if (deliveringCount > 0) parts.push(`${deliveringCount} em rota`);
+                          if (returningCount > 0) parts.push(`${returningCount} retornando`);
+                          return parts.join(' · ');
+                        })()}
                       </span>
                     </div>
-                  </div>
 
-                  <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-                    {motoboys.map((m) => {
-                      const mOrders = orders
-                        .filter(
-                          (o) =>
-                            o.status !== 'delivered' &&
-                            o.status !== 'cancelled' &&
-                            (o.assignedMotoboyId === m.id ||
-                              o.assignedMotoboyName?.toLowerCase() === m.name.toLowerCase() ||
-                              (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||
-                              o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase())
-                        )
-                        .sort((a, b) => (a.routeSequence || 0) - (b.routeSequence || 0));
+                    <div className="space-y-2.5 max-h-[400px] overflow-y-auto pr-0.5">
+                      {motoboys.map((m) => {
+                        const mOrders = orders
+                          .filter(
+                            (o) =>
+                              o.status !== 'delivered' &&
+                              o.status !== 'cancelled' &&
+                              (o.assignedMotoboyId === m.id ||
+                                o.assignedMotoboyName?.toLowerCase() === m.name.toLowerCase() ||
+                                (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||
+                                o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase())
+                          )
+                          .sort((a, b) => (a.routeSequence || 0) - (b.routeSequence || 0));
 
-                      return (
-                        <div
-                          key={m.id}
-                          className="bg-slate-800 p-3 rounded-xl border border-slate-700/80 space-y-2 shadow-2xs"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-slate-900 border border-slate-700 text-white flex items-center justify-center font-black text-xs">
-                                {m.name.charAt(0)}
-                              </div>
+                        const allOrdersReady = mOrders.length > 0 && mOrders.every((o) => o.status === 'ready_at_counter' || o.status === 'picked_up');
+                        const allOrdersInTransit = mOrders.length > 0 && mOrders.every((o) => o.status === 'in_transit');
+
+                        const circleNumbers = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
+
+                        return (
+                          <div
+                            key={m.id}
+                            className="bg-slate-800/90 p-3 rounded-xl border border-slate-700/80 space-y-2 shadow-2xs"
+                          >
+                            {/* Card Header */}
+                            <div className="flex items-start justify-between gap-2">
                               <div>
-                                <h5 className="font-bold text-xs text-white">{m.name}</h5>
-                                <span className="text-[10px] text-slate-400 font-medium">{mOrders.length} {mOrders.length === 1 ? 'parada na rota' : 'paradas na rota'}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-extrabold text-sm text-white">{m.name}</span>
+                                  {m.status === 'available' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                      🟢 NA LOJA
+                                    </span>
+                                  ) : m.status === 'delivering' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                                      🔵 EM ROTA
+                                    </span>
+                                  ) : m.status === 'returning_to_store' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                      🟠 RETORNANDO
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-700 text-slate-400 border border-slate-600">
+                                      ⚫ OFFLINE
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                  {mOrders.length === 0 ? (
+                                    'Aguardando novos pedidos na fila'
+                                  ) : allOrdersInTransit ? (
+                                    `${mOrders.length} ${mOrders.length === 1 ? 'pedido' : 'pedidos'} em entrega`
+                                  ) : allOrdersReady ? (
+                                    `${mOrders.length} ${mOrders.length === 1 ? 'pedido pronto' : 'pedidos prontos'}`
+                                  ) : (
+                                    `${mOrders.length} ${mOrders.length === 1 ? 'pedido' : 'pedidos'} • próxima saída com ${mOrders.length} ${mOrders.length === 1 ? 'parada' : 'paradas'}`
+                                  )}
+                                </p>
                               </div>
                             </div>
 
-                            {/* TIMELINE STATUS BADGES */}
-                            {m.status === 'returning_to_store' ? (
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                                  🟠 Retornando
-                                </span>
-                                {onConfirmArrivalAtStore && (
-                                  <button
-                                    type="button"
-                                    onClick={() => onConfirmArrivalAtStore(m.id)}
-                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-2xs cursor-pointer"
-                                    title="Confirmar Chegada na Fila"
-                                  >
-                                    ✓ Chegou
-                                  </button>
-                                )}
-                              </div>
-                            ) : m.status === 'available' ? (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                                🟢 Na fila
-                              </span>
-                            ) : m.status === 'delivering' ? (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1">
-                                🔵 Em rota
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-black px-2 py-0.5 rounded bg-slate-700 text-slate-300 border border-slate-600 flex items-center gap-1">
-                                ⚫ Offline
-                              </span>
-                            )}
-                          </div>
+                            {/* Order Items List inside Driver Card */}
+                            {mOrders.length > 0 && (
+                              <div className="space-y-1.5 pt-1">
+                                {mOrders.map((ord, idx) => {
+                                  const isReady = ord.status === 'ready_at_counter' || ord.status === 'picked_up';
+                                  const isInTransit = ord.status === 'in_transit';
+                                  const numSymbol = circleNumbers[idx] || `(${idx + 1})`;
 
-                          {mOrders.length > 0 && (
-                            <div className="space-y-1.5 pt-1">
-                              <div className="flex items-center justify-between pb-1 border-b border-slate-700 gap-1.5">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase">Pedidos vinculados</span>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleNotifyMotoboyInApp(m)}
-                                    className="px-2 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-[10px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
-                                    title="Notificar no aplicativo do motoboy que todos os pedidos estão prontos para retirada"
-                                  >
-                                    <span>🔔</span>
-                                    <span>Avisar no App</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSendWhatsAppToMotoboy(m)}
-                                    className="px-2 py-1 bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-[10px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
-                                    title="Avisar o motoboy via WhatsApp"
-                                  >
-                                    <span>📱</span>
-                                    <span>WhatsApp</span>
-                                  </button>
-                                </div>
-                              </div>
+                                  return (
+                                    <div
+                                      key={ord.id}
+                                      className="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-700/60 text-xs text-slate-200"
+                                    >
+                                      <div className="min-w-0 flex-1 pr-2">
+                                        <div className="flex items-center gap-1.5 truncate">
+                                          <span className="text-amber-400 font-bold shrink-0">{numSymbol}</span>
+                                          <span className="font-extrabold text-white truncate">#{ord.codeNumber}</span>
+                                          <span className="text-slate-400 text-[11px] truncate">— {ord.street || ord.address}</span>
+                                        </div>
 
-                              {mOrders.map((ord, idx) => (
-                                <div
-                                  key={ord.id}
-                                  className={`text-xs p-2.5 rounded-xl border transition-all space-y-1.5 ${
-                                    ord.status === 'ready_at_counter'
-                                      ? 'bg-amber-950/60 border-amber-600 ring-1 ring-amber-500/50'
-                                      : 'bg-slate-900/80 border-slate-700'
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between gap-1">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="font-extrabold text-[10px] bg-slate-800 text-amber-300 border border-slate-700 px-1.5 py-0.5 rounded">
-                                          {idx + 1}ª Parada
-                                        </span>
-                                        <span className="font-extrabold text-white truncate">#{ord.codeNumber} {ord.clientName}</span>
+                                        <div className="mt-0.5 flex items-center gap-2 text-[10px]">
+                                          {isReady ? (
+                                            <span className="text-emerald-400 font-bold">
+                                              🟢 Pronto
+                                            </span>
+                                          ) : isInTransit ? (
+                                            <span className="text-blue-400 font-bold">
+                                              🔵 Em rota
+                                            </span>
+                                          ) : (
+                                            <span className="text-amber-400 font-medium">
+                                              🟠 Em cozinha
+                                            </span>
+                                          )}
+                                          <span className="text-slate-400 line-clamp-1">• {ord.clientName}</span>
+                                        </div>
                                       </div>
-                                      <p className="text-[11px] text-slate-300 line-clamp-1 mt-0.5">{ord.address}</p>
-                                    </div>
 
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      {/* Order sequence move buttons */}
+                                      {/* Up/Down reorder arrows if >1 orders */}
                                       {mOrders.length > 1 && onReorderMotoboyRoute && (
-                                        <div className="flex items-center gap-0.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                                        <div className="flex items-center gap-0.5 shrink-0 bg-slate-950 p-0.5 rounded border border-slate-800">
                                           {idx > 0 && (
                                             <button
                                               type="button"
@@ -793,10 +786,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                                 reordered[idx - 1] = temp;
                                                 onReorderMotoboyRoute(reordered.map((o) => o.id));
                                               }}
-                                              className="px-1.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] rounded transition-all cursor-pointer shadow-2xs"
-                                              title="Subir para 1ª parada da rota (Entregar primeiro)"
+                                              className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer text-[10px]"
+                                              title="Mover para cima"
                                             >
-                                              ▲ 1º
+                                              ▲
                                             </button>
                                           )}
                                           {idx < mOrders.length - 1 && (
@@ -809,112 +802,84 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                                 reordered[idx + 1] = temp;
                                                 onReorderMotoboyRoute(reordered.map((o) => o.id));
                                               }}
-                                              className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-[10px] rounded transition-all cursor-pointer"
-                                              title="Mover para entrega seguinte"
+                                              className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer text-[10px]"
+                                              title="Mover para baixo"
                                             >
-                                              ▼ 2º
+                                              ▼
                                             </button>
                                           )}
                                         </div>
                                       )}
-
-                                      <span
-                                        className={`px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0 ${
-                                          ord.status === 'ready_at_counter'
-                                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-2xs animate-pulse'
-                                            : ord.status === 'picked_up'
-                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                            : ord.status === 'in_transit'
-                                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                            : 'bg-slate-700 text-slate-300'
-                                        }`}
-                                      >
-                                        {ord.status === 'ready_at_counter'
-                                          ? '🛍️ Pronto Balcão'
-                                          : ord.status === 'picked_up'
-                                          ? '🎒 Retirado'
-                                          : ord.status === 'in_transit'
-                                          ? '🛵 Em Rota'
-                                          : '⏳ Em Cozinha'}
-                                      </span>
                                     </div>
-                                  </div>
+                                  );
+                                })}
+                              </div>
+                            )}
 
-                                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-700 text-[11px]">
-                                    {ord.status !== 'ready_at_counter' && ord.status !== 'picked_up' && ord.status !== 'in_transit' ? (
-                                      <div className="flex items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            onUpdateOrderStatus(ord.id, 'ready_at_counter');
-                                            triggerActionToast(`🔔 Pedido #${ord.codeNumber} marcado como PRONTO no App de ${m.name.split(' ')[0]}!`);
-                                          }}
-                                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
-                                          title="Enviar aviso direto para o App do motoboy"
-                                        >
-                                          <span>🔔</span>
-                                          <span>Avisar no App (Pronto)</span>
-                                        </button>
-
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            onUpdateOrderStatus(ord.id, 'ready_at_counter');
-                                            const msg = `Olá ${m.name}! 🛍️ O pedido #${ord.codeNumber} (${ord.clientName} - ${ord.address}) está PRONTO NO BALCÃO! Por favor, confirme a retirada no seu app! 🛵`;
-                                            const phone = m.phone ? m.phone.replace(/\D/g, '') : '';
-                                            const url = phone
-                                              ? `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`
-                                              : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                                            window.open(url, '_blank');
-                                          }}
-                                          className="p-1 bg-emerald-800 hover:bg-emerald-700 text-white font-bold rounded-lg transition-all"
-                                          title="Avisar também pelo WhatsApp"
-                                        >
-                                          <span>📱</span>
-                                        </button>
-                                      </div>
-                                    ) : ord.status === 'ready_at_counter' ? (
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-extrabold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
-                                          ✓ Avisado no App
-                                        </span>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const msg = `Olá ${m.name}! 🛍️ O pedido #${ord.codeNumber} (${ord.clientName} - ${ord.address}) está PRONTO NO BALCÃO! Pode vir retirar na loja para sair para entrega! 🛵`;
-                                            const phone = m.phone ? m.phone.replace(/\D/g, '') : '';
-                                            const url = phone
-                                              ? `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`
-                                              : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                                            window.open(url, '_blank');
-                                          }}
-                                          className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[10px] rounded-md transition-all"
-                                          title="Reforçar mensagem via WhatsApp"
-                                        >
-                                          📱 Reforçar Zap
-                                        </button>
-                                      </div>
-                                    ) : ord.status === 'picked_up' ? (
-                                      <span className="text-[11px] font-extrabold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
-                                        ✓ Retirado (Aguardando Rota)
-                                      </span>
-                                    ) : null}
-
+                            {/* Card Footer Actions */}
+                            <div className="pt-1.5 flex items-center gap-1.5">
+                              {mOrders.length > 0 && (
+                                <>
+                                  {allOrdersReady ? (
                                     <button
                                       type="button"
-                                      onClick={() => onSelectOrderForTracking(ord)}
-                                      className="text-[10px] font-extrabold text-slate-300 hover:text-white underline shrink-0 cursor-pointer"
+                                      onClick={() => {
+                                        mOrders.forEach((o) => {
+                                          if (o.status !== 'in_transit') {
+                                            onUpdateOrderStatus(o.id, 'in_transit');
+                                          }
+                                        });
+                                        if (onUpdateMotoboyStatus) {
+                                          onUpdateMotoboyStatus(m.id, 'delivering');
+                                        }
+                                        triggerActionToast(`🛵 ${m.name.split(' ')[0]} liberado para entrega!`);
+                                      }}
+                                      className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                                     >
-                                      Ver no mapa
+                                      <span>🛵</span>
+                                      <span>Liberar {m.name.split(' ')[0]} para entrega</span>
                                     </button>
-                                  </div>
-                                </div>
-                              ))}
+                                  ) : allOrdersInTransit ? (
+                                    <div className="flex-1 py-1.5 px-3 bg-blue-950/60 border border-blue-500/30 text-blue-300 text-center font-bold text-xs rounded-xl">
+                                      🛵 Em rota de entrega ({mOrders.length} {mOrders.length === 1 ? 'parada' : 'paradas'})
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleNotifyMotoboyInApp(m)}
+                                      className="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                      <span>🔔</span>
+                                      <span>Avisar que está pronto</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendWhatsAppToMotoboy(m)}
+                                    className="p-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+                                    title="Avisar via WhatsApp"
+                                  >
+                                    <span>📱</span>
+                                  </button>
+                                </>
+                              )}
+
+                              {m.status === 'returning_to_store' && onConfirmArrivalAtStore && (
+                                <button
+                                  type="button"
+                                  onClick={() => onConfirmArrivalAtStore(m.id)}
+                                  className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                                >
+                                  <span>✓</span>
+                                  <span>Confirmar Chegada à Loja</span>
+                                </button>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>

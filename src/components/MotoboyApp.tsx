@@ -67,6 +67,8 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   const [actionToast, setActionToast] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallGuide, setShowInstallGuide] = useState<boolean>(false);
+  // Expanded card state (defaults to index 0)
+  const [manualExpandedId, setManualExpandedId] = useState<string | null>(null);
   const [arrivedOrderIds, setArrivedOrderIds] = useState<Record<string, boolean>>({});
 
   const triggerSystemActionToast = (msg: string) => {
@@ -684,12 +686,87 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               </div>
             ) : (
               /* List of active delivery cards */
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {assignedOrders.map((order, index) => {
                   const isInTransit = order.status === 'in_transit';
                   const isFirstOrder = index === 0;
+                  const isExpanded = isFirstOrder || manualExpandedId === order.id;
                   const hasArrived = Boolean(arrivedOrderIds[order.id]);
 
+                  const isReadyAtCounter = order.status === 'ready_at_counter';
+                  const isPickedUp = order.status === 'picked_up';
+                  const isPendingInKitchen = order.status === 'preparing' || order.status === 'pending';
+
+                  // Street line vs Neighborhood
+                  const streetLine = order.street || order.address;
+                  const neighborhoodLine = `${order.neighborhood || 'Centro'} • Blumenau`;
+
+                  // Circle stop numbers: ⚡ 1ª PARADA, 2ª PARADA, etc.
+                  const stopLabel = isFirstOrder ? '⚡ 1ª PARADA' : `${index + 1}ª PARADA`;
+
+                  // COMPACT CARD FOR SECONDARY PARADAS
+                  if (!isExpanded) {
+                    return (
+                      <div
+                        key={order.id}
+                        onClick={() => setManualExpandedId(order.id)}
+                        className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-all cursor-pointer space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-extrabold text-[11px] border border-slate-200">
+                              {stopLabel}
+                            </span>
+                            <span className="font-extrabold text-sm text-slate-900">
+                              #{order.codeNumber}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {isReadyAtCounter ? (
+                              <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                🟢 Pronto
+                              </span>
+                            ) : isInTransit ? (
+                              <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                                🔵 Em rota
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                🟠 Aguardando
+                              </span>
+                            )}
+
+                            {onReorderMotoboyRoute && index > 0 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const reordered = [...assignedOrders];
+                                  const temp = reordered[index];
+                                  reordered[index] = reordered[index - 1];
+                                  reordered[index - 1] = temp;
+                                  onReorderMotoboyRoute(reordered.map((o) => o.id));
+                                  setManualExpandedId(null);
+                                }}
+                                className="ml-1 px-2 py-1 bg-slate-900 hover:bg-slate-800 text-amber-300 font-extrabold text-[10px] rounded-lg transition-all cursor-pointer shadow-2xs"
+                                title="Fazer esta parada em 1º lugar"
+                              >
+                                ▲ Fazer 1ª
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-slate-600 font-medium pt-0.5">
+                          <span className="truncate pr-2 font-semibold text-slate-800">{streetLine}</span>
+                          <span className="text-[11px] text-slate-400 shrink-0">Toque para ver</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // EXPANDED PRIMARY CARD (1ª PARADA)
                   return (
                     <div
                       key={order.id}
@@ -699,191 +776,97 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                           : isInTransit
                           ? 'border-slate-800 shadow-md'
                           : isFirstOrder
-                          ? 'border-slate-300 shadow-xs'
+                          ? 'border-slate-300 shadow-xs ring-1 ring-slate-200'
                           : 'border-slate-200'
                       }`}
                     >
-                      {/* Card Header: PRÓXIMA ENTREGA or Parada #, Pedido #, Status */}
-                      <div className="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200 flex flex-col gap-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {isFirstOrder ? (
-                              <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs flex items-center gap-1 shadow-2xs">
-                                <Zap className="w-3.5 h-3.5 fill-current" />
-                                1ª PARADA
-                              </span>
-                            ) : (
-                              <span className="w-7 h-7 rounded-lg font-bold text-xs bg-slate-200 text-slate-800 flex items-center justify-center border border-slate-300">
-                                #{index + 1}
-                              </span>
-                            )}
-                            <div>
-                              <span className="font-bold text-sm text-slate-900 block leading-none">
-                                Pedido #{order.codeNumber}
-                              </span>
-                              <span className="text-[10px] font-semibold text-slate-500">
-                                {isFirstOrder ? 'Entregar Primeiro' : `Parada ${index + 1} de ${assignedOrders.length}`}
-                              </span>
-                            </div>
-                          </div>
-
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase flex items-center gap-1 ${
-                              hasArrived
-                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                : isInTransit
-                                ? 'bg-slate-900 text-white'
-                                : order.status === 'picked_up'
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                : order.status === 'ready_at_counter'
-                                ? 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
-                                : 'bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            {hasArrived ? (
-                              <>
-                                <MapPin className="w-3 h-3" /> NO LOCAL
-                              </>
-                            ) : isInTransit ? (
-                              <>
-                                <Navigation className="w-3 h-3" /> EM ROTA
-                              </>
-                            ) : order.status === 'picked_up' ? (
-                              <>
-                                <ShoppingBag className="w-3 h-3" /> RETIRADO
-                              </>
-                            ) : order.status === 'ready_at_counter' ? (
-                              <>
-                                <Clock className="w-3 h-3 text-amber-600" /> PRONTO BALCÃO
-                              </>
-                            ) : (
-                              <>
-                                <Clock className="w-3 h-3 text-slate-500" /> VINCULADO
-                              </>
-                            )}
+                      {/* CARD HEADER */}
+                      <div className="bg-slate-900 px-3.5 py-2.5 text-white flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 font-black text-xs uppercase flex items-center gap-1 shadow-2xs">
+                            {stopLabel}
+                          </span>
+                          <span className="font-extrabold text-xs text-slate-300">
+                            {isFirstOrder ? 'PRÓXIMA ENTREGA' : `Parada ${index + 1} de ${assignedOrders.length}`}
                           </span>
                         </div>
 
-                        {/* REORDER BUTTONS FOR MOTOBOY */}
-                        {assignedOrders.length > 1 && onReorderMotoboyRoute && (
-                          <div className="flex items-center justify-between pt-1 border-t border-slate-200/80 text-[11px]">
-                            <span className="text-[10px] text-slate-500 font-bold uppercase">Ordem de Entrega:</span>
-                            <div className="flex items-center gap-1">
-                              {index > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const reordered = [...assignedOrders];
-                                    const temp = reordered[index];
-                                    reordered[index] = reordered[index - 1];
-                                    reordered[index - 1] = temp;
-                                    onReorderMotoboyRoute(reordered.map((o) => o.id));
-                                  }}
-                                  className="px-2 py-0.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-amber-300 font-black text-[10px] rounded-md transition-all cursor-pointer shadow-2xs"
-                                >
-                                  ▲ Fazer 1º
-                                </button>
-                              )}
-                              {index < assignedOrders.length - 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const reordered = [...assignedOrders];
-                                    const temp = reordered[index];
-                                    reordered[index] = reordered[index + 1];
-                                    reordered[index + 1] = temp;
-                                    onReorderMotoboyRoute(reordered.map((o) => o.id));
-                                  }}
-                                  className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-800 font-bold text-[10px] rounded-md transition-all cursor-pointer border border-slate-300"
-                                >
-                                  ▼ Mover pra Depois
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-base text-amber-300">
+                            #{order.codeNumber}
+                          </span>
+                          {!isFirstOrder && (
+                            <button
+                              type="button"
+                              onClick={() => setManualExpandedId(null)}
+                              className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded border border-slate-700"
+                            >
+                              Recolher
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="p-3.5 space-y-3">
-                        {/* NOTICE BANNERS FOR STEPS */}
-                        {order.status === 'preparing' || order.status === 'pending' ? (
-                          <div className="bg-slate-100 border border-slate-300 p-3 rounded-xl flex items-center gap-2.5 text-xs text-slate-800 shadow-2xs">
-                            <Clock className="w-5 h-5 text-slate-600 shrink-0" />
-                            <div>
-                              <span className="font-bold text-slate-900 block text-xs uppercase tracking-wide">
-                                👨‍🍳 PEDIDO VINCULADO À SUA BAG
-                              </span>
-                              <span className="text-[11px] text-slate-600 font-medium leading-tight block">
-                                A loja atrelou este pedido à sua bag. Aguardando a cozinha finalizar para avisar a retirada no balcão.
-                              </span>
-                            </div>
-                          </div>
-                        ) : order.status === 'ready_at_counter' ? (
-                          <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center gap-2.5 text-xs text-white shadow-2xs">
-                            <ShoppingBag className="w-5 h-5 text-amber-400 shrink-0" />
-                            <div>
-                              <span className="font-extrabold text-amber-300 block text-xs uppercase tracking-wide">
-                                🛍️ PRONTO NO BALCÃO DA LOJA
-                              </span>
-                              <span className="text-[11px] text-slate-300 font-medium leading-tight block">
-                                Pegue o pacote e clique em "Confirma retirada do pedido".
-                              </span>
-                            </div>
-                          </div>
-                        ) : order.status === 'picked_up' ? (
-                          <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-center gap-2.5 text-xs text-emerald-900 shadow-2xs">
-                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                            <div>
-                              <span className="font-bold text-emerald-900 block text-xs uppercase tracking-wide">
-                                ✅ RETIRADA CONFIRMADA (NA BAG)
-                              </span>
-                              <span className="text-[11px] text-emerald-800 font-medium leading-tight block">
-                                Quando subir na moto para iniciar o trajeto, clique em "Iniciar rota".
-                              </span>
-                            </div>
-                          </div>
-                        ) : null}
-                        {/* 1º ONDE EU VOU? (ADDRESS IS THE PROTAGONIST) */}
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold uppercase text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-slate-600" /> {order.neighborhood.toUpperCase()}
-                            </span>
-                            <span className="text-[10px] font-medium text-slate-500 flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              {order.createdAt}
-                            </span>
-                          </div>
-
-                          <div className="flex items-start gap-2 pt-0.5">
-                            <MapPin className="w-5 h-5 text-slate-700 shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-base font-black text-slate-900 leading-snug">
-                                {order.address}
-                              </p>
-                              <span className="text-xs text-slate-500 font-medium block">
-                                {order.neighborhood} • Blumenau
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* ESTIMATED TIME & DISTANCE */}
-                          {isInTransit && (
-                            <div className="pt-1.5 flex items-center gap-2 border-t border-slate-200 text-[11px] font-bold">
-                              <span className="text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-slate-600" /> ~{7 + (index * 3)} min
-                              </span>
-                              <span className="text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1">
-                                <Navigation className="w-3 h-3 text-slate-600" /> {(1.5 + index * 0.8).toFixed(1)} km
-                              </span>
-                            </div>
-                          )}
+                        {/* 1. ENDEREÇO DA ENTREGA */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-500 block">
+                            Endereço de Entrega
+                          </span>
+                          <p className="text-base font-black text-slate-900 leading-snug">
+                            {streetLine}
+                          </p>
+                          <p className="text-xs text-slate-600 font-semibold">
+                            {neighborhoodLine}
+                          </p>
                         </div>
 
-                        {/* 2º CLIENT & CONTACT (SHOW WHEN IN TRANSIT) */}
+                        {/* 2. PAGAMENTO (ALTÍSSIMA VISIBILIDADE) */}
+                        <div className="bg-slate-900 p-3 rounded-xl text-white flex items-center justify-between border border-slate-800 shadow-2xs">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                              {order.paymentMethod === 'dinheiro' && <DollarSign className="w-5 h-5 text-amber-400" />}
+                              {order.paymentMethod === 'pix' && <QrCode className="w-5 h-5 text-emerald-400" />}
+                              {order.paymentMethod === 'cartao_maquininha' && <CreditCard className="w-5 h-5 text-sky-400" />}
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-extrabold text-slate-400 uppercase block tracking-wider">
+                                Forma de Pagamento
+                              </span>
+                              <span className="font-black text-xs text-amber-300 uppercase block">
+                                {order.paymentMethod === 'dinheiro'
+                                  ? '💵 DINHEIRO'
+                                  : order.paymentMethod === 'pix'
+                                  ? '⚡ PIX (PAGO NA LOJA)'
+                                  : '💳 CARTÃO (MAQUININHA)'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="text-[10px] font-extrabold text-slate-400 uppercase block">
+                              {order.paymentMethod === 'pix' ? 'Valor' : 'Cobrar Cliente'}
+                            </span>
+                            <span className="font-black text-2xl text-emerald-400 leading-none block">
+                              {formattedCurrency(order.total)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Troco Info */}
+                        {order.changeFor && order.paymentMethod === 'dinheiro' && (
+                          <div className="bg-amber-50 border border-amber-300 p-2 rounded-lg flex items-center justify-between text-xs font-bold text-amber-900">
+                            <span>⚠️ LEVAR TROCO PARA:</span>
+                            <span className="font-extrabold bg-amber-200 px-2 py-0.5 rounded border border-amber-400">
+                              {formattedCurrency(order.changeFor)}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* CLIENTE & CONTATO (QUANDO EM ROTA) */}
                         {isInTransit && (
-                          <div className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
+                          <div className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 text-xs">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-900">
                               <User className="w-3.5 h-3.5 text-slate-500" />
                               <span>{order.clientName}</span>
                             </div>
@@ -891,164 +874,125 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             {order.clientPhone && (
                               <a
                                 href={`tel:${order.clientPhone}`}
-                                className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 flex items-center gap-1 text-[11px] font-semibold transition-all shadow-2xs"
+                                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 flex items-center gap-1 text-[11px] font-extrabold transition-all shadow-2xs"
                               >
-                                <Phone className="w-3 h-3 text-slate-500" /> Ligar
+                                <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Ligar</span>
                               </a>
                             )}
                           </div>
                         )}
 
-                        {/* 3º VOU COBRAR? (PAYMENT CARD - HIGHLIGHTED WHEN ARRIVED) */}
-                        <div className={`p-3 rounded-xl transition-all ${
-                          hasArrived
-                            ? 'bg-amber-50 border-2 border-amber-400 text-amber-900 shadow-sm'
-                            : 'bg-slate-50 border border-slate-200'
-                        }`}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
-                                hasArrived ? 'bg-amber-400 text-slate-950 border-amber-500' : 'bg-white border-slate-200 text-slate-800'
-                              }`}>
-                                {order.paymentMethod === 'dinheiro' && <DollarSign className={`w-4 h-4 ${hasArrived ? 'text-slate-950' : 'text-amber-600'}`} />}
-                                {order.paymentMethod === 'pix' && <QrCode className={`w-4 h-4 ${hasArrived ? 'text-slate-950' : 'text-emerald-700'}`} />}
-                                {order.paymentMethod === 'cartao_maquininha' && <CreditCard className={`w-4 h-4 ${hasArrived ? 'text-slate-950' : 'text-slate-700'}`} />}
-                              </div>
-                              <div>
-                                <span className={`text-[10px] font-extrabold uppercase block ${
-                                  hasArrived ? 'text-amber-800' : 'text-slate-500'
-                                }`}>
-                                  {hasArrived ? '💰 RECEBER NO LOCAL' : 'Pagamento'}
-                                </span>
-                                <span className="font-bold text-xs uppercase block text-slate-900">
-                                  {order.paymentMethod === 'dinheiro'
-                                    ? '💵 Dinheiro'
-                                    : order.paymentMethod === 'pix'
-                                    ? '⚡ PIX (Pago)'
-                                    : '💳 Cartão (Maquininha)'}
-                                </span>
-                              </div>
+                        {/* STATUS MESSAGE & MAIN ACTION BUTTON */}
+                        <div className="pt-1 space-y-2">
+                          {/* STATUS TAG */}
+                          {isPendingInKitchen ? (
+                            <div className="w-full py-2.5 px-3 bg-amber-50 border border-amber-200 text-amber-900 font-bold text-xs rounded-xl flex items-center justify-center gap-2 text-center">
+                              <Clock className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+                              <span>⏳ Aguardando a loja finalizar o pedido</span>
                             </div>
-
-                            <div className="text-right">
-                              <span className={`text-[10px] font-extrabold uppercase block ${
-                                hasArrived ? 'text-amber-800' : 'text-slate-500'
-                              }`}>Cobrar</span>
-                              <span className={`font-black text-2xl leading-none ${
-                                hasArrived ? 'text-amber-900' : 'text-slate-900'
-                              }`}>
-                                {formattedCurrency(order.total)}
-                              </span>
+                          ) : isReadyAtCounter ? (
+                            <div className="w-full py-2.5 px-3 bg-emerald-50 border border-emerald-300 text-emerald-950 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 text-center">
+                              <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>✅ PEDIDO PRONTO PARA RETIRADA NO BALCÃO</span>
                             </div>
-                          </div>
-
-                          {order.changeFor && (
-                            <div className="mt-2 pt-1.5 border-t border-slate-200 flex items-center justify-between text-xs font-bold text-amber-800">
-                              <span>⚠️ TROCO PARA:</span>
-                              <span className="bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-mono text-amber-900">
-                                {formattedCurrency(order.changeFor)}
-                              </span>
+                          ) : isPickedUp ? (
+                            <div className="w-full py-2.5 px-3 bg-slate-900 text-amber-300 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 text-center">
+                              <ShoppingBag className="w-4 h-4 text-amber-400 shrink-0" />
+                              <span>🎒 RETIRADO (NA BAG) — PRONTO PARA SAÍDA</span>
                             </div>
-                          )}
-                        </div>
+                          ) : null}
 
-                        {/* 4º NAVEGAÇÃO GPS (AZUL APENAS PARA NAVEGAÇÃO) */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenWaze(order.address)}
-                            className="py-2.5 px-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                          >
-                            <Navigation className="w-3.5 h-3.5 fill-current" />
-                            WAZE
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleOpenGoogleMaps(order.address)}
-                            className="py-2.5 px-2 bg-blue-700 hover:bg-blue-600 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                          >
-                            <MapPin className="w-3.5 h-3.5" />
-                            GOOGLE MAPS
-                          </button>
-                        </div>
-
-                        {/* 5º PROGRESSIVE ACTION BUTTONS (PASSOS DA ENTREGA) */}
-                        <div className="pt-1.5 space-y-2 border-t border-slate-200">
-                          {order.status === 'preparing' || order.status === 'pending' ? (
-                            /* PASSO 1: AGUARDANDO PRONTIDÃO DA COZINHA */
-                            <div className="space-y-1.5">
-                              <div className="w-full py-3 px-3 bg-amber-50 border border-amber-300 text-amber-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 text-center">
-                                <Clock className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
-                                <span>⏳ AGUARDANDO A LOJA AVISAR QUE ESTÁ PRONTO</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  onUpdateOrderStatus(order.id, 'picked_up');
-                                  triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada adiantadamente!`);
-                                }}
-                                className="w-full text-center text-[11px] font-bold text-slate-500 hover:text-slate-800 underline py-1 cursor-pointer transition-colors"
-                              >
-                                Já estou no balcão com o pacote (Confirmar Retirada Agora)
-                              </button>
-                            </div>
-                          ) : order.status === 'ready_at_counter' ? (
-                            /* PASSO 2: CONFIRMAR RETIRADA DO PEDIDO NO BALCÃO */
+                          {/* ACTION BUTTONS */}
+                          {isPendingInKitchen ? (
                             <button
                               type="button"
                               onClick={() => {
                                 onUpdateOrderStatus(order.id, 'picked_up');
-                                triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada! Próximo passo: Iniciar Rota.`);
+                                triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada!`);
+                              }}
+                              className="w-full py-3 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
+                            >
+                              <ShoppingBag className="w-4 h-4 text-amber-400" />
+                              <span>Confirmar Retirada Agora</span>
+                            </button>
+                          ) : isReadyAtCounter ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onUpdateOrderStatus(order.id, 'picked_up');
+                                triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada!`);
                               }}
                               className="w-full py-3.5 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer animate-pulse"
                             >
                               <ShoppingBag className="w-5 h-5 text-slate-950 fill-current" />
-                              Confirma retirada do pedido
+                              <span>Confirmar Retirada</span>
                             </button>
-                          ) : order.status === 'picked_up' ? (
-                            /* PASSO 3: INICIAR ROTA */
+                          ) : isPickedUp ? (
                             <button
                               type="button"
                               onClick={() => {
                                 onUpdateOrderStatus(order.id, 'in_transit');
-                                triggerSystemActionToast(`🚀 Rota iniciada para o pedido #${order.codeNumber}! Cliente notificado.`);
+                                triggerSystemActionToast(`🚀 Rota iniciada para o pedido #${order.codeNumber}!`);
                               }}
-                              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
+                              className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer"
                             >
                               <Zap className="w-5 h-5 fill-current" />
-                              Iniciar rota
+                              <span>Iniciar Rota</span>
                             </button>
-                          ) : !hasArrived ? (
-                            /* STATE: EM ROTA -> BOTÃO "CHEGUEI AO LOCAL" */
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setArrivedOrderIds((prev) => ({ ...prev, [order.id]: true }));
-                                onSimulateArrival(order);
-                                triggerSystemActionToast("📍 Status 'Cheguei ao local' atualizado! O cliente foi notificado pelo WhatsApp da Loja.");
-                              }}
-                              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
-                            >
-                              <span className="text-base">📍</span>
-                              CHEGUEI AO LOCAL
-                            </button>
-                          ) : (
-                            /* STATE: CHEGOU -> CONCLUIR ENTREGA */
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onUpdateOrderStatus(order.id, 'delivered');
-                                triggerSystemActionToast("✓ Entregue! Carregando próxima parada...");
-                              }}
-                              className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
-                            >
-                              <CheckCircle2 className="w-5 h-5" />
-                              {assignedOrders.length > 1 && index < assignedOrders.length - 1
-                                ? '✓ ENTREGUE (Carregar Próxima)'
-                                : '✓ CONCLUIR ENTREGA'}
-                            </button>
-                          )}
+                          ) : isInTransit ? (
+                            <div className="space-y-2">
+                              {/* ROTA GPS BUTTONS */}
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenWaze(order.address)}
+                                  className="py-3 px-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                >
+                                  <Navigation className="w-4 h-4 fill-current" />
+                                  <span>WAZE</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenGoogleMaps(order.address)}
+                                  className="py-3 px-2 bg-blue-700 hover:bg-blue-600 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                >
+                                  <MapPin className="w-4 h-4" />
+                                  <span>GOOGLE MAPS</span>
+                                </button>
+                              </div>
+
+                              {/* FINAL STEP BUTTON: CHEGUEI OR ENTREGUE */}
+                              {!hasArrived ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setArrivedOrderIds((prev) => ({ ...prev, [order.id]: true }));
+                                    onSimulateArrival(order);
+                                    triggerSystemActionToast("📍 Cheguei ao local! Cliente notificado.");
+                                  }}
+                                  className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
+                                >
+                                  <MapPin className="w-4 h-4 text-emerald-400" />
+                                  <span>CHEGUEI AO LOCAL</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onUpdateOrderStatus(order.id, 'delivered');
+                                    setManualExpandedId(null);
+                                    triggerSystemActionToast("✓ Entrega concluída!");
+                                  }}
+                                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer"
+                                >
+                                  <CheckCircle2 className="w-5 h-5" />
+                                  <span>✓ CONCLUIR ENTREGA</span>
+                                </button>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     </div>

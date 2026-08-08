@@ -625,6 +625,7 @@ export default function App() {
             onAssignOrderToMotoboy={handleAssignOrderToMotoboy}
             onAssignBatchToMotoboy={handleAssignBatchToMotoboy}
             onUpdateOrderStatus={handleUpdateOrderStatus}
+            onUpdateMotoboyStatus={handleUpdateMotoboyStatus}
             onReorderMotoboyRoute={handleReorderMotoboyRoute}
             onConfirmArrivalAtStore={handleConfirmArrivalAtStore}
             onOpenNewOrderModal={() => setIsNewOrderModalOpen(true)}
