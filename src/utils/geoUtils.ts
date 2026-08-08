@@ -220,14 +220,20 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
     }
   }
 
-  // Blumenau neighborhood coordinates lookup for instant precise pinning
-  const blumenauNeighborhoods: Record<string, { lat: number; lng: number }> = {
+  // Blumenau specific street & neighborhood lookup for 100% instant accurate pinning
+  const blumenauKnownLocations: Record<string, { lat: number; lng: number }> = {
+    'pioneiros': { lat: -26.9242, lng: -49.0815 },
+    'dos pioneiros': { lat: -26.9242, lng: -49.0815 },
+    'caçadores': { lat: -26.9388, lng: -49.1082 },
+    'cacadores': { lat: -26.9388, lng: -49.1082 },
+    'hope burger': { lat: -26.9388, lng: -49.1082 },
     'centro': { lat: -26.9189, lng: -49.0660 },
     'velha': { lat: -26.9248, lng: -49.0988 },
     'velha central': { lat: -26.9380, lng: -49.1150 },
     'vila nova': { lat: -26.9067, lng: -49.0785 },
     'victor konder': { lat: -26.9090, lng: -49.0710 },
     'agua verde': { lat: -26.9135, lng: -49.1020 },
+    'água verde': { lat: -26.9135, lng: -49.1020 },
     'itoupava seca': { lat: -26.8970, lng: -49.0830 },
     'itoupava norte': { lat: -26.8850, lng: -49.0760 },
     'itoupavazinha': { lat: -26.8650, lng: -49.0880 },
@@ -236,7 +242,6 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
     'ponta aguda': { lat: -26.9200, lng: -49.0520 },
     'vorstadt': { lat: -26.9250, lng: -49.0420 },
     'escola agricola': { lat: -26.8990, lng: -49.0980 },
-    'cacadores': { lat: -26.9280, lng: -49.1080 },
     'progresso': { lat: -26.9780, lng: -49.0750 },
     'valparaiso': { lat: -26.9480, lng: -49.0520 },
     'tribess': { lat: -26.8650, lng: -49.0520 },
@@ -244,15 +249,12 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
   };
 
   const lowerQuery = cleaned.toLowerCase();
-  for (const [key, coords] of Object.entries(blumenauNeighborhoods)) {
+  for (const [key, coords] of Object.entries(blumenauKnownLocations)) {
     if (lowerQuery.includes(key)) {
-      // Add small micro-offset so multiple pins in same neighborhood don't overlap exactly
-      const offsetLat = (Math.random() - 0.5) * 0.004;
-      const offsetLng = (Math.random() - 0.5) * 0.004;
       return {
         address: cleaned,
-        lat: coords.lat + offsetLat,
-        lng: coords.lng + offsetLng,
+        lat: coords.lat,
+        lng: coords.lng,
         name: cleaned.split('-')[0],
       };
     }

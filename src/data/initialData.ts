@@ -12,9 +12,73 @@ export const INITIAL_STORE_SHIFT: StoreShift = {
   adminPassword: '123',
 };
 
-export const INITIAL_MOTOBOYS: Motoboy[] = [];
+export const INITIAL_MOTOBOYS: Motoboy[] = [
+  {
+    id: 'm1',
+    name: 'Ruan',
+    phone: '(47) 99123-4567',
+    vehicleModel: 'Honda CG 160 Fan',
+    plate: 'ABC-1234',
+    status: 'available',
+    activeOrdersCount: 0,
+    currentLat: -26.9388,
+    currentLng: -49.1082,
+    fixedFee: 50.0,
+    perDeliveryFee: 8.5,
+    deliveriesCountToday: 2,
+    totalEarnedToday: 60.0,
+    username: 'ruan',
+  },
+];
 
-export const INITIAL_ORDERS: Order[] = [];
+export const INITIAL_ORDERS: Order[] = [
+  {
+    id: 'ord_101',
+    codeNumber: 101,
+    clientName: 'Ruan',
+    clientPhone: '(47) 99123-4567',
+    address: 'Rua dos Pioneiros 595, Água Verde',
+    neighborhood: 'Água Verde • Blumenau',
+    lat: -26.9242,
+    lng: -49.0815,
+    items: [
+      { id: 'item_1', name: 'Hope Smash Bacon', quantity: 2, price: 32.0 },
+      { id: 'item_2', name: 'Refrigerante Guaraná 2L', quantity: 1, price: 14.0 },
+    ],
+    itemsSummary: 'Hope Smash Bacon (x2) + Guaraná 2L',
+    subtotal: 78.0,
+    deliveryFee: 12.58,
+    total: 90.58,
+    paymentMethod: 'cartao_maquininha',
+    status: 'preparing',
+    createdAt: '19:40',
+    estimatedMinutes: 30,
+    trackingCode: 'HOPE101',
+  },
+  {
+    id: 'ord_102',
+    codeNumber: 102,
+    clientName: 'Pedido balcão',
+    clientPhone: '(47) 98877-6655',
+    address: 'Retirada no balcão',
+    neighborhood: 'Velha Central • Blumenau',
+    lat: -26.9388,
+    lng: -49.1082,
+    items: [
+      { id: 'item_3', name: 'Hope Double Cheese & Bacon', quantity: 1, price: 38.0 },
+      { id: 'item_4', name: 'Porção de Batata Rústica', quantity: 1, price: 22.0 },
+    ],
+    itemsSummary: 'Hope Double Cheese & Bacon + Batata',
+    subtotal: 60.0,
+    deliveryFee: 0.0,
+    total: 60.0,
+    paymentMethod: 'pix',
+    status: 'ready_at_counter',
+    createdAt: '19:50',
+    estimatedMinutes: 20,
+    trackingCode: 'HOPE102',
+  },
+];
 
 export const INITIAL_ITEMS_MENU = [
   { name: 'Hope Smash Cheeseburger', price: 28.0 },

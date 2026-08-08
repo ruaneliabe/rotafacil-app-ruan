@@ -54,6 +54,9 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [street, setStreet] = useState('');
+  const [houseNumber, setHouseNumber] = useState('');
+  const [complement, setComplement] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
@@ -303,7 +306,30 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
 
     setClientName(name || 'Cliente Sem Nome');
     if (phone) setClientPhone(phone);
-    if (addr) setAddress(addr);
+    if (addr) {
+      setAddress(addr);
+      const parts = addr.split(',');
+      if (parts.length > 1) {
+        setStreet(parts[0].trim());
+        const rest = parts.slice(1).join(',').trim();
+        const numMatch = rest.match(/^nº?\s*(\d+[a-zA-Z]?)/i) || rest.match(/^(\d+[a-zA-Z]?)/);
+        if (numMatch) {
+          setHouseNumber(numMatch[1]);
+          const afterNum = rest.replace(numMatch[0], '').replace(/^[-,\s]+/, '').trim();
+          if (afterNum) setComplement(afterNum);
+        } else {
+          setComplement(rest);
+        }
+      } else {
+        const numMatch = addr.match(/,\s*nº?\s*(\d+)/i) || addr.match(/\s+(\d+)\b/);
+        if (numMatch) {
+          setHouseNumber(numMatch[1]);
+          setStreet(addr.replace(numMatch[0], '').trim());
+        } else {
+          setStreet(addr);
+        }
+      }
+    }
     if (neigh) setNeighborhood(neigh);
     if (parsedFee !== null) setDeliveryFee(parsedFee);
     if (changeForVal !== undefined) setChangeFor(changeForVal);
@@ -381,7 +407,15 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
 
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
-    if (!clientName || !address || isSubmitting) return;
+    const finalStreet = street.trim() || address.trim();
+    const finalNumber = houseNumber.trim();
+    const finalComp = complement.trim();
+
+    let fullFormattedAddress = finalStreet;
+    if (finalNumber) fullFormattedAddress += `, Nº ${finalNumber}`;
+    if (finalComp) fullFormattedAddress += ` (${finalComp})`;
+
+    if (!clientName || !fullFormattedAddress || isSubmitting) return;
 
     setIsSubmitting(true);
 
@@ -390,7 +424,8 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
       let lng = -49.1082;
 
       try {
-        const geoResult = await geocodeAddress(`${address}, ${neighborhood || 'Centro'}, Blumenau - SC`);
+        const query = `${finalStreet}${finalNumber ? `, ${finalNumber}` : ''}, ${neighborhood || 'Centro'}, Blumenau - SC`;
+        const geoResult = await geocodeAddress(query);
         if (geoResult && geoResult.lat && geoResult.lng) {
           lat = geoResult.lat;
           lng = geoResult.lng;
@@ -418,7 +453,10 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
       onAddOrder({
         clientName,
         clientPhone: clientPhone || '(47) 99999-0000',
-        address,
+        address: fullFormattedAddress,
+        street: finalStreet,
+        houseNumber: finalNumber,
+        complement: finalComp,
         neighborhood: neighborhood || 'Centro',
         lat,
         lng,
@@ -611,33 +649,67 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
-                  <label className="font-bold text-slate-300 block mb-1 text-[11px]">Endereço Completo *</label>
-                  <input
-                    type="text"
-                    required
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Rua, Número, Complemento"
-                    className={`w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-emerald-500 font-semibold text-xs text-white transition-all ${
-                      highlightFields ? 'ring-2 ring-emerald-500 bg-slate-900' : ''
-                    }`}
-                  />
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-slate-300 block mb-1 text-[11px]">Rua / Logradouro *</label>
+                    <input
+                      type="text"
+                      required
+                      value={street}
+                      onChange={(e) => {
+                        setStreet(e.target.value);
+                        setAddress(e.target.value);
+                      }}
+                      placeholder="Ex: Rua XV de Novembro"
+                      className={`w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-emerald-500 font-semibold text-xs text-white transition-all ${
+                        highlightFields ? 'ring-2 ring-emerald-500 bg-slate-900' : ''
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-300 block mb-1 text-[11px]">Nº Residência *</label>
+                    <input
+                      type="text"
+                      required
+                      value={houseNumber}
+                      onChange={(e) => setHouseNumber(e.target.value)}
+                      placeholder="Ex: 653 ou S/N"
+                      className={`w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-emerald-500 font-semibold text-xs text-white transition-all ${
+                        highlightFields ? 'ring-2 ring-emerald-500 bg-slate-900' : ''
+                      }`}
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="font-bold text-slate-300 block mb-1 text-[11px]">Bairro *</label>
-                  <input
-                    type="text"
-                    required
-                    value={neighborhood}
-                    onChange={(e) => setNeighborhood(e.target.value)}
-                    placeholder="Ex: Velha"
-                    className={`w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-emerald-500 font-semibold text-xs text-white transition-all ${
-                      highlightFields ? 'ring-2 ring-emerald-500 bg-slate-900' : ''
-                    }`}
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-slate-300 block mb-1 text-[11px]">Complemento (Apto, Bloco)</label>
+                    <input
+                      type="text"
+                      value={complement}
+                      onChange={(e) => setComplement(e.target.value)}
+                      placeholder="Ex: Apto 201, Bloco B"
+                      className={`w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-emerald-500 font-semibold text-xs text-white transition-all ${
+                        highlightFields ? 'ring-2 ring-emerald-500 bg-slate-900' : ''
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-300 block mb-1 text-[11px]">Bairro *</label>
+                    <input
+                      type="text"
+                      required
+                      value={neighborhood}
+                      onChange={(e) => setNeighborhood(e.target.value)}
+                      placeholder="Ex: Velha Central"
+                      className={`w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-emerald-500 font-semibold text-xs text-white transition-all ${
+                        highlightFields ? 'ring-2 ring-emerald-500 bg-slate-900' : ''
+                      }`}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

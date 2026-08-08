@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StoreShift } from '../types';
+import { geocodeAddress } from '../utils/geoUtils';
 import {
   Building2,
   Phone,
@@ -13,6 +14,7 @@ import {
   Navigation,
   ShieldCheck,
   Sparkles,
+  Search,
 } from 'lucide-react';
 
 interface StoreAccountSettingsModalProps {
@@ -39,6 +41,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
 
   const [showPassword, setShowPassword] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -54,17 +57,51 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleGeocodeStore = async () => {
+    if (!storeAddress.trim() || isGeocoding) return;
+    setIsGeocoding(true);
+    try {
+      const result = await geocodeAddress(storeAddress);
+      if (result && result.lat && result.lng) {
+        setStoreLat(result.lat);
+        setStoreLng(result.lng);
+      }
+    } catch (err) {
+      console.warn('Geocoding error:', err);
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!storeName.trim()) return;
+
+    let finalLat = Number(storeLat) || -26.9388;
+    let finalLng = Number(storeLng) || -49.1082;
+
+    // Try auto-geocoding address if present
+    if (storeAddress.trim()) {
+      try {
+        const geoRes = await geocodeAddress(storeAddress);
+        if (geoRes && geoRes.lat && geoRes.lng) {
+          finalLat = geoRes.lat;
+          finalLng = geoRes.lng;
+          setStoreLat(finalLat);
+          setStoreLng(finalLng);
+        }
+      } catch (err) {
+        console.warn('Auto geocode fallback:', err);
+      }
+    }
 
     const updated: StoreShift = {
       ...shift,
       storeName: storeName.trim(),
       storePhone: storePhone.trim(),
       storeAddress: storeAddress.trim(),
-      storeLat: Number(storeLat) || -26.9388,
-      storeLng: Number(storeLng) || -49.1082,
+      storeLat: finalLat,
+      storeLng: finalLng,
       adminPassword: adminPassword.trim() || '123',
     };
 
@@ -155,9 +192,20 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
 
           {/* Endereço Padrão da Loja */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-extrabold text-slate-300 uppercase tracking-wider">
-              Endereço Completo (Ponto de Origem)
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-extrabold text-slate-300 uppercase tracking-wider">
+                Endereço Completo da Loja
+              </label>
+              <button
+                type="button"
+                onClick={handleGeocodeStore}
+                disabled={isGeocoding || !storeAddress.trim()}
+                className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 active:scale-95 text-emerald-400 font-bold text-[10px] rounded-lg border border-slate-600 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                <Search className="w-3 h-3" />
+                <span>{isGeocoding ? 'Localizando...' : 'Localizar no Mapa'}</span>
+              </button>
+            </div>
             <div className="relative">
               <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
@@ -165,12 +213,12 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
                 required
                 value={storeAddress}
                 onChange={(e) => setStoreAddress(e.target.value)}
-                placeholder="Ex: R. dos Caçadores, 653 - Velha Central, Blumenau - SC"
+                placeholder="Ex: Rua dos Caçadores, 653, Blumenau - SC"
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
               />
             </div>
             <p className="text-[11px] text-slate-400">
-              Endereço onde a loja está localizada para cálculo de rotas e partidas.
+              Endereço central da loja para calcular partidas e centralizar no mapa.
             </p>
           </div>
 

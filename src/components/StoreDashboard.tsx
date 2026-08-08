@@ -38,6 +38,7 @@ interface StoreDashboardProps {
   onAssignOrderToMotoboy: (orderId: string, motoboyId: string) => void;
   onAssignBatchToMotoboy?: (orderIds: string[], motoboyId: string) => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  onReorderMotoboyRoute?: (orderedOrderIds: string[]) => void;
   onConfirmArrivalAtStore?: (motoboyId: string) => void;
   onOpenNewOrderModal: () => void;
   onOpenMotoboyModal: () => void;
@@ -54,6 +55,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   onAssignOrderToMotoboy,
   onAssignBatchToMotoboy,
   onUpdateOrderStatus,
+  onReorderMotoboyRoute,
   onConfirmArrivalAtStore,
   onOpenNewOrderModal,
   onOpenMotoboyModal,
@@ -295,101 +297,74 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
           )}
 
-          {/* 4. STRIPE-STYLE HIERARCHY METRICS CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
-            {/* MAIN CARD: Pedidos Ativos */}
-            <div className="lg:col-span-4 bg-slate-800 p-3.5 rounded-2xl border border-slate-700/80 shadow-2xs relative overflow-hidden flex flex-col justify-between">
+          {/* 4. STRIPE-STYLE CLEAN METRICS CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* CARD 1: Pedidos Ativos */}
+            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/60 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-200">
-                    <Package className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-black text-slate-400 uppercase block">RESUMO DA OPERAÇÃO</span>
-                    <h3 className="text-sm sm:text-base font-black text-white">Pedidos Ativos</h3>
-                  </div>
-                </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-black shadow-2xs ${
-                  unassignedOrders.length > 0
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                }`}>
-                  {unassignedOrders.length} sem motoboy
-                </span>
+                <span className="text-xs font-semibold text-slate-400">Pedidos Ativos</span>
+                {unassignedOrders.length > 0 && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400">
+                    {unassignedOrders.length} aguardando
+                  </span>
+                )}
               </div>
-              
-              <div className="mt-3 flex items-baseline gap-3">
-                <span className="text-4xl font-black text-white tracking-tight">{activeOrders.length}</span>
-                <span className="text-xs sm:text-sm text-slate-300 font-medium">
+              <div className="mt-2.5 flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-white tracking-tight">{activeOrders.length}</span>
+                <span className="text-xs text-slate-400 font-medium">
                   {readyAtCounter.length} prontos no balcão
                 </span>
               </div>
             </div>
 
-            {/* MEDIUM CARD: Motoboys na Fila */}
-            <div className="lg:col-span-3 bg-slate-800 p-3.5 rounded-2xl border border-slate-700/80 shadow-2xs flex flex-col justify-between">
+            {/* CARD 2: Motoboys na Fila */}
+            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/60 shadow-2xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300">
-                    <Bike className="w-4 h-4" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-400 uppercase">Motoboys na Fila</span>
-                </div>
-                <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                  motoboysAvailable.length > 0
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                }`}>
+                <span className="text-xs font-semibold text-slate-400">Motoboys na fila</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/15 text-blue-400">
                   Fila de Rodízio
                 </span>
               </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-black text-white">
+              <div className="mt-2.5 flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-white tracking-tight">
                   {motoboysAvailable.length}/{motoboys.length}
                 </span>
-                <span className="text-xs text-slate-300 font-medium">
+                <span className="text-xs text-slate-400 font-medium">
                   {motoboysAvailable.length > 0 ? 'disponíveis na loja' : 'todos em entrega'}
                 </span>
               </div>
             </div>
 
-            {/* SECONDARY COMPACT CARD: Entregues Hoje */}
-            <div className="lg:col-span-2 bg-slate-800 p-3.5 rounded-2xl border border-slate-700/80 shadow-2xs flex flex-col justify-between">
-              <div className="flex items-center gap-1.5 text-slate-400">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-bold uppercase">Entregues</span>
+            {/* CARD 3: Entregues Hoje */}
+            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/60 shadow-2xs flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-400">Entregues hoje</span>
               </div>
-              <div className="mt-2">
-                <span className="text-2xl font-black text-white">{deliveredToday.length}</span>
-                <span className="text-xs text-slate-400 block font-medium">concluídos hoje</span>
+              <div className="mt-2.5 flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-white tracking-tight">{deliveredToday.length}</span>
+                <span className="text-xs text-slate-400 font-medium">concluídos hoje</span>
               </div>
             </div>
 
-            {/* SECONDARY COMPACT CARD: Faturamento Hoje */}
-            <div className="lg:col-span-3 bg-slate-800 p-3.5 rounded-2xl border border-slate-700/80 shadow-2xs flex flex-col justify-between">
-              <div className="flex items-center gap-1.5 text-slate-400">
-                <DollarSign className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-bold uppercase">Faturamento Hoje</span>
+            {/* CARD 4: Faturamento Hoje */}
+            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/60 shadow-2xs flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-400">Faturamento hoje</span>
               </div>
-              <div className="mt-2">
-                <span className="text-xl font-black text-emerald-400">{formattedCurrency(totalRevenue)}</span>
-                <span className="text-xs text-slate-400 block font-medium">{orders.length} pedidos lançados</span>
+              <div className="mt-2.5 flex items-baseline gap-2">
+                <span className="text-2xl font-extrabold text-emerald-400 tracking-tight">{formattedCurrency(totalRevenue)}</span>
+                <span className="text-xs text-slate-400 font-medium">{orders.length} pedidos lançados</span>
               </div>
             </div>
           </div>
 
           {/* 5. DESPACHO VISUAL SECTION */}
-          <div className="bg-slate-800 rounded-2xl border border-slate-700/80 shadow-2xs p-4 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-700 pb-2.5">
-              <div>
-                <span className="text-xs font-black text-slate-400 uppercase">
-                  DESPACHO VISUAL INTELIGENTE
-                </span>
-                <h3 className="text-base sm:text-lg font-extrabold text-white">Escolha a melhor rota para o próximo despacho</h3>
-              </div>
+          <div className="bg-slate-900/60 rounded-xl border border-slate-800/60 shadow-2xs p-3.5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-200 tracking-tight">Próximo despacho</h3>
 
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                {unassignedOrders.length} aguardando despacho
+              <span className="text-xs text-slate-400 font-medium">
+                <strong className="text-amber-400">{unassignedOrders.length}</strong> aguardando despacho
               </span>
             </div>
 
@@ -698,15 +673,17 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                   <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
                     {motoboys.map((m) => {
-                      const mOrders = orders.filter(
-                        (o) =>
-                          o.status !== 'delivered' &&
-                          o.status !== 'cancelled' &&
-                          (o.assignedMotoboyId === m.id ||
-                            o.assignedMotoboyName?.toLowerCase() === m.name.toLowerCase() ||
-                            (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||
-                            o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase())
-                      );
+                      const mOrders = orders
+                        .filter(
+                          (o) =>
+                            o.status !== 'delivered' &&
+                            o.status !== 'cancelled' &&
+                            (o.assignedMotoboyId === m.id ||
+                              o.assignedMotoboyName?.toLowerCase() === m.name.toLowerCase() ||
+                              (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||
+                              o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase())
+                        )
+                        .sort((a, b) => (a.routeSequence || 0) - (b.routeSequence || 0));
 
                       return (
                         <div
@@ -792,30 +769,75 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   }`}
                                 >
                                   <div className="flex items-center justify-between gap-1">
-                                    <div>
-                                      <span className="font-extrabold text-white">#{idx + 1} • #{ord.codeNumber} {ord.clientName}</span>
-                                      <p className="text-[11px] text-slate-300 line-clamp-1">{ord.address}</p>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-extrabold text-[10px] bg-slate-800 text-amber-300 border border-slate-700 px-1.5 py-0.5 rounded">
+                                          {idx + 1}ª Parada
+                                        </span>
+                                        <span className="font-extrabold text-white truncate">#{ord.codeNumber} {ord.clientName}</span>
+                                      </div>
+                                      <p className="text-[11px] text-slate-300 line-clamp-1 mt-0.5">{ord.address}</p>
                                     </div>
 
-                                    <span
-                                      className={`px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0 ${
-                                        ord.status === 'ready_at_counter'
-                                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-2xs animate-pulse'
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {/* Order sequence move buttons */}
+                                      {mOrders.length > 1 && onReorderMotoboyRoute && (
+                                        <div className="flex items-center gap-0.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                                          {idx > 0 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const reordered = [...mOrders];
+                                                const temp = reordered[idx];
+                                                reordered[idx] = reordered[idx - 1];
+                                                reordered[idx - 1] = temp;
+                                                onReorderMotoboyRoute(reordered.map((o) => o.id));
+                                              }}
+                                              className="px-1.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] rounded transition-all cursor-pointer shadow-2xs"
+                                              title="Subir para 1ª parada da rota (Entregar primeiro)"
+                                            >
+                                              ▲ 1º
+                                            </button>
+                                          )}
+                                          {idx < mOrders.length - 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const reordered = [...mOrders];
+                                                const temp = reordered[idx];
+                                                reordered[idx] = reordered[idx + 1];
+                                                reordered[idx + 1] = temp;
+                                                onReorderMotoboyRoute(reordered.map((o) => o.id));
+                                              }}
+                                              className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-[10px] rounded transition-all cursor-pointer"
+                                              title="Mover para entrega seguinte"
+                                            >
+                                              ▼ 2º
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      <span
+                                        className={`px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0 ${
+                                          ord.status === 'ready_at_counter'
+                                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-2xs animate-pulse'
+                                            : ord.status === 'picked_up'
+                                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                            : ord.status === 'in_transit'
+                                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                            : 'bg-slate-700 text-slate-300'
+                                        }`}
+                                      >
+                                        {ord.status === 'ready_at_counter'
+                                          ? '🛍️ Pronto Balcão'
                                           : ord.status === 'picked_up'
-                                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                          ? '🎒 Retirado'
                                           : ord.status === 'in_transit'
-                                          ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                          : 'bg-slate-700 text-slate-300'
-                                      }`}
-                                    >
-                                      {ord.status === 'ready_at_counter'
-                                        ? '🛍️ Pronto Balcão'
-                                        : ord.status === 'picked_up'
-                                        ? '🎒 Retirado pelo Motoboy'
-                                        : ord.status === 'in_transit'
-                                        ? '🛵 Em Rota'
-                                        : '⏳ Em Cozinha'}
-                                    </span>
+                                          ? '🛵 Em Rota'
+                                          : '⏳ Em Cozinha'}
+                                      </span>
+                                    </div>
                                   </div>
 
                                   <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-700 text-[11px]">
@@ -894,6 +916,27 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       );
                     })}
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Resumo Rápido Card matching Mockup */}
+            <div className="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 space-y-2">
+              <h4 className="font-bold text-xs text-slate-300 uppercase tracking-wider">Resumo rápido</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
+                  <span className="text-[11px] text-slate-400 block font-medium">Pedidos no balcão</span>
+                  <strong className="text-white text-sm font-bold">{readyAtCounter.length} prontos</strong>
+                </div>
+                <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
+                  <span className="text-[11px] text-slate-400 block font-medium">Motoboys ativos</span>
+                  <strong className="text-white text-sm font-bold">{motoboysAvailable.length} na fila</strong>
+                </div>
+                <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
+                  <span className="text-[11px] text-slate-400 block font-medium">Próxima entrega</span>
+                  <strong className="text-emerald-400 text-xs font-bold line-clamp-1">
+                    {unassignedOrders[0]?.address || 'Rua dos Pioneiros 595, Água Verde • Blumenau'}
+                  </strong>
                 </div>
               </div>
             </div>

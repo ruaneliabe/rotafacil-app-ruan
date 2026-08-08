@@ -316,6 +316,22 @@ export default function App() {
     }
   };
 
+  const handleReorderMotoboyRoute = (orderedOrderIds: string[]) => {
+    setOrders((prev) => {
+      const updated = prev.map((ord) => {
+        const seqIdx = orderedOrderIds.indexOf(ord.id);
+        if (seqIdx !== -1) {
+          const updatedOrd = { ...ord, routeSequence: seqIdx + 1 };
+          saveOrderToCloud(updatedOrd);
+          return updatedOrd;
+        }
+        return ord;
+      });
+      return updated;
+    });
+    showToast('🗺️ Sequência de entregas atualizada! O motoboy verá a nova ordem das paradas.');
+  };
+
   const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
     const targetOrder = orders.find((o) => o.id === orderId);
     if (!targetOrder) return;
@@ -334,7 +350,13 @@ export default function App() {
 
     // If order goes in_transit, update motoboy status to delivering
     if (status === 'in_transit' && targetOrder.assignedMotoboyId) {
-      const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);
+      const targetMotoboy = motoboys.find(
+        (m) =>
+          m.id === targetOrder.assignedMotoboyId ||
+          (m.username && m.username.toLowerCase() === targetOrder.assignedMotoboyId?.toLowerCase()) ||
+          m.name.toLowerCase() === targetOrder.assignedMotoboyId?.toLowerCase() ||
+          (targetOrder.assignedMotoboyName && m.name.toLowerCase() === targetOrder.assignedMotoboyName.toLowerCase())
+      );
       if (targetMotoboy && targetMotoboy.status !== 'delivering') {
         const updatedMotoboy: Motoboy = {
           ...targetMotoboy,
@@ -346,22 +368,35 @@ export default function App() {
     }
 
     // Update motoboy status & earnings if delivered
-    if (status === 'delivered' && targetOrder.assignedMotoboyId) {
-      const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);
+    if (status === 'delivered') {
+      const targetMotoboy = motoboys.find(
+        (m) =>
+          (targetOrder.assignedMotoboyId && m.id === targetOrder.assignedMotoboyId) ||
+          (m.username && targetOrder.assignedMotoboyId && m.username.toLowerCase() === targetOrder.assignedMotoboyId.toLowerCase()) ||
+          (m.name && targetOrder.assignedMotoboyId && m.name.toLowerCase() === targetOrder.assignedMotoboyId.toLowerCase()) ||
+          (m.name && targetOrder.assignedMotoboyName && m.name.toLowerCase() === targetOrder.assignedMotoboyName.toLowerCase())
+      );
+
       if (targetMotoboy) {
         const remainingActiveCount = orders.filter(
           (o) =>
             o.id !== orderId &&
-            o.assignedMotoboyId === targetMotoboy.id &&
+            (o.assignedMotoboyId === targetMotoboy.id ||
+             (o.assignedMotoboyName && targetMotoboy.name && o.assignedMotoboyName.toLowerCase() === targetMotoboy.name.toLowerCase())) &&
             o.status !== 'delivered' &&
             o.status !== 'cancelled'
         ).length;
 
         const isFinishedAll = remainingActiveCount === 0;
 
+        const feeEarned = targetOrder.deliveryFee && targetOrder.deliveryFee > 0
+          ? targetOrder.deliveryFee
+          : (targetMotoboy.perDeliveryFee && targetMotoboy.perDeliveryFee > 0 ? targetMotoboy.perDeliveryFee : 5.0);
+
         const updatedMotoboy: Motoboy = {
           ...targetMotoboy,
-          totalEarnedToday: targetMotoboy.totalEarnedToday + targetMotoboy.perDeliveryFee,
+          deliveriesCountToday: (targetMotoboy.deliveriesCountToday || 0) + 1,
+          totalEarnedToday: (targetMotoboy.totalEarnedToday || 0) + feeEarned,
           activeOrdersCount: remainingActiveCount,
           status: isFinishedAll ? 'returning_to_store' : 'delivering',
         };
@@ -376,9 +411,11 @@ export default function App() {
           );
         } else {
           showToast(
-            `Pedido #${targetOrder.codeNumber} entregue! 🎉 (${remainingActiveCount} ${remainingActiveCount === 1 ? 'restante' : 'restantes'})`
+            `Pedido #${targetOrder.codeNumber} entregue por ${targetMotoboy.name}! 🎉 (+${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(feeEarned)})`
           );
         }
+      } else {
+        showToast(`Pedido #${targetOrder.codeNumber} marcado como entregue! 🎉`);
       }
     } else if (status === 'picked_up') {
       showToast(
@@ -588,6 +625,7 @@ export default function App() {
             onAssignOrderToMotoboy={handleAssignOrderToMotoboy}
             onAssignBatchToMotoboy={handleAssignBatchToMotoboy}
             onUpdateOrderStatus={handleUpdateOrderStatus}
+            onReorderMotoboyRoute={handleReorderMotoboyRoute}
             onConfirmArrivalAtStore={handleConfirmArrivalAtStore}
             onOpenNewOrderModal={() => setIsNewOrderModalOpen(true)}
             onOpenMotoboyModal={() => setIsMotoboyModalOpen(true)}
@@ -612,6 +650,7 @@ export default function App() {
               motoboys={motoboys}
               orders={orders}
               onUpdateOrderStatus={handleUpdateOrderStatus}
+              onReorderMotoboyRoute={handleReorderMotoboyRoute}
               onConfirmArrivalAtStore={handleConfirmArrivalAtStore}
               onUpdateMotoboyStatus={handleUpdateMotoboyStatus}
               onSimulateArrival={(order) => {

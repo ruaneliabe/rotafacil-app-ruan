@@ -14,7 +14,10 @@ export interface Order {
   codeNumber: number; // e.g. #101
   clientName: string;
   clientPhone: string;
-  address: string;
+  address: string; // Endereço completo formatado
+  street?: string; // Logradouro/Rua ex: "Rua XV de Novembro"
+  houseNumber?: string; // Número ex: "653" ou "S/N"
+  complement?: string; // Complemento ex: "Apto 201, Bloco B"
   neighborhood: string;
   lat: number;
   lng: number;
@@ -33,6 +36,7 @@ export interface Order {
   deliveredAt?: string;
   notes?: string;
   trackingCode: string;
+  routeSequence?: number;
 }
 
 export interface Motoboy {
@@ -51,6 +55,7 @@ export interface Motoboy {
   fixedFee: number; // R$ diária
   perDeliveryFee: number; // R$ por corrida
   totalEarnedToday: number;
+  deliveriesCountToday?: number;
 }
 
 export type UserRole = 'store_admin' | 'motoboy' | 'customer';
