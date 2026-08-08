@@ -235,7 +235,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   const isInitialMount = useRef(true);
 
   useEffect(() => {
-    const currentAssignedIds = assignedOrders.map((o) => `${o.id}_${o.status}`);
+    const currentAssignedIds = assignedOrders.map((o) => o.id);
 
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -243,31 +243,15 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       return;
     }
 
-    const newOrChanged = assignedOrders.filter(
-      (o) => !prevAssignedIdsRef.current.includes(`${o.id}_${o.status}`)
+    // Identify newly assigned orders that weren't assigned in the previous tick
+    const newlyAssigned = assignedOrders.filter(
+      (o) => !prevAssignedIdsRef.current.includes(o.id)
     );
 
-    if (newOrChanged.length > 0) {
-      const isReadyAtCounter = newOrChanged.some((o) => o.status === 'ready_at_counter');
-      const title = isReadyAtCounter
-        ? 'PEDIDO PRONTO PARA RETIRADA 🛍️'
-        : 'NOVO PEDIDO OU ROTA DISPONÍVEL 🔔';
-      const msg = isReadyAtCounter
-        ? 'Pedido pronto para retirada'
-        : 'Novo pedido ou rota disponível';
-
-      setNotificationToastTitle(title);
-      setNotificationToastMessage(msg);
-      playNewOrderAlert(msg);
-      setShowNotificationToast(true);
-
-      const timer = setTimeout(() => setShowNotificationToast(false), 7000);
-      // ALWAYS update ref first before returning cleanup timer
-      prevAssignedIdsRef.current = currentAssignedIds;
-      return () => clearTimeout(timer);
+    if (newlyAssigned.length > 0) {
+      playNewOrderAlert(`🛵 Novo(s) ${newlyAssigned.length} pedido(s) atribuído(s) a você!`);
     }
 
-    // ALWAYS update ref
     prevAssignedIdsRef.current = currentAssignedIds;
   }, [assignedOrders]);
 
@@ -317,32 +301,6 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
   return (
     <div className="w-full max-w-md mx-auto bg-slate-50 text-slate-900 rounded-3xl border border-slate-200 shadow-md overflow-hidden flex flex-col font-sans min-h-[680px] relative">
-      
-      {/* Top Mobile Status Notification Bar */}
-      {showNotificationToast && (
-        <div className="absolute top-0 left-0 right-0 z-50 bg-slate-900/95 border-b-2 border-emerald-500 text-white p-2.5 px-3.5 shadow-2xl flex items-center justify-between gap-2.5 animate-slideDown backdrop-blur-md rounded-t-3xl">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-xs">
-              <BellRing className="w-4 h-4 text-slate-950" />
-            </div>
-            <div className="min-w-0">
-              <span className="font-extrabold text-[10px] text-emerald-400 uppercase tracking-wider block">
-                ROTA FÁCIL • NOTIFICAÇÃO
-              </span>
-              <span className="text-xs font-bold text-white truncate block">
-                {notificationToastTitle}
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowNotificationToast(false)}
-            className="text-slate-950 bg-emerald-400 hover:bg-emerald-300 font-extrabold text-[11px] px-2.5 py-1 rounded-lg transition-all cursor-pointer shrink-0"
-          >
-            OK
-          </button>
-        </div>
-      )}
 
       {/* Official Store Automation Notification Toast */}
       {actionToast && (

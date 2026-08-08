@@ -131,112 +131,87 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     <div className="space-y-4 text-slate-100 relative">
       {/* Real-time Store Action Toast */}
       {actionToast && (
-        <div className="fixed top-4 right-4 z-50 bg-slate-900 border-2 border-amber-500 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 animate-slideDown">
-          <span className="text-amber-400 font-extrabold text-lg">🔔</span>
-          <span className="text-xs font-bold text-slate-100">{actionToast}</span>
+        <div className="fixed top-4 right-4 z-50 bg-slate-900 border border-blue-500/40 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 animate-slideDown">
+          <span className="text-blue-400 font-bold text-base">🔔</span>
+          <span className="text-xs font-medium text-slate-100">{actionToast}</span>
         </div>
       )}
 
-      {/* 1. HUMANIZED GREETING & EXPEDIENTE BANNER */}
-      <div className="bg-slate-800 border border-slate-700/80 rounded-2xl p-3.5 text-white flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 text-white flex items-center justify-center shrink-0 font-extrabold shadow-2xs">
-            <Building2 className="w-5 h-5 text-slate-200" />
+      {/* 1. CLEAN ULTRA-SLIM DASHBOARD HEADER */}
+      <div className="bg-slate-900/80 backdrop-blur-md rounded-2xl p-3 px-4 border border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700/60 text-blue-400 flex items-center justify-center shrink-0 font-bold shadow-2xs">
+            <Building2 className="w-4 h-4 text-blue-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-black text-white">{shift.storeName}</h2>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border uppercase ${
-                shift.isOpen ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-slate-700 text-slate-300 border-slate-600'
+              <h2 className="text-base font-bold text-white tracking-tight">{shift.storeName || 'Hope Burger'}</h2>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase ${
+                shift.isOpen ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-800 text-slate-400'
               }`}>
-                {shift.isOpen ? 'Expediente Aberto' : 'Fechado'}
+                {shift.isOpen ? 'Aberto' : 'Fechado'}
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-300 font-medium mt-0.5">
-              Hoje: <span className="text-white font-bold">{orders.length} pedidos</span> • <span className="text-slate-200 font-bold">{deliveredToday.length} entregues</span> • <span className="text-slate-200 font-bold">{unassignedOrders.length} aguardando despacho</span> • <span className="text-slate-200 font-bold">{motoboys.length} motoboys em operação ({motoboysAvailable.length} na fila)</span>
+            {/* Minimal line requested by user: Hope Burger • 2 pedidos • 1 motoboy ativo • R$233 hoje */}
+            <p className="text-xs text-slate-400 font-medium mt-0.5">
+              <strong className="text-slate-200">{activeOrders.length} pedidos</strong> • <strong className="text-slate-200">{motoboysAvailable.length} motoboy{motoboysAvailable.length !== 1 ? 's' : ''} ativo{motoboysAvailable.length !== 1 ? 's' : ''}</strong> • <strong className="text-blue-400 font-semibold">{formattedCurrency(totalRevenue)} hoje</strong>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+        {/* Action Controls */}
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
           <button
             type="button"
             onClick={onOpenNewOrderModal}
-            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
-            <Plus className="w-4 h-4 text-emerald-100" />
+            <Plus className="w-4 h-4" />
             Lançar Pedido
           </button>
           <button
             type="button"
-            onClick={onToggleShift}
-            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs rounded-xl border border-slate-600 transition-all flex items-center gap-1.5 cursor-pointer"
+            onClick={onOpenMotoboyModal}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs rounded-xl border border-slate-700/60 transition-all flex items-center gap-1.5 cursor-pointer"
           >
-            <Power className="w-3.5 h-3.5 text-rose-400" />
-            {shift.isOpen ? 'Encerrar' : 'Abrir'}
+            <Plus className="w-3.5 h-3.5 text-blue-400" />
+            Motoboy
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSettlementOpen(true)}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs rounded-xl border border-slate-700/60 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Receipt className="w-3.5 h-3.5 text-slate-400" />
+            Acerto
+          </button>
+          <button
+            type="button"
+            onClick={onToggleShift}
+            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl border border-slate-700/60 transition-all cursor-pointer"
+            title={shift.isOpen ? 'Encerrar Expediente' : 'Abrir Expediente'}
+          >
+            <Power className="w-4 h-4 text-rose-400" />
           </button>
         </div>
       </div>
 
-      {/* 2. TELA VIVA - TICKER DE EVENTOS EM TEMPO REAL */}
-      <div className="bg-slate-800 border border-slate-700/80 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs overflow-x-auto shadow-2xs">
-        <div className="flex items-center gap-2.5 shrink-0">
-          <span className="flex h-2 w-2 relative">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span className="font-extrabold text-emerald-400 uppercase text-[10px] tracking-wider">
-            Painel Ativo
-          </span>
-        </div>
-
-        <div className="flex items-center gap-4 text-slate-300 font-medium text-xs sm:text-sm whitespace-nowrap overflow-x-auto px-2">
-          {returningMotoboys.length > 0 ? (
-            <span className="text-amber-300 font-bold flex items-center gap-1 animate-pulse">
-              <Bike className="w-4 h-4 text-amber-400 inline" /> {returningMotoboys.map(m => m.name).join(', ')} retornando para a loja!
-            </span>
-          ) : (
-            <span className="text-slate-200 font-bold flex items-center gap-1">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 inline" /> Equipe ativa: {motoboys.length} em operação • {motoboysAvailable.length} disponíveis na fila
-            </span>
-          )}
-          <span className="text-slate-600">•</span>
-          {unassignedOrders.length > 0 ? (
-            <span className="text-amber-300 font-semibold flex items-center gap-1">
-              <Clock className="w-4 h-4 text-amber-400 inline" /> {unassignedOrders.length} {unassignedOrders.length === 1 ? 'pedido aguardando' : 'pedidos aguardando'} despacho
-            </span>
-          ) : (
-            <span className="text-slate-200 flex items-center gap-1 font-semibold">
-              <Check className="w-4 h-4 text-emerald-400 inline" /> Todos os pedidos despachados
-            </span>
-          )}
-          <span className="text-slate-600">•</span>
-          <span className="text-slate-100 font-mono text-xs font-bold">
-            Faturamento: {formattedCurrency(totalRevenue)}
-          </span>
-        </div>
-
-        <div className="hidden lg:flex items-center gap-1 text-[11px] text-slate-400 shrink-0 font-mono">
-          <span>Tempo Real</span>
-        </div>
-      </div>
-
-      {/* 3. SUB NAVIGATION TABS */}
-      <div className="bg-slate-800/80 p-1.5 rounded-xl border border-slate-700/80 flex items-center justify-between overflow-x-auto text-xs font-semibold text-slate-300">
+      {/* 2. SUB NAVIGATION TABS */}
+      <div className="bg-slate-900/60 p-1 rounded-xl border border-slate-800/40 flex items-center justify-between overflow-x-auto text-xs font-medium text-slate-400">
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setActiveTab('operacao')}
             className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'operacao'
-                ? 'bg-slate-700 text-white font-bold shadow-2xs border border-slate-600'
-                : 'hover:bg-slate-700/50 text-slate-300'
+                ? 'bg-slate-800 text-white font-semibold shadow-2xs'
+                : 'hover:text-slate-200'
             }`}
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
             Operação
-            <span className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-              activeTab === 'operacao' ? 'bg-slate-900 text-white' : 'bg-slate-700 text-slate-300'
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+              activeTab === 'operacao' ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-400'
             }`}>
               {activeOrders.length}
             </span>
@@ -247,8 +222,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             onClick={() => setActiveTab('equipe')}
             className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'equipe'
-                ? 'bg-slate-700 text-white font-bold shadow-2xs border border-slate-600'
-                : 'hover:bg-slate-700/50 text-slate-300'
+                ? 'bg-slate-800 text-white font-semibold shadow-2xs'
+                : 'hover:text-slate-200'
             }`}
           >
             Equipe ({motoboys.length})
@@ -259,8 +234,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             onClick={() => setActiveTab('financeiro')}
             className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'financeiro'
-                ? 'bg-slate-700 text-white font-bold shadow-2xs border border-slate-600'
-                : 'hover:bg-slate-700/50 text-slate-300'
+                ? 'bg-slate-800 text-white font-semibold shadow-2xs'
+                : 'hover:text-slate-200'
             }`}
           >
             Financeiro
@@ -271,29 +246,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             onClick={() => setActiveTab('historico')}
             className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'historico'
-                ? 'bg-slate-700 text-white font-bold shadow-2xs border border-slate-600'
-                : 'hover:bg-slate-700/50 text-slate-300'
+                ? 'bg-slate-800 text-white font-semibold shadow-2xs'
+                : 'hover:text-slate-200'
             }`}
           >
             Histórico
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsSettlementOpen(true)}
-            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold shadow-2xs border border-slate-600 transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
-          >
-            <Receipt className="w-3.5 h-3.5 text-slate-300" /> Acerto Motoboy
-          </button>
-
-          <button
-            type="button"
-            onClick={onOpenMotoboyModal}
-            className="px-3 py-1.5 bg-slate-900 text-white rounded-lg font-bold border border-slate-700 hover:bg-slate-850 transition-all flex items-center gap-1.5 text-xs shrink-0 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5 text-emerald-400" /> Cadastrar Motoboy
           </button>
         </div>
       </div>
@@ -303,19 +260,19 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
           {/* ALERT BANNER: MOTOBOY RETURNING TO STORE */}
           {returningMotoboys.length > 0 && (
-            <div className="bg-amber-950/60 border border-amber-700/80 p-3.5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs text-amber-100">
+            <div className="bg-amber-950/40 border border-amber-500/30 p-3 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-100">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0">
-                  <Bike className="w-5 h-5 text-slate-950" />
+                <div className="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0">
+                  <Bike className="w-4 h-4 text-slate-950" />
                 </div>
                 <div>
-                  <h4 className="font-extrabold text-amber-200 text-xs flex items-center gap-2">
-                    <span>MOTOBOY RETORNANDO À LOJA!</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/30 text-amber-200 border border-amber-500/40 uppercase">
+                  <h4 className="font-bold text-amber-300 text-xs flex items-center gap-2">
+                    <span>MOTOBOY RETORNANDO À LOJA</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase">
                       {returningMotoboys.length} {returningMotoboys.length === 1 ? 'entregador' : 'entregadores'}
                     </span>
                   </h4>
-                  <p className="text-xs text-amber-200/90">
+                  <p className="text-xs text-slate-300">
                     <strong className="text-white">{returningMotoboys.map((m) => m.name).join(', ')}</strong> finalizou entregas e está chegando.
                   </p>
                 </div>
@@ -328,7 +285,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       key={m.id}
                       type="button"
                       onClick={() => onConfirmArrivalAtStore(m.id)}
-                      className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-lg shadow-2xs flex items-center gap-1 transition-all cursor-pointer"
+                      className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-1 transition-all cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" /> Confirmar Chegada: {m.name}
                     </button>
