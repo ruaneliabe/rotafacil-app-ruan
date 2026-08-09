@@ -569,19 +569,43 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         )}
       </div>
 
-      {/* GPS Status Indicator Bar */}
-      <div className="bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-slate-300 flex items-center justify-between border-b border-slate-800">
-        <div className="flex items-center gap-1.5 line-clamp-1">
-          <span className={`w-2 h-2 rounded-full ${deviceGps ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
-          <span className="text-slate-200">{gpsStatusMsg}</span>
+      {/* GPS Status Indicator Bar & Position Override for Test/Real GPS */}
+      <div className="bg-slate-900 px-3 py-2 text-[11px] font-bold text-slate-300 flex flex-col sm:flex-row items-center justify-between gap-2 border-b border-slate-800">
+        <div className="flex items-center gap-1.5 line-clamp-1 w-full sm:w-auto">
+          <span className={`w-2.5 h-2.5 rounded-full ${deviceGps ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+          <span className="text-slate-100 font-bold">{gpsStatusMsg}</span>
         </div>
-        <button
-          type="button"
-          onClick={handleRequestGpsManual}
-          className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-md text-[10px] font-bold border border-slate-700 transition-all shrink-0 cursor-pointer"
-        >
-          📍 Atualizar GPS
-        </button>
+        <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end flex-wrap">
+          <button
+            type="button"
+            onClick={handleRequestGpsManual}
+            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black border border-emerald-500 transition-all cursor-pointer shadow-xs"
+          >
+            📍 Usar GPS do Celular
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              // Set test location at Rua dos Pioneiros 595, Blumenau (~3.0 km road distance from store)
+              const testLat = -26.9298;
+              const testLng = -49.0965;
+              setDeviceGps({ lat: testLat, lng: testLng });
+              setGpsStatusMsg(`📍 Posição em Teste (A ~3 km da Loja)`);
+              if (activeMotoboy) {
+                saveMotoboyToCloud({
+                  ...activeMotoboy,
+                  currentLat: testLat,
+                  currentLng: testLng,
+                });
+              }
+              triggerSystemActionToast('📍 Posição de teste definida (~3 km da loja)!');
+            }}
+            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-[10px] font-black border border-amber-500/30 transition-all cursor-pointer"
+            title="Simular localização fora da loja para testes"
+          >
+            📍 Simular Longe (~3km)
+          </button>
+        </div>
       </div>
 
       {/* 3. Navigation Tabs */}
@@ -1116,33 +1140,59 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         ) : activeTab === 'map' ? (
           /* LIVE ROUTE MAP TAB */
           <div className="space-y-3">
-            <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800 space-y-2">
+            <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800 space-y-2.5 shadow-md">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span>
                   <h4 className="font-extrabold text-sm text-white">Mapa da Rota Ao Vivo</h4>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleRequestGpsManual}
-                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs"
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>Atualizar Meu GPS</span>
-                </button>
+                <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-full font-bold text-slate-300">
+                  {deviceGps ? '📍 GPS Sincronizado' : '📍 Permissão Solicitada'}
+                </span>
               </div>
-              <p className="text-xs text-slate-300">
-                Acompanhe a sua posição exata no mapa de Blumenau em tempo real e visualized todas as entregas.
-              </p>
+
+              {/* AVISAR LOJA VOLTANDO BUTTON */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeMotoboy) {
+                    const nextLat = deviceGps?.lat || activeMotoboy.currentLat || -26.9248;
+                    const nextLng = deviceGps?.lng || activeMotoboy.currentLng || -49.0815;
+                    const updated = {
+                      ...activeMotoboy,
+                      status: 'returning_to_store' as const,
+                      currentLat: nextLat,
+                      currentLng: nextLng,
+                    };
+                    saveMotoboyToCloud(updated);
+                    if (onUpdateMotoboyStatus) {
+                      onUpdateMotoboyStatus(activeMotoboy.id, 'returning_to_store');
+                    }
+                    triggerSystemActionToast('🛵 Notificação enviada à loja: "Voltando pra Loja (~5 min)"!');
+                  }
+                }}
+                className={`w-full py-2.5 px-3 font-black text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
+                  activeMotoboy?.status === 'returning_to_store'
+                    ? 'bg-amber-500 text-slate-950 border border-amber-400 animate-pulse'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400'
+                }`}
+              >
+                <Navigation className="w-4 h-4 text-white" />
+                <span>
+                  {activeMotoboy?.status === 'returning_to_store'
+                    ? '⚡ STATUS: VOLTANDO PARA A LOJA (~5 MIN)'
+                    : '🛵 AVISAR LOJA: ESTOU VOLTANDO DA ROTA (~5 MIN)'}
+                </span>
+              </button>
             </div>
 
             <div className="h-[400px] rounded-2xl overflow-hidden border border-slate-300 shadow-sm">
               <RouteMap
                 origin={{
                   name: 'Ponto de Partida / Loja',
-                  address: 'Blumenau - SC',
-                  lat: -26.9153287,
-                  lng: -49.1146253,
+                  address: 'Rua dos Caçadores, 653, Blumenau - SC',
+                  lat: -26.9228,
+                  lng: -49.1014,
                 }}
                 motoboyName={activeMotoboy?.name}
                 motoboyVehicle={activeMotoboy?.vehicleModel}

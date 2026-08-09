@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import { LocationPoint, Stop } from '../types';
+import { LocationPoint, Stop, Motoboy } from '../types';
 import { Navigation, MapPin } from 'lucide-react';
 
 interface RouteMapProps {
@@ -14,6 +14,7 @@ interface RouteMapProps {
   showMotoboyMarker?: boolean;
   motoboyLat?: number;
   motoboyLng?: number;
+  motoboysList?: Motoboy[];
 }
 
 export const RouteMap: React.FC<RouteMapProps> = ({
@@ -27,6 +28,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   showMotoboyMarker = true,
   motoboyLat,
   motoboyLng,
+  motoboysList,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -95,27 +97,30 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     const bounds: [number, number][] = [[origin.lat, origin.lng]];
 
-    // 1. Origin Depot Marker (Home / Base Icon)
+    // 1. Origin Depot / Store Marker (Clear Store Icon)
     const originIcon = L.divIcon({
-      className: 'custom-origin-pin',
+      className: 'custom-origin-pin z-50',
       html: `
-        <div class="relative flex items-center justify-center">
-          <div class="absolute -inset-2 bg-indigo-500/20 rounded-full animate-ping"></div>
-          <div class="w-10 h-10 bg-indigo-600 text-white rounded-2xl shadow-lg border-2 border-white flex items-center justify-center font-bold text-sm">
-            🏠
+        <div class="relative flex flex-col items-center justify-center">
+          <div class="absolute -inset-1 bg-emerald-500/30 rounded-full animate-ping"></div>
+          <div class="relative bg-emerald-600 text-white px-2.5 py-1 rounded-xl shadow-xl border-2 border-white flex items-center gap-1.5 font-extrabold text-xs z-50">
+            <span class="text-base">🏪</span>
+            <span class="tracking-wider uppercase text-[11px]">LOJA</span>
           </div>
+          <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-emerald-600 -mt-0.5"></div>
         </div>
       `,
-      iconSize: [40, 40],
-      iconAnchor: [20, 20],
+      iconSize: [80, 42],
+      iconAnchor: [40, 42],
     });
 
-    const originMarker = L.marker([origin.lat, origin.lng], { icon: originIcon })
+    const originMarker = L.marker([origin.lat, origin.lng], { icon: originIcon, zIndexOffset: 1000 })
       .bindPopup(`
-        <div class="p-2 min-w-[200px]">
-          <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-indigo-100 text-indigo-700">Ponto de Partida</span>
-          <h4 class="font-bold text-slate-800 text-sm mt-1">${origin.name || 'Depósito Central'}</h4>
-          <p class="text-xs text-slate-500 mt-0.5">${origin.address}</p>
+        <div class="p-2.5 min-w-[210px]">
+          <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">🏪 Estabelecimento / Loja</span>
+          <h4 class="font-extrabold text-slate-900 text-sm mt-1.5">${origin.name || 'Loja Principal'}</h4>
+          <p class="text-xs text-slate-600 mt-0.5">${origin.address}</p>
+          <p class="text-[11px] text-emerald-700 font-bold mt-1.5">📍 Lat: ${origin.lat.toFixed(5)}, Lng: ${origin.lng.toFixed(5)}</p>
         </div>
       `);
     markersGroup.addLayer(originMarker);
@@ -196,8 +201,60 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       markersGroup.addLayer(marker);
     });
 
-    // 3. Draw Motoboy Marker on Map if available
-    if (showMotoboyMarker) {
+    // 3. Draw Motoboy Markers on Map
+    if (motoboysList && motoboysList.length > 0) {
+      motoboysList.forEach((mb) => {
+        const mbLat = mb.currentLat || origin.lat;
+        const mbLng = mb.currentLng || origin.lng;
+        const isReturning = mb.status === 'returning_to_store';
+        const isDelivering = mb.status === 'delivering';
+
+        const borderColor = isReturning
+          ? 'border-amber-400'
+          : isDelivering
+          ? 'border-blue-400'
+          : 'border-emerald-400';
+
+        const badgeBg = isReturning
+          ? 'bg-amber-950 text-amber-300'
+          : isDelivering
+          ? 'bg-slate-950 text-blue-300'
+          : 'bg-slate-950 text-emerald-300';
+
+        const motoboyIcon = L.divIcon({
+          className: 'custom-motoboy-pin',
+          html: `
+            <div class="relative flex flex-col items-center justify-center">
+              ${isReturning ? '<div class="absolute -inset-2 bg-amber-500/40 rounded-full animate-ping"></div>' : ''}
+              <div class="w-10 h-10 bg-slate-950 text-white rounded-2xl shadow-xl border-2 ${borderColor} flex items-center justify-center font-extrabold text-base z-30">
+                🛵
+              </div>
+              <div class="mt-0.5 ${badgeBg} px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase whitespace-nowrap shadow-md border border-slate-800 z-30">
+                ${mb.name.split(' ')[0]} ${isReturning ? '⚡5min' : ''}
+              </div>
+            </div>
+          `,
+          iconSize: [44, 52],
+          iconAnchor: [22, 26],
+        });
+
+        const mbMarker = L.marker([mbLat, mbLng], { icon: motoboyIcon }).bindPopup(`
+          <div class="p-2.5 min-w-[200px]">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="font-extrabold text-xs text-slate-900">${mb.name}</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded font-black uppercase ${
+                isReturning ? 'bg-amber-100 text-amber-900' : isDelivering ? 'bg-blue-100 text-blue-900' : 'bg-emerald-100 text-emerald-900'
+              }">${isReturning ? 'Voltando à Loja (~5 min)' : isDelivering ? 'Em Rota' : 'Na Loja'}</span>
+            </div>
+            <p class="text-xs text-slate-600">${mb.vehicleModel || 'Moto'} • ${mb.plate || ''}</p>
+            <p class="text-[11px] text-slate-500 mt-1">📍 Lat: ${mbLat.toFixed(5)}, Lng: ${mbLng.toFixed(5)}</p>
+          </div>
+        `);
+
+        markersGroup.addLayer(mbMarker);
+        bounds.push([mbLat, mbLng]);
+      });
+    } else if (showMotoboyMarker) {
       let mLat: number | null = null;
       let mLng: number | null = null;
 
@@ -217,9 +274,6 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           mLat = activeStop.lat;
           mLng = activeStop.lng;
         }
-      } else {
-        mLat = origin.lat;
-        mLng = origin.lng;
       }
 
       if (mLat !== null && mLng !== null) {

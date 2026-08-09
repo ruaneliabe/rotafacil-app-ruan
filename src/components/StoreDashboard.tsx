@@ -34,6 +34,7 @@ import { ThermalTicketModal } from './ThermalTicketModal';
 import { MotoboySettlementModal } from './MotoboySettlementModal';
 import { DeliveryHistoryModal } from './DeliveryHistoryModal';
 import { getSoundEnabled, setSoundEnabled, playNewOrderSound } from '../utils/soundUtils';
+import { calculateDistanceKm, calculateRoadDistanceKm } from '../utils/geoUtils';
 
 interface StoreDashboardProps {
   shift: StoreShift;
@@ -89,6 +90,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     setTimeout(() => setActionToast(null), 3500);
   };
 
+  const [mapFilter, setMapFilter] = useState<'all' | 'returning' | 'orders'>('all');
+
   // Derived metrics matching screenshot
   const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled');
   const readyAtCounter = orders.filter((o) => o.status === 'ready_at_counter');
@@ -96,6 +99,29 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const deliveredToday = orders.filter((o) => o.status === 'delivered');
   const totalRevenue = orders.reduce((acc, o) => acc + o.total, 0);
   const motoboysAvailable = motoboys.filter((m) => m.status === 'available');
+
+  // Calculate Motoboys returning to store (~5 min / <= 4.2 km road distance away without active orders, or explicitly 'returning_to_store')
+  const returningMotoboysWithDistance = motoboys.map((m) => {
+    const mActiveOrders = orders.filter(
+      (o) => o.status !== 'delivered' && o.status !== 'cancelled' && o.assignedMotoboyId === m.id
+    );
+    let distKm = 0;
+    if (m.currentLat && m.currentLng && shift.storeLat && shift.storeLng) {
+      distKm = calculateRoadDistanceKm(m.currentLat, m.currentLng, shift.storeLat, shift.storeLng);
+    }
+    const isExplicitReturning = m.status === 'returning_to_store';
+    const isNearbyReturning = mActiveOrders.length === 0 && distKm > 0 && distKm <= 4.2 && m.status !== 'offline';
+    const isReturning = isExplicitReturning || isNearbyReturning;
+    const estMin = Math.max(1, Math.round((distKm / 28) * 60) || 5);
+
+    return {
+      ...m,
+      isReturning,
+      distKm,
+      estMin,
+    };
+  }).filter((m) => m.isReturning);
+
   const returningMotoboys = motoboys.filter((m) => m.status === 'returning_to_store');
 
   const formattedCurrency = (val: number) =>
@@ -145,6 +171,42 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         <div className="fixed top-4 right-4 z-50 bg-slate-900 border border-blue-500/40 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 animate-slideDown">
           <span className="text-blue-400 font-bold text-base">🔔</span>
           <span className="text-xs font-medium text-slate-100">{actionToast}</span>
+        </div>
+      )}
+
+      {/* ⚡ PROACTIVE RETURNING MOTOBOY ALERT BANNER (~5 min) */}
+      {returningMotoboysWithDistance.length > 0 && (
+        <div className="bg-amber-950/90 border-2 border-amber-500/80 text-amber-100 p-3.5 px-4 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xl shrink-0 shadow-md">
+              🛵
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[10px] uppercase">
+                  Aviso de Retorno (~5 min)
+                </span>
+                <span className="text-amber-300 text-xs font-bold">Acelere os próximos pedidos no balcão!</span>
+              </div>
+              <p className="text-xs text-amber-200 mt-1 font-semibold">
+                {returningMotoboysWithDistance.map(
+                  (m) => `${m.name} (${m.distKm > 0 ? `${m.distKm.toFixed(1)} km - ` : ''}~${m.estMin} min da loja)`
+                ).join(' • ')}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (onConfirmArrivalAtStore && returningMotoboysWithDistance[0]) {
+                onConfirmArrivalAtStore(returningMotoboysWithDistance[0].id);
+                triggerActionToast(`✅ Chegada do entregador ${returningMotoboysWithDistance[0].name} confirmada na loja!`);
+              }
+            }}
+            className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-md shrink-0 border border-amber-300"
+          >
+            Confirmar Chegada na Loja 🟢
+          </button>
         </div>
       )}
 
@@ -660,29 +722,84 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
               {/* Middle & Right Column: Map + Rotas Disponíveis (~58% width) */}
               <div className="lg:col-span-7 grid grid-cols-1 md:grid-cols-12 gap-3">
-                {/* Map Panel */}
-                <div className="md:col-span-7 h-[360px] md:h-auto min-h-[300px]">
-                  <RouteMap
-                    origin={{
-                      name: shift.storeName,
-                      address: shift.storeAddress,
-                      lat: shift.storeLat,
-                      lng: shift.storeLng,
-                    }}
-                    stops={activeOrders.map((ord, idx) => ({
-                      id: ord.id,
-                      orderIndex: idx + 1,
-                      title: `#${ord.codeNumber} - ${ord.clientName}`,
-                      address: ord.address,
-                      lat: ord.lat,
-                      lng: ord.lng,
-                      status: ord.status === 'delivered' ? 'delivered' : ord.status === 'in_transit' ? 'in_transit' : 'pending',
-                      priority: 'medium',
-                      recipientName: ord.clientName,
-                      phone: ord.clientPhone,
-                      valueToReceive: ord.total,
-                    }))}
-                  />
+                {/* Map Panel with Clean Filter Controls */}
+                <div className="md:col-span-7 h-[380px] md:h-auto min-h-[320px] flex flex-col bg-slate-900/80 rounded-2xl border border-slate-700/80 p-2 space-y-2">
+                  <div className="flex items-center justify-between gap-1.5 px-1 pt-0.5">
+                    <span className="text-[11px] font-black text-slate-300 uppercase tracking-wide flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                      Visão do Mapa
+                    </span>
+                    <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-xl border border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => setMapFilter('all')}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                          mapFilter === 'all'
+                            ? 'bg-emerald-500 text-slate-950 shadow-2xs'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Todos ({activeOrders.length + motoboys.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMapFilter('returning')}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                          mapFilter === 'returning'
+                            ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        ⚡ Voltando ({returningMotoboysWithDistance.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMapFilter('orders')}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                          mapFilter === 'orders'
+                            ? 'bg-blue-500 text-white shadow-2xs'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        📦 Pedidos ({activeOrders.length})
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 rounded-xl overflow-hidden border border-slate-800">
+                    <RouteMap
+                      origin={{
+                        name: shift.storeName,
+                        address: shift.storeAddress,
+                        lat: shift.storeLat,
+                        lng: shift.storeLng,
+                      }}
+                      motoboysList={
+                        mapFilter === 'all'
+                          ? motoboys.filter((m) => m.status !== 'offline')
+                          : mapFilter === 'returning'
+                          ? returningMotoboysWithDistance
+                          : []
+                      }
+                      stops={
+                        mapFilter === 'returning'
+                          ? []
+                          : activeOrders.map((ord, idx) => ({
+                              id: ord.id,
+                              orderIndex: idx + 1,
+                              title: `#${ord.codeNumber} - ${ord.clientName}`,
+                              address: ord.address,
+                              lat: ord.lat,
+                              lng: ord.lng,
+                              status: ord.status === 'delivered' ? 'delivered' : ord.status === 'in_transit' ? 'in_transit' : 'pending',
+                              priority: 'medium',
+                              recipientName: ord.clientName,
+                              phone: ord.clientPhone,
+                              valueToReceive: ord.total,
+                            }))
+                      }
+                    />
+                  </div>
                 </div>
 
                 {/* Rotas disponíveis dos Motoboys */}

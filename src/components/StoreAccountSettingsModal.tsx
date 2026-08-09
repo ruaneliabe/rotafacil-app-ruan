@@ -127,8 +127,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   const [storeName, setStoreName] = useState(shift.storeName || '');
   const [storePhone, setStorePhone] = useState(shift.storePhone || '');
   const [storeAddress, setStoreAddress] = useState(shift.storeAddress || '');
-  const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.9153287);
-  const [storeLng, setStoreLng] = useState<number>(shift.storeLng || -49.1223501);
+  const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.9228);
+  const [storeLng, setStoreLng] = useState<number>(shift.storeLng || -49.1014);
   const [adminPassword, setAdminPassword] = useState(shift.adminPassword || '123');
 
   const [showPassword, setShowPassword] = useState(false);
@@ -141,8 +141,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       setStoreName(shift.storeName || '');
       setStorePhone(shift.storePhone || '');
       setStoreAddress(shift.storeAddress || '');
-      setStoreLat(shift.storeLat || -26.9153287);
-      setStoreLng(shift.storeLng || -49.1223501);
+      setStoreLat(shift.storeLat || -26.9228);
+      setStoreLng(shift.storeLng || -49.1014);
       setAdminPassword(shift.adminPassword || '123');
       setIsSaved(false);
       setGeocodeSuccess(false);

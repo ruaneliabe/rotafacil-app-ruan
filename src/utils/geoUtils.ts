@@ -23,6 +23,19 @@ export function calculateDistanceKm(
 }
 
 /**
+ * Calculates estimated road driving distance in km (applying urban road network factor ~1.42x vs straight line)
+ */
+export function calculateRoadDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const lineDist = calculateDistanceKm(lat1, lon1, lat2, lon2);
+  return Number((lineDist * 1.42).toFixed(1));
+}
+
+/**
  * Route optimization algorithm (Nearest-Neighbor + 2-Opt)
  * Orders stops starting from origin to minimize total distance
  */
