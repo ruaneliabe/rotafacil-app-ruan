@@ -313,6 +313,60 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
   const numberMatch = normalized.match(/\b(\d{1,5})\b/);
   const houseNum = numberMatch ? parseInt(numberMatch[1], 10) : 500;
 
+  // Rua XV de Novembro / 15 de Novembro (Coração do Centro de Blumenau)
+  if (lowerNorm.includes('xv de novembro') || lowerNorm.includes('15 de novembro')) {
+    const ratio = Math.min(1, Math.max(0, houseNum / 1600));
+    const interpolatedLat = Number((-26.9230 + ratio * (-26.9150 - (-26.9230))).toFixed(6));
+    const interpolatedLng = Number((-49.0600 + ratio * (-49.0680 - (-49.0600))).toFixed(6));
+    return {
+      address: rawCleaned,
+      lat: interpolatedLat,
+      lng: interpolatedLng,
+      name: `Rua XV de Novembro, ${houseNum}`,
+    };
+  }
+
+  // Rua 7 de Setembro: Starts at Fonte Luminosa / Praça Hercílio Luz (Nº 1, lat -26.9232, lng -49.0605)
+  // past Neumarkt Shopping (Nº 1200, lat -26.9208, lng -49.0665)
+  // to Angeloni / Terminal Proeb (Nº 3200, lat -26.9125, lng -49.0820)
+  if (lowerNorm.includes('7 de setembro') || lowerNorm.includes('sete de setembro')) {
+    const ratio = Math.min(1, Math.max(0, houseNum / 3200));
+    const interpolatedLat = Number((-26.9232 + ratio * (-26.9125 - (-26.9232))).toFixed(6));
+    const interpolatedLng = Number((-49.0605 + ratio * (-49.0820 - (-49.0605))).toFixed(6));
+    return {
+      address: rawCleaned,
+      lat: interpolatedLat,
+      lng: interpolatedLng,
+      name: `Rua 7 de Setembro, ${houseNum}`,
+    };
+  }
+
+  // Rua São Paulo: Parallel to 7 de Setembro (Victor Konder / Itoupava Seca)
+  if (lowerNorm.includes('são paulo') || lowerNorm.includes('sao paulo')) {
+    const ratio = Math.min(1, Math.max(0, houseNum / 3500));
+    const interpolatedLat = Number((-26.9210 + ratio * (-26.8920 - (-26.9210))).toFixed(6));
+    const interpolatedLng = Number((-49.0580 + ratio * (-49.0850 - (-49.0580))).toFixed(6));
+    return {
+      address: rawCleaned,
+      lat: interpolatedLat,
+      lng: interpolatedLng,
+      name: `Rua São Paulo, ${houseNum}`,
+    };
+  }
+
+  // Rua Joinville (Vila Nova / Bairro Victor Konder)
+  if (lowerNorm.includes('joinville')) {
+    const ratio = Math.min(1, Math.max(0, houseNum / 1500));
+    const interpolatedLat = Number((-26.9120 + ratio * (-26.9020 - (-26.9120))).toFixed(6));
+    const interpolatedLng = Number((-49.0720 + ratio * (-49.0820 - (-49.0720))).toFixed(6));
+    return {
+      address: rawCleaned,
+      lat: interpolatedLat,
+      lng: interpolatedLng,
+      name: `Rua Joinville, ${houseNum}`,
+    };
+  }
+
   // Rua dos Caçadores: Starts at Nº 1 (lat -26.9262, lng -49.0965) up to Nº 3500 (lat -26.9080, lng -49.1230)
   if (lowerNorm.includes('caçadores') || lowerNorm.includes('cacadores')) {
     const ratio = Math.min(1, Math.max(0, houseNum / 3500));

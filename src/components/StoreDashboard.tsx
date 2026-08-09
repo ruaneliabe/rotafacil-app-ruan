@@ -102,6 +102,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     let neighborhood = 'Centro';
     let itemsSummary = '2x X-Burguer Especial, 1x Batata Frita';
     let total = 58.00;
+    let orderLat = -26.9189;
+    let orderLng = -49.0660;
 
     if (channel === 'ifood') {
       clientName = 'Rodrigo (iFood #4829)';
@@ -109,36 +111,41 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       neighborhood = 'Victor Konder';
       itemsSummary = '1x Combo Smash Bacon, 1x Milkshake Chocolate';
       total = 64.90;
+      orderLat = -26.9090;
+      orderLng = -49.0710;
     } else if (channel === 'cardapio_web') {
       clientName = 'Camila Ribeiro (Cardápio Web)';
       address = 'Rua 7 de Setembro, 1820';
       neighborhood = 'Centro';
       itemsSummary = '2x Pizza Artesanal Marguerita 35cm';
       total = 89.00;
+      orderLat = -26.9180;
+      orderLng = -49.0670;
     } else if (channel === 'pdv') {
       clientName = 'Balcão / Caixa PDV';
       address = 'Rua São Paulo, 310';
       neighborhood = 'Itoupava Seca';
       itemsSummary = '3x Beirute de Filé Mignon';
       total = 105.00;
+      orderLat = -26.8970;
+      orderLng = -49.0830;
     } else {
       clientName = 'Juliana Martins (WhatsApp Bot)';
       address = 'Rua Joinville, 520';
       neighborhood = 'Vila Nova';
       itemsSummary = '1x X-Salada Duplo, 1x Guaraná 2L';
       total = 42.50;
+      orderLat = -26.9067;
+      orderLng = -49.0785;
     }
-
-    const latJitter = (Math.random() - 0.5) * 0.02;
-    const lngJitter = (Math.random() - 0.5) * 0.02;
 
     onAddOrder({
       clientName,
       clientPhone: '47998811223',
       address,
       neighborhood,
-      lat: baseLat + latJitter,
-      lng: baseLng + lngJitter,
+      lat: orderLat,
+      lng: orderLng,
       itemsSummary,
       total,
       deliveryFee: 8.00,
@@ -492,14 +499,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     </p>
                   </div>
                 </div>
-
-                {/* Daily Savings Indicator */}
-                <div className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-right">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Hoje com o despacho inteligente:</span>
-                  <span className="text-xs font-black text-emerald-400">
-                    ~{(orders.filter((o) => o.status === 'delivered').length * 1.6 + 4.8).toFixed(1)} km evitados • ~{orders.filter((o) => o.status === 'delivered').length * 4 + 18} min economizados
-                  </span>
-                </div>
               </div>
 
               {/* Recommendation Cards Grid */}
@@ -509,7 +508,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     key={rec.id}
                     className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-3 hover:border-emerald-500/40 transition-all shadow-sm flex flex-col justify-between"
                   >
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                       {/* Driver & Route Header */}
                       <div className="flex items-center justify-between gap-2 flex-wrap border-b border-slate-900 pb-2">
                         <span className="text-xs font-black text-white bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
@@ -526,8 +525,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                         </span>
                       </div>
 
-                      {/* Orders List with Source Badge */}
-                      <div className="space-y-1">
+                      {/* Orders List with Clear Origin Source Badge */}
+                      <div className="space-y-1.5">
                         <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
                           {rec.orders.length === 1 ? 'Pedido selecionado:' : 'Pedidos agrupados na mesma rota:'}
                         </span>
@@ -539,7 +538,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             >
                               <strong className="text-emerald-400">#{o.codeNumber}</strong>
                               <span>{o.clientName}</span>
-                              <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded font-medium">
+                              <span className="text-[10px] text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded font-medium border border-slate-700/60">
                                 {o.originChannel === 'ifood'
                                   ? '🔴 iFood'
                                   : o.originChannel === 'cardapio_web'
@@ -548,7 +547,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   ? '💻 PDV'
                                   : '💬 WhatsApp'}
                               </span>
-                              <span className="text-slate-400 text-[11px] font-normal">({o.neighborhood})</span>
+                              <span className="text-emerald-300 bg-emerald-950/80 px-1.5 py-0.5 rounded text-[10px] font-extrabold border border-emerald-500/30">
+                                📍 Bairro: {o.neighborhood}
+                              </span>
                             </span>
                           ))}
                         </div>
@@ -562,9 +563,14 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       {/* SCENARIO B: Kitchen Wait / Return Delay Dual Decision Box */}
                       {rec.waitSuggestion?.suggestWait ? (
                         <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-3 space-y-2 text-amber-100 text-xs">
-                          <div className="flex items-center gap-1.5 font-black text-amber-300">
-                            <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                            <span>⏳ Melhor aguardar ~{rec.waitSuggestion.waitMinutes} min</span>
+                          <div className="flex items-center justify-between gap-2 flex-wrap font-black text-amber-300">
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                              <span>⏳ Melhor aguardar ~{rec.waitSuggestion.waitMinutes} min</span>
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded-md">
+                              ⏱️ Ambos permanecem dentro do prazo
+                            </span>
                           </div>
                           <p className="text-[11px] text-amber-200/90 leading-relaxed">
                             {rec.waitSuggestion.reason}
@@ -573,16 +579,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             <button
                               type="button"
                               onClick={() => triggerActionToast(`⏳ Aguardando ~${rec.waitSuggestion?.waitMinutes} min para saída conjunta.`)}
-                              className="flex-1 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-extrabold rounded-lg border border-amber-500/40 text-xs transition-all cursor-pointer text-center"
+                              className="flex-1 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-extrabold rounded-xl border border-amber-500/40 text-xs transition-all cursor-pointer text-center"
                             >
-                              Aguardar (~{rec.waitSuggestion.waitMinutes} min)
+                              Aguardar e Agrupar (~{rec.waitSuggestion.waitMinutes} min)
                             </button>
                             <button
                               type="button"
                               onClick={() => handleApplyBrainRecommendation(rec)}
-                              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg text-xs transition-all cursor-pointer text-center shadow-xs"
+                              className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold rounded-xl text-xs transition-all cursor-pointer text-center border border-slate-700"
                             >
-                              Despachar agora
+                              Despachar #{rec.orders[0].codeNumber} agora
                             </button>
                           </div>
                         </div>
@@ -937,13 +943,15 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             </span>
                           </div>
 
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold text-slate-300">📍 {ord.neighborhood}</p>
+                          <div className="flex items-center justify-between gap-1 flex-wrap">
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-xs font-black flex items-center gap-1 shadow-2xs">
+                              📍 Bairro: {ord.neighborhood}
+                            </span>
                             <span className="text-[10px] bg-slate-900 text-slate-300 px-1.5 py-0.5 rounded font-mono border border-slate-700">
                               {ord.itemsSummary.split('+')[0]}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-400 line-clamp-1">{ord.address}</p>
+                          <p className="text-xs text-slate-300 font-medium line-clamp-1">🏠 {ord.address}</p>
 
                           <div className="pt-2 border-t border-slate-700/80 space-y-2">
                             {/* Row 1: Quick Action Links */}
@@ -1041,10 +1049,42 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 {/* Map Panel with Clean Filter Controls */}
                 <div id="dashboard-map-section" className="md:col-span-7 h-[380px] md:h-auto min-h-[320px] flex flex-col bg-slate-900/80 rounded-2xl border border-slate-700/80 p-2 space-y-2">
                   <div className="flex items-center justify-between gap-1.5 px-1 pt-0.5">
-                    <span className="text-[11px] font-black text-slate-300 uppercase tracking-wide flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                      Visão do Mapa
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-black text-slate-300 uppercase tracking-wide flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                        Visão do Mapa
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+                            triggerActionToast('📍 Buscando localização exata do seu dispositivo...');
+                            navigator.geolocation.getCurrentPosition(
+                              (pos) => {
+                                const lat = Number(pos.coords.latitude.toFixed(6));
+                                const lng = Number(pos.coords.longitude.toFixed(6));
+                                const ruan = motoboys.find((m) => m.username === 'ruan' || m.name.toLowerCase().includes('ruan'));
+                                if (ruan) {
+                                  const updatedRuan = { ...ruan, currentLat: lat, currentLng: lng };
+                                  saveMotoboyToCloud(updatedRuan);
+                                  triggerActionToast(`🎯 Localização do Ruan sincronizada: ${lat}, ${lng}`);
+                                } else {
+                                  triggerActionToast(`🎯 Posição GPS capturada: ${lat}, ${lng}`);
+                                }
+                              },
+                              (err) => triggerActionToast(`⚠️ Permissão de GPS pendente: ${err.message}`),
+                              { enableHighAccuracy: true }
+                            );
+                          } else {
+                            triggerActionToast('⚠️ Dispositivo sem suporte a geolocalização');
+                          }
+                        }}
+                        className="px-2 py-0.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                        title="Sincronizar minha localização real (Ruan) com o GPS do celular/navegador"
+                      >
+                        🎯 Meu GPS Real
+                      </button>
+                    </div>
                     <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-xl border border-slate-700">
                       <button
                         type="button"
@@ -1105,6 +1145,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                               orderIndex: idx + 1,
                               title: `#${ord.codeNumber} - ${ord.clientName}`,
                               address: ord.address,
+                              neighborhood: ord.neighborhood,
                               lat: ord.lat,
                               lng: ord.lng,
                               status: ord.status === 'delivered' ? 'delivered' : ord.status === 'in_transit' ? 'in_transit' : 'pending',
@@ -1645,30 +1686,44 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               </button>
             </div>
 
-            <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
-              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1">
-                <strong className="text-emerald-400 font-bold block text-xs">1. Proximidade Geográfica & Bairros</strong>
+            <div className="space-y-2.5 text-xs text-slate-300 leading-relaxed">
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-1">
+                <strong className="text-emerald-400 font-bold block text-xs">1. Localização e GPS do Entregador</strong>
                 <p className="text-slate-400">
-                  Agrupamos pedidos cujos endereços ficam na mesma rota ou raio máximo de 2,5 km, reduzindo trajetos em ziguezague.
+                  Acompanha a posição exata em tempo real na loja ou no trajeto de volta.
                 </p>
               </div>
 
-              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1">
-                <strong className="text-emerald-400 font-bold block text-xs">2. Sincronia de Cozinha & Saída</strong>
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-1">
+                <strong className="text-emerald-400 font-bold block text-xs">2. Posição no Rodízio / Fila</strong>
                 <p className="text-slate-400">
-                  Avaliamos o tempo de preparo residual dos pedidos na cozinha. Se um segundo pedido ficará pronto em até 5 min, o sistema sugere aguardar a saída conjunta.
+                  Respeita a ordem justa de chegada do motoboy na loja para distribuição equilibrada.
                 </p>
               </div>
 
-              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1">
-                <strong className="text-emerald-400 font-bold block text-xs">3. Disponibilidade e Retorno da Frota</strong>
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-1">
+                <strong className="text-emerald-400 font-bold block text-xs">3. Proximidade dos Destinos (Agrupamento)</strong>
                 <p className="text-slate-400">
-                  Acompanhamos o GPS em tempo real dos entregadores que estão voltando à loja para já alocar a próxima bag antes mesmo deles estacionarem.
+                  Agrupa entregas na mesma direção e bairros vizinhos para otimizar o percurso.
                 </p>
               </div>
 
-              <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl text-emerald-300 font-medium text-[11px]">
-                💡 <strong>Resultado Prático:</strong> Menos km rodados por entrega, menor gasto com combustível e taxas, e maior previsibilidade para a cozinha e o cliente final.
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-1">
+                <strong className="text-emerald-400 font-bold block text-xs">4. Pedidos Prontos e Preparo na Cozinha</strong>
+                <p className="text-slate-400">
+                  Sincroniza balcão com KDS: se um pedido em preparo fica pronto em ~3 min, sugere aguardar a saída conjunta.
+                </p>
+              </div>
+
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-1">
+                <strong className="text-emerald-400 font-bold block text-xs">5. Previsão de Retorno (ETA)</strong>
+                <p className="text-slate-400">
+                  Calcula quando o motoboy em rota estará de volta para pré-alocar a bag da próxima rodada.
+                </p>
+              </div>
+
+              <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl text-emerald-300 font-medium text-[11px] leading-snug">
+                💡 <strong>Controle Humano Sempre:</strong> O Rota Fácil recomenda e a equipe da loja confirma com um único clique.
               </div>
             </div>
 

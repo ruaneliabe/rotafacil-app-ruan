@@ -164,6 +164,49 @@ export default function App() {
     };
   }, []);
 
+  // Continuously track real device GPS and update motoboy "Ruan" in real-time
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      const handleGpsUpdate = (pos: GeolocationPosition) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+
+        setMotoboys((prevMotoboys) => {
+          const ruanIndex = prevMotoboys.findIndex(
+            (m) =>
+              m.username?.toLowerCase() === 'ruan' ||
+              m.name.toLowerCase().includes('ruan')
+          );
+          if (ruanIndex !== -1) {
+            const ruan = prevMotoboys[ruanIndex];
+            const distChanged =
+              Math.abs((ruan.currentLat || 0) - lat) > 0.0001 ||
+              Math.abs((ruan.currentLng || 0) - lng) > 0.0001;
+
+            if (distChanged) {
+              const updatedRuan = { ...ruan, currentLat: lat, currentLng: lng };
+              saveMotoboyToCloud(updatedRuan);
+              const updatedList = [...prevMotoboys];
+              updatedList[ruanIndex] = updatedRuan;
+              return updatedList;
+            }
+          }
+          return prevMotoboys;
+        });
+      };
+
+      navigator.geolocation.getCurrentPosition(handleGpsUpdate, () => {}, { enableHighAccuracy: true });
+
+      const watchId = navigator.geolocation.watchPosition(
+        handleGpsUpdate,
+        (err) => console.warn('App GPS watch warning:', err.message),
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 3000 }
+      );
+
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, []);
+
   // Real-time Clock for top header
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
 

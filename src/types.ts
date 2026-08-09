@@ -111,6 +111,7 @@ export interface Stop {
   orderIndex: number;
   title: string;
   address: string;
+  neighborhood?: string;
   lat: number;
   lng: number;
   status: StopStatus;

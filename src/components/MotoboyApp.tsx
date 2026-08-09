@@ -913,7 +913,12 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                         </div>
 
                         <div className="flex items-center justify-between text-xs text-slate-600 font-medium pt-0.5">
-                          <span className="truncate pr-2 font-semibold text-slate-800">{streetLine}</span>
+                          <div className="flex items-center gap-1.5 truncate pr-2">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-extrabold text-[10px] shrink-0 border border-emerald-200">
+                              📍 {order.neighborhood || 'Centro'}
+                            </span>
+                            <span className="truncate font-semibold text-slate-800">{streetLine}</span>
+                          </div>
                           <span className="text-[11px] text-slate-400 shrink-0">Toque para ver</span>
                         </div>
                       </div>
@@ -970,9 +975,11 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                           <p className="text-base font-black text-slate-900 leading-snug">
                             {streetLine}
                           </p>
-                          <p className="text-xs text-slate-600 font-semibold">
-                            {neighborhoodLine}
-                          </p>
+                          <div className="pt-1">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-950 font-black text-xs border border-emerald-300 shadow-2xs">
+                              📍 Bairro: {order.neighborhood || 'Centro'}
+                            </span>
+                          </div>
                         </div>
 
                         {/* 2. PAGAMENTO (ALTÍSSIMA VISIBILIDADE) */}
