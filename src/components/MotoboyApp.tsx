@@ -24,7 +24,8 @@ import {
   ArrowRight,
   Store,
   User,
-  Pause
+  Pause,
+  Lock
 } from 'lucide-react';
 
 interface MotoboyAppProps {
@@ -265,6 +266,14 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     if (o.status !== 'delivered') return false;
     return matchesDriver(o);
   });
+
+  const arranqueAmount = activeMotoboy?.fixedFee || 0;
+  const deliveryFeesTotal = completedOrders.reduce(
+    (acc, o) => acc + (o.deliveryFee && o.deliveryFee > 0 ? o.deliveryFee : (activeMotoboy?.perDeliveryFee || 7.00)),
+    0
+  );
+  const calculatedTotalEarnings = arranqueAmount + deliveryFeesTotal;
+  const totalEarnedDisplay = Math.max(activeMotoboy?.totalEarnedToday || 0, calculatedTotalEarnings);
 
   const formattedCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -721,25 +730,20 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             </span>
           </div>
 
-          {/* Card 3: Ganhos Hoje (Clickable -> opens extrato modal) */}
+          {/* Card 3: Saldo Hoje (Clickable -> opens extrato modal) */}
           <button
             type="button"
             onClick={() => setIsEarningsModalOpen(true)}
             className="bg-slate-900 hover:bg-slate-800 active:scale-98 p-2.5 rounded-2xl text-center flex flex-col justify-between transition-all cursor-pointer shadow-xs border border-slate-800 group"
           >
             <span className="text-[10px] font-extrabold text-amber-300 uppercase tracking-tight flex items-center justify-center gap-0.5">
-              💰 Taxas <ChevronRight className="w-3 h-3 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
+              💰 Saldo Hoje <ChevronRight className="w-3 h-3 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
             </span>
             <div className="font-black text-sm sm:text-base text-emerald-400 leading-tight my-0.5 truncate">
-              {formattedCurrency(
-                completedOrders.reduce(
-                  (acc, o) => acc + (o.deliveryFee && o.deliveryFee > 0 ? o.deliveryFee : 7.00),
-                  0
-                ) || (activeMotoboy?.totalEarnedToday || 0)
-              )}
+              {formattedCurrency(totalEarnedDisplay)}
             </div>
             <span className="text-[9px] font-bold text-slate-400 block truncate">
-              ver extrato
+              Arranque R$ {arranqueAmount.toFixed(0)} + {completedOrders.length} {completedOrders.length === 1 ? 'taxa' : 'taxas'}
             </span>
           </button>
         </div>
@@ -845,43 +849,35 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                     Entrega {assignedOrders.findIndex(o => o.status === 'in_transit') >= 0 ? assignedOrders.findIndex(o => o.status === 'in_transit') + 1 : 1} de {assignedOrders.length}
                   </span>
                 </div>
-              ) : assignedOrders.some((o) => o.status !== 'picked_up' && o.status !== 'in_transit') ? (
-                /* BATCH PICKUP CONFIRMATION BUTTON */
+              ) : (
+                /* BATCH CONFIRM ALL PICKED UP & START ROUTE BUTTON */
                 <button
                   type="button"
                   onClick={() => {
-                    assignedOrders.forEach((o) => {
-                      if (o.status !== 'picked_up' && o.status !== 'in_transit') {
-                        onUpdateOrderStatus(o.id, 'picked_up');
-                      }
-                    });
-                    triggerSystemActionToast("✅ Retirada dos pedidos confirmada!");
-                  }}
-                  className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-xs rounded-2xl shadow-md flex items-center justify-center gap-2 uppercase transition-all cursor-pointer border border-emerald-400/30"
-                >
-                  <ShoppingBag className="w-4 h-4 fill-current text-white" />
-                  <span>✓ Retirar {assignedOrders.length === 1 ? 'o pedido' : `os ${assignedOrders.length} pedidos`}</span>
-                </button>
-              ) : assignedOrders.some((o) => o.status === 'picked_up') ? (
-                /* BATCH START ROUTE BUTTON */
-                <button
-                  type="button"
-                  onClick={() => {
-                    const firstOrder = assignedOrders.find((o) => o.status === 'picked_up') || assignedOrders[0];
+                    const firstOrder = assignedOrders[0];
                     if (firstOrder) {
                       onUpdateOrderStatus(firstOrder.id, 'in_transit');
                     }
+                    assignedOrders.slice(1).forEach((o) => {
+                      if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
+                        onUpdateOrderStatus(o.id, 'picked_up');
+                      }
+                    });
                     if (onUpdateMotoboyStatus && activeMotoboy) {
                       onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
                     }
-                    triggerSystemActionToast(`🚀 Rota iniciada! Indo para a 1ª parada: #${firstOrder.codeNumber} (${firstOrder.neighborhood || 'Centro'}).`);
+                    triggerSystemActionToast(
+                      `🚀 Rota iniciada! Siga para a 1ª parada: #${firstOrder?.codeNumber} (${firstOrder?.neighborhood || 'Centro'})`
+                    );
                   }}
-                  className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer animate-pulse"
+                  className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer animate-pulse border border-emerald-300"
                 >
-                  <Zap className="w-4 h-4 fill-current" />
-                  Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'Entrega' : 'Entregas'})
+                  <ShoppingBag className="w-5 h-5 fill-current text-slate-950 shrink-0" />
+                  <span>
+                    ✓ Peguei todos os pedidos - Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'Entrega' : 'Entregas'})
+                  </span>
                 </button>
-              ) : null
+              )
             )}
 
             {/* Empty State or Active Orders */}
@@ -1288,12 +1284,13 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                           {/* ACTION BUTTONS (STRICTLY LOCKED FOR NON-FIRST STOPS) */}
                           {!isFirstOrder ? (
-                            <div className="bg-slate-900 border border-amber-500/50 p-3.5 rounded-2xl space-y-2 text-white shadow-sm">
-                              <div className="flex items-center gap-1.5 font-black text-amber-300 text-xs uppercase tracking-wide">
-                                <span>🔒 PARADA #{index + 1} AGUARDANDO NA FILA</span>
+                            <div className="bg-slate-900 border-2 border-amber-500/60 p-3.5 rounded-2xl space-y-2 text-white shadow-md">
+                              <div className="flex items-center gap-2 font-black text-amber-300 text-xs uppercase tracking-wide">
+                                <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                                <span>🔒 PARADA #{index + 1} BLOQUEADA (AGUARDANDO A 1ª PARADA)</span>
                               </div>
                               <p className="text-xs text-slate-300 font-medium leading-relaxed">
-                                Conclua a <strong>1ª Parada (#{assignedOrders[0]?.codeNumber})</strong> para liberar a navegação desta entrega.
+                                Você deve entregar o <strong>Pedido #{assignedOrders[0]?.codeNumber} (1ª Parada)</strong> primeiro. Assim que concluir a entrega anterior, esta rota será liberada automaticamente.
                               </p>
                               {onReorderMotoboyRoute && (
                                 <button
@@ -1304,11 +1301,11 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                     reordered.unshift(moved);
                                     onReorderMotoboyRoute(reordered.map((o) => o.id));
                                     setManualExpandedId(null);
-                                    triggerSystemActionToast(`▲ Pedido #${order.codeNumber} priorizado para 1º lugar!`);
+                                    triggerSystemActionToast(`▲ Pedido #${order.codeNumber} priorizado para a 1ª parada!`);
                                   }}
-                                  className="w-full py-3 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all uppercase cursor-pointer"
+                                  className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer mt-1"
                                 >
-                                  <span>▲ PRIORIZAR ESTA ENTREGA (COLOCAR EM 1º)</span>
+                                  <span>▲ PRIORIZAR ESTA ENTREGA (ENTREGAR EM 1º LUGAR)</span>
                                 </button>
                               )}
                             </div>
@@ -1525,16 +1522,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                 <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
                   <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
-                    Faturamento Taxas
+                    Saldo Total Hoje
                   </span>
                   <strong className="text-xl font-black text-emerald-400 block mt-0.5">
-                    {formattedCurrency(
-                      activeMotoboy?.totalEarnedToday ||
-                        completedOrders.reduce(
-                          (acc, o) => acc + (o.deliveryFee || activeMotoboy?.perDeliveryFee || 8.5),
-                          0
-                        )
-                    )}
+                    {formattedCurrency(totalEarnedDisplay)}
                   </strong>
                 </div>
               </div>
@@ -1646,22 +1637,20 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                 </p>
               </div>
 
-              {/* Net Delivery Fee Earnings */}
-              <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl space-y-1">
-                <div className="flex items-center justify-between text-xs font-black text-emerald-950">
-                  <span>Ganho em Taxas de Entrega:</span>
-                  <span className="text-emerald-700 text-base">
-                    {formattedCurrency(
-                      completedOrders.reduce(
-                        (acc, o) => acc + (o.deliveryFee || activeMotoboy?.perDeliveryFee || 8.5),
-                        0
-                      )
-                    )}
-                  </span>
+              {/* Saldo & Arranque Breakdown */}
+              <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-900 border-b border-emerald-200/80 pb-1.5">
+                  <span>🚀 Arranque Fixo (Diária):</span>
+                  <span className="font-black text-emerald-950">{formattedCurrency(arranqueAmount)}</span>
                 </div>
-                <p className="text-[11px] text-emerald-800 font-medium leading-tight">
-                  Seu ganho garantido acumulado hoje (acumula por entrega realizada).
-                </p>
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-900 border-b border-emerald-200/80 pb-1.5">
+                  <span>📦 Taxas ({completedOrders.length} {completedOrders.length === 1 ? 'entrega' : 'entregas'}):</span>
+                  <span className="font-black text-emerald-950">{formattedCurrency(deliveryFeesTotal)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm font-black text-emerald-950 pt-0.5">
+                  <span>💰 Saldo Total do Motoboy:</span>
+                  <span className="text-emerald-700 text-lg font-black">{formattedCurrency(totalEarnedDisplay)}</span>
+                </div>
               </div>
 
               {/* Time in route */}
