@@ -120,12 +120,13 @@ export default function App() {
       setCloudSynced(true);
     });
 
-    // User requested wiping all existing data to start from 0
-    if (!localStorage.getItem('rota_facil_cleared_v2')) {
+    // Reset local data cache to apply updated Blumenau coordinates
+    if (!localStorage.getItem('rota_facil_cleared_v3')) {
       clearAllDatabaseData().then(() => {
-        localStorage.setItem('rota_facil_cleared_v2', 'true');
-        setOrders([]);
-        setMotoboys([]);
+        localStorage.setItem('rota_facil_cleared_v3', 'true');
+        saveShiftToCloud(INITIAL_STORE_SHIFT);
+        setOrders(INITIAL_ORDERS);
+        setMotoboys(INITIAL_MOTOBOYS);
       });
     }
 
@@ -139,7 +140,14 @@ export default function App() {
 
     const unsubShift = subscribeToShift((cloudShift) => {
       if (cloudShift) {
-        setShift(cloudShift);
+        const fixedShift = { ...cloudShift };
+        // Fix coordinates if old placeholder
+        if (!fixedShift.storeLat || Math.abs(fixedShift.storeLat - (-26.9388)) < 0.001) {
+          fixedShift.storeLat = -26.9153287;
+          fixedShift.storeLng = -49.1223501;
+          saveShiftToCloud(fixedShift);
+        }
+        setShift(fixedShift);
       }
     });
 

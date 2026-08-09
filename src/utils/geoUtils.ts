@@ -222,14 +222,18 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
 
   // Blumenau specific street & neighborhood lookup for 100% instant accurate pinning
   const blumenauKnownLocations: Record<string, { lat: number; lng: number }> = {
-    'pioneiros': { lat: -26.9242, lng: -49.0815 },
-    'dos pioneiros': { lat: -26.9242, lng: -49.0815 },
-    'caçadores': { lat: -26.9388, lng: -49.1082 },
-    'cacadores': { lat: -26.9388, lng: -49.1082 },
-    'hope burger': { lat: -26.9388, lng: -49.1082 },
+    'pioneiros': { lat: -26.9175, lng: -49.1040 },
+    'dos pioneiros': { lat: -26.9175, lng: -49.1040 },
+    'guabiruba': { lat: -26.9140, lng: -49.1125 },
+    'gabiruba': { lat: -26.9140, lng: -49.1125 },
+    'rua guabiruba': { lat: -26.9140, lng: -49.1125 },
+    'rua gabiruba': { lat: -26.9140, lng: -49.1125 },
+    'caçadores': { lat: -26.9153287, lng: -49.1223501 },
+    'cacadores': { lat: -26.9153287, lng: -49.1223501 },
+    'hope burger': { lat: -26.9153287, lng: -49.1223501 },
     'centro': { lat: -26.9189, lng: -49.0660 },
     'velha': { lat: -26.9248, lng: -49.0988 },
-    'velha central': { lat: -26.9380, lng: -49.1150 },
+    'velha central': { lat: -26.9153287, lng: -49.1223501 },
     'vila nova': { lat: -26.9067, lng: -49.0785 },
     'victor konder': { lat: -26.9090, lng: -49.0710 },
     'agua verde': { lat: -26.9135, lng: -49.1020 },
@@ -289,13 +293,13 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
   }
 
   // Graceful fallback centered on Hope Burger / Blumenau Velha Central
-  const randomOffsetLat = (Math.random() - 0.5) * 0.006;
-  const randomOffsetLng = (Math.random() - 0.5) * 0.006;
+  const randomOffsetLat = (Math.random() - 0.5) * 0.003;
+  const randomOffsetLng = (Math.random() - 0.5) * 0.003;
 
   return {
     address: cleaned,
-    lat: -26.9388 + randomOffsetLat,
-    lng: -49.1082 + randomOffsetLng,
+    lat: -26.9153287 + randomOffsetLat,
+    lng: -49.1223501 + randomOffsetLng,
     name: cleaned.split('-')[0],
   };
 }

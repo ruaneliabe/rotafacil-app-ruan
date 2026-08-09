@@ -932,13 +932,20 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                onUpdateOrderStatus(order.id, 'in_transit');
-                                triggerSystemActionToast(`🚀 Rota iniciada para o pedido #${order.codeNumber}!`);
+                                assignedOrders.forEach((o) => {
+                                  if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
+                                    onUpdateOrderStatus(o.id, 'in_transit');
+                                  }
+                                });
+                                if (onUpdateMotoboyStatus && activeMotoboy) {
+                                  onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
+                                }
+                                triggerSystemActionToast(`🚀 Rota iniciada com ${assignedOrders.length} ${assignedOrders.length === 1 ? 'parada' : 'paradas'}!`);
                               }}
                               className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer"
                             >
                               <Zap className="w-5 h-5 fill-current" />
-                              <span>Iniciar Rota</span>
+                              <span>Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'parada' : 'paradas'})</span>
                             </button>
                           ) : isInTransit ? (
                             <div className="space-y-2">

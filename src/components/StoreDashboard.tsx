@@ -675,6 +675,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                     <div className="space-y-2.5 max-h-[400px] overflow-y-auto pr-0.5">
                       {motoboys.map((m) => {
+                        const availableMotoboys = motoboys.filter((x) => x.status === 'available');
+                        const queuePos = m.status === 'available' ? availableMotoboys.findIndex((x) => x.id === m.id) + 1 : null;
+
                         const mOrders = orders
                           .filter(
                             (o) =>
@@ -700,11 +703,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             {/* Card Header */}
                             <div className="flex items-start justify-between gap-2">
                               <div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-extrabold text-sm text-white">{m.name}</span>
                                   {m.status === 'available' ? (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                                      🟢 NA LOJA
+                                      🟢 NA LOJA {queuePos ? `• ${queuePos}º DA FILA` : ''}
                                     </span>
                                   ) : m.status === 'delivering' ? (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-blue-500/15 text-blue-400 border border-blue-500/30">
@@ -712,7 +715,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     </span>
                                   ) : m.status === 'returning_to_store' ? (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                      🟠 RETORNANDO
+                                      🟠 RETORNANDO À LOJA
                                     </span>
                                   ) : (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-700 text-slate-400 border border-slate-600">
@@ -722,12 +725,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 </div>
 
                                 <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                  {mOrders.length === 0 ? (
-                                    'Aguardando novos pedidos na fila'
-                                  ) : allOrdersInTransit ? (
-                                    `${mOrders.length} ${mOrders.length === 1 ? 'pedido' : 'pedidos'} em entrega`
+                                  {m.status === 'returning_to_store' ? (
+                                    mOrders.length === 0
+                                      ? 'Finalizou rota anterior e está retornando à loja'
+                                      : `Retornando à loja (Já possui ${mOrders.length} ${mOrders.length === 1 ? 'pedido' : 'pedidos'} vinculados para a próxima rota)`
+                                  ) : m.status === 'delivering' ? (
+                                    `Em rota de entrega na rua • ${mOrders.length} ${mOrders.length === 1 ? 'parada restante' : 'paradas restantes'}`
+                                  ) : mOrders.length === 0 ? (
+                                    queuePos ? `${queuePos}º lugar na fila de despacho • Aguardando pedidos` : 'Aguardando novos pedidos na fila'
                                   ) : allOrdersReady ? (
-                                    `${mOrders.length} ${mOrders.length === 1 ? 'pedido pronto' : 'pedidos prontos'}`
+                                    `${mOrders.length} ${mOrders.length === 1 ? 'pedido pronto' : 'pedidos prontos'} para saída`
                                   ) : (
                                     `${mOrders.length} ${mOrders.length === 1 ? 'pedido' : 'pedidos'} • próxima saída com ${mOrders.length} ${mOrders.length === 1 ? 'parada' : 'paradas'}`
                                   )}
@@ -818,9 +825,29 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                             {/* Card Footer Actions */}
                             <div className="pt-1.5 flex items-center gap-1.5">
-                              {mOrders.length > 0 && (
+                              {m.status === 'returning_to_store' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (onConfirmArrivalAtStore) {
+                                      onConfirmArrivalAtStore(m.id);
+                                    } else if (onUpdateMotoboyStatus) {
+                                      onUpdateMotoboyStatus(m.id, 'available');
+                                    }
+                                    triggerActionToast(`🏪 Chegada de ${m.name.split(' ')[0]} confirmada! Ele está na fila para a próxima rota.`);
+                                  }}
+                                  className="w-full py-2.5 px-3 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase animate-pulse"
+                                >
+                                  <span>🏪</span>
+                                  <span>Confirmar Chegada de {m.name.split(' ')[0]} na Loja</span>
+                                </button>
+                              ) : mOrders.length > 0 ? (
                                 <>
-                                  {allOrdersReady ? (
+                                  {m.status === 'delivering' || allOrdersInTransit ? (
+                                    <div className="flex-1 py-1.5 px-3 bg-blue-950/60 border border-blue-500/30 text-blue-300 text-center font-bold text-xs rounded-xl">
+                                      🛵 Em rota na rua ({mOrders.length} {mOrders.length === 1 ? 'parada restante' : 'paradas restantes'})
+                                    </div>
+                                  ) : allOrdersReady ? (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -832,17 +859,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                         if (onUpdateMotoboyStatus) {
                                           onUpdateMotoboyStatus(m.id, 'delivering');
                                         }
-                                        triggerActionToast(`🛵 ${m.name.split(' ')[0]} liberado para entrega!`);
+                                        triggerActionToast(`🛵 ${m.name.split(' ')[0]} liberado para saída!`);
                                       }}
                                       className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                                     >
                                       <span>🛵</span>
-                                      <span>Liberar {m.name.split(' ')[0]} para entrega</span>
+                                      <span>Liberar {m.name.split(' ')[0]} para Saída ({mOrders.length} {mOrders.length === 1 ? 'parada' : 'paradas'})</span>
                                     </button>
-                                  ) : allOrdersInTransit ? (
-                                    <div className="flex-1 py-1.5 px-3 bg-blue-950/60 border border-blue-500/30 text-blue-300 text-center font-bold text-xs rounded-xl">
-                                      🛵 Em rota de entrega ({mOrders.length} {mOrders.length === 1 ? 'parada' : 'paradas'})
-                                    </div>
                                   ) : (
                                     <button
                                       type="button"
@@ -863,18 +886,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     <span>📱</span>
                                   </button>
                                 </>
-                              )}
-
-                              {m.status === 'returning_to_store' && onConfirmArrivalAtStore && (
-                                <button
-                                  type="button"
-                                  onClick={() => onConfirmArrivalAtStore(m.id)}
-                                  className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                                >
-                                  <span>✓</span>
-                                  <span>Confirmar Chegada à Loja</span>
-                                </button>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         );
