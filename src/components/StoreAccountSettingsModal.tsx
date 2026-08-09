@@ -173,8 +173,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
     e.preventDefault();
     if (!storeName.trim()) return;
 
-    let finalLat = Number(storeLat) || -26.9153287;
-    let finalLng = Number(storeLng) || -49.1223501;
+    let finalLat = Number(storeLat) || -26.9228;
+    let finalLng = Number(storeLng) || -49.1082;
 
     // If storeAddress was provided and coordinates haven't been geocoded yet, try geocoding
     if (storeAddress.trim() && (!storeLat || storeLat === -26.9388)) {

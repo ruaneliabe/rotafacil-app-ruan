@@ -249,8 +249,8 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
 
   // 2. Try OpenStreetMap Nominatim with normalized query variations
   const searchQueries = [
+    `street=${encodeURIComponent(normalized.split(',')[0])}&city=Blumenau&state=SC&country=Brasil`,
     `${normalized}, Blumenau, SC, Brasil`,
-    normalized.includes(',') ? `${normalized.split(',')[0]}, Blumenau, SC, Brasil` : `${normalized}, Blumenau, SC`
   ];
 
   for (const sq of searchQueries) {
@@ -258,27 +258,32 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(sq)}&limit=1`,
-        { 
-          headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' },
-          signal: controller.signal 
-        }
-      );
+      const url = sq.startsWith('street=')
+        ? `https://nominatim.openstreetmap.org/search?format=json&${sq}&limit=1`
+        : `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(sq)}&limit=1`;
+
+      const res = await fetch(url, { 
+        headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' },
+        signal: controller.signal 
+      });
       clearTimeout(timeoutId);
 
       if (res.ok) {
         const data = await res.json();
         if (data && data.length > 0) {
-          const lat = parseFloat(data[0].lat);
-          const lng = parseFloat(data[0].lon);
-          // Check if coordinates are reasonably inside/near Blumenau area (-27.2 to -26.7, -49.3 to -48.8)
-          if (lat < -26.7 && lat > -27.2 && lng < -48.8 && lng > -49.3) {
+          const item = data[0];
+          const lat = parseFloat(item.lat);
+          const lng = parseFloat(item.lon);
+          
+          // Only accept if it's not a generic neighborhood administrative boundary (like "Velha") when searching a specific street
+          const isGenericBoundary = (item.class === 'boundary' || item.type === 'administrative') && (normalized.includes('rua') || normalized.includes('r.') || normalized.match(/\d+/));
+
+          if (!isGenericBoundary && lat < -26.7 && lat > -27.2 && lng < -48.8 && lng > -49.3) {
             return {
               address: rawCleaned,
               lat,
               lng,
-              name: data[0].display_name ? data[0].display_name.split(',')[0] : rawCleaned,
+              name: item.display_name ? item.display_name.split(',')[0] : rawCleaned,
             };
           }
         }
@@ -288,37 +293,72 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
     }
   }
 
-  // 3. Fallback: Smart Blumenau street & neighborhood dictionary with house number ranges
+  // 3. Fallback: Smart Blumenau street & neighborhood dictionary with precise linear interpolation
   const lowerNorm = normalized.toLowerCase();
   
   // Extract house number if present
   const numberMatch = normalized.match(/\b(\d{1,5})\b/);
-  const houseNum = numberMatch ? parseInt(numberMatch[1], 10) : null;
+  const houseNum = numberMatch ? parseInt(numberMatch[1], 10) : 500;
 
+  // Rua dos Caçadores: Starts at Nº 1 (lat -26.9262, lng -49.0965) up to Nº 3500 (lat -26.9080, lng -49.1230)
   if (lowerNorm.includes('caçadores') || lowerNorm.includes('cacadores')) {
-    if (houseNum !== null) {
-      if (houseNum <= 400) return { address: rawCleaned, lat: -26.9248, lng: -49.0988, name: 'Rua dos Caçadores' };
-      if (houseNum <= 1000) return { address: rawCleaned, lat: -26.9228, lng: -49.1082, name: 'Rua dos Caçadores' };
-      if (houseNum <= 1800) return { address: rawCleaned, lat: -26.9185, lng: -49.1160, name: 'Rua dos Caçadores' };
-      return { address: rawCleaned, lat: -26.9153287, lng: -49.1223501, name: 'Rua dos Caçadores' };
-    }
-    return { address: rawCleaned, lat: -26.9228, lng: -49.1082, name: 'Rua dos Caçadores' };
+    const ratio = Math.min(1, Math.max(0, houseNum / 3500));
+    const interpolatedLat = Number((-26.9262 + ratio * (-26.9080 - (-26.9262))).toFixed(6));
+    const interpolatedLng = Number((-49.0965 + ratio * (-49.1230 - (-49.0965))).toFixed(6));
+    return {
+      address: rawCleaned,
+      lat: interpolatedLat,
+      lng: interpolatedLng,
+      name: `Rua dos Caçadores, ${houseNum}`,
+    };
   }
 
-  if (lowerNorm.includes('pioneiros')) {
-    return { address: rawCleaned, lat: -26.9175, lng: -49.1040, name: 'Rua dos Pioneiros' };
-  }
-
-  if (lowerNorm.includes('guabiruba') || lowerNorm.includes('gabiruba')) {
-    return { address: rawCleaned, lat: -26.9140, lng: -49.1125, name: 'Rua Guabiruba' };
-  }
-
-  if (lowerNorm.includes('humberto de campos')) {
-    return { address: rawCleaned, lat: -26.9120, lng: -49.0810, name: 'Rua Humberto de Campos' };
-  }
-
+  // Rua General Osório: Nº 1 to 4000
   if (lowerNorm.includes('general osorio') || lowerNorm.includes('osorio')) {
-    return { address: rawCleaned, lat: -26.9220, lng: -49.0920, name: 'Rua General Osório' };
+    const ratio = Math.min(1, Math.max(0, houseNum / 4000));
+    const interpolatedLat = Number((-26.9240 + ratio * (-26.9050 - (-26.9240))).toFixed(6));
+    const interpolatedLng = Number((-49.0800 + ratio * (-49.1150 - (-49.0800))).toFixed(6));
+    return {
+      address: rawCleaned,
+      lat: interpolatedLat,
+      lng: interpolatedLng,
+      name: `Rua General Osório, ${houseNum}`,
+    };
+  }
+
+  // Rua Humberto de Campos: Nº 1 to 1500
+  if (lowerNorm.includes('humberto de campos')) {
+    const ratio = Math.min(1, Math.max(0, houseNum / 1500));
+    const interpolatedLat = Number((-26.9160 + ratio * (-26.9100 - (-26.9160))).toFixed(6));
+    const interpolatedLng = Number((-49.0730 + ratio * (-49.0920 - (-49.0730))).toFixed(6));
+    return {
+      address: rawCleaned,
+      lat: interpolatedLat,
+      lng: interpolatedLng,
+      name: `Rua Humberto de Campos, ${houseNum}`,
+    };
+  }
+
+  // Rua dos Pioneiros
+  if (lowerNorm.includes('pioneiros')) {
+    const ratio = Math.min(1, Math.max(0, houseNum / 1000));
+    return {
+      address: rawCleaned,
+      lat: Number((-26.9195 + ratio * 0.0050).toFixed(6)),
+      lng: Number((-49.1020 - ratio * 0.0060).toFixed(6)),
+      name: `Rua dos Pioneiros, ${houseNum}`,
+    };
+  }
+
+  // Rua Guabiruba
+  if (lowerNorm.includes('guabiruba') || lowerNorm.includes('gabiruba')) {
+    const ratio = Math.min(1, Math.max(0, houseNum / 1000));
+    return {
+      address: rawCleaned,
+      lat: Number((-26.9160 + ratio * 0.0040).toFixed(6)),
+      lng: Number((-49.1100 - ratio * 0.0050).toFixed(6)),
+      name: `Rua Guabiruba, ${houseNum}`,
+    };
   }
 
   const blumenauKnownLocations: Record<string, { lat: number; lng: number }> = {
