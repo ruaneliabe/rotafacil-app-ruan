@@ -172,6 +172,8 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
               }}
               motoboyName={motoboy?.name}
               motoboyVehicle={motoboy ? `${motoboy.vehicleModel} (${motoboy.plate})` : undefined}
+              motoboyLat={motoboy?.currentLat}
+              motoboyLng={motoboy?.currentLng}
               showMotoboyMarker={Boolean(motoboy && (order.status === 'in_transit' || order.status === 'picked_up'))}
               stops={[
                 {

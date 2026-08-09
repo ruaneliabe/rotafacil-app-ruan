@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Order, Motoboy } from '../types';
+import { RouteMap } from './RouteMap';
+import { saveMotoboyToCloud } from '../lib/firebase';
 import {
   Bike,
   MapPin,
@@ -60,7 +62,64 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     }
   }, [initialMotoboyId]);
 
-  const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'map'>('active');
+  const [deviceGps, setDeviceGps] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsStatusMsg, setGpsStatusMsg] = useState<string>('Aguardando GPS...');
+
+  // Track device GPS position in real time
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      const handleSuccess = (pos: GeolocationPosition) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        setDeviceGps({ lat, lng });
+        setGpsStatusMsg(`GPS Ativo (Lat: ${lat}, Lng: ${lng})`);
+      };
+
+      const handleError = (err: GeolocationPositionError) => {
+        console.warn('Erro ao obter GPS:', err.message);
+        setGpsStatusMsg(`Permissão de GPS pendente (${err.message})`);
+      };
+
+      // Initial fetch
+      navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      });
+
+      // Continuous watch
+      const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 4000,
+      });
+
+      return () => navigator.geolocation.clearWatch(watchId);
+    } else {
+      setGpsStatusMsg('Navegador sem suporte a GPS');
+    }
+  }, []);
+
+  const handleRequestGpsManual = () => {
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      setGpsStatusMsg('Buscando localização exata...');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          setDeviceGps({ lat, lng });
+          setGpsStatusMsg(`GPS Atualizado! (${lat}, ${lng})`);
+          triggerSystemActionToast(`📍 Posição atualizada: ${lat}, ${lng}`);
+        },
+        (err) => {
+          setGpsStatusMsg(`Erro no GPS: ${err.message}`);
+          triggerSystemActionToast(`⚠️ Não foi possível obter GPS: ${err.message}`);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+  };
+
   const [showNotificationToast, setShowNotificationToast] = useState<boolean>(false);
   const [notificationToastTitle, setNotificationToastTitle] = useState<string>('NOVO PEDIDO OU ROTA DISPONÍVEL');
   const [notificationToastMessage, setNotificationToastMessage] = useState<string>('Novo pedido ou rota disponível');
@@ -106,6 +165,21 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         m.name.toLowerCase() === activeMotoboyId.toLowerCase() ||
         m.name.toLowerCase().includes(activeMotoboyId.toLowerCase())
     ) || motoboys[0];
+
+  useEffect(() => {
+    if (deviceGps && activeMotoboy) {
+      if (
+        Math.abs((activeMotoboy.currentLat || 0) - deviceGps.lat) > 0.0001 ||
+        Math.abs((activeMotoboy.currentLng || 0) - deviceGps.lng) > 0.0001
+      ) {
+        saveMotoboyToCloud({
+          ...activeMotoboy,
+          currentLat: deviceGps.lat,
+          currentLng: deviceGps.lng,
+        });
+      }
+    }
+  }, [deviceGps, activeMotoboy]);
 
   const effectiveMotoboyId = activeMotoboy?.id || activeMotoboyId;
 
@@ -495,20 +569,35 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         )}
       </div>
 
+      {/* GPS Status Indicator Bar */}
+      <div className="bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-slate-300 flex items-center justify-between border-b border-slate-800">
+        <div className="flex items-center gap-1.5 line-clamp-1">
+          <span className={`w-2 h-2 rounded-full ${deviceGps ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+          <span className="text-slate-200">{gpsStatusMsg}</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleRequestGpsManual}
+          className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-md text-[10px] font-bold border border-slate-700 transition-all shrink-0 cursor-pointer"
+        >
+          📍 Atualizar GPS
+        </button>
+      </div>
+
       {/* 3. Navigation Tabs */}
-      <div className="bg-slate-100 px-3 py-2 border-b border-slate-200 flex items-center gap-2">
+      <div className="bg-slate-100 px-2 py-2 border-b border-slate-200 flex items-center gap-1.5">
         <button
           type="button"
           onClick={() => setActiveTab('active')}
-          className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+          className={`flex-1 py-2 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             activeTab === 'active'
               ? 'bg-slate-900 text-white shadow-2xs'
               : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200'
           }`}
         >
-          <Zap className="w-4 h-4" />
+          <Zap className="w-3.5 h-3.5" />
           Minha Bolsa
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
             activeTab === 'active' ? 'bg-slate-800 text-slate-100' : 'bg-slate-100 text-slate-700'
           }`}>
             {assignedOrders.length}
@@ -517,16 +606,29 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
         <button
           type="button"
+          onClick={() => setActiveTab('map')}
+          className={`flex-1 py-2 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            activeTab === 'map'
+              ? 'bg-slate-900 text-white shadow-2xs'
+              : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200'
+          }`}
+        >
+          <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+          Mapa Ao Vivo
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('completed')}
-          className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+          className={`flex-1 py-2 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             activeTab === 'completed'
               ? 'bg-slate-900 text-white shadow-2xs'
               : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200'
           }`}
         >
-          <CheckCircle2 className="w-4 h-4" />
+          <CheckCircle2 className="w-3.5 h-3.5" />
           Concluídas
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
             activeTab === 'completed' ? 'bg-slate-800 text-slate-100' : 'bg-slate-100 text-slate-700'
           }`}>
             {completedOrders.length}
@@ -1011,6 +1113,56 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               </div>
             )}
           </>
+        ) : activeTab === 'map' ? (
+          /* LIVE ROUTE MAP TAB */
+          <div className="space-y-3">
+            <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span>
+                  <h4 className="font-extrabold text-sm text-white">Mapa da Rota Ao Vivo</h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRequestGpsManual}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>Atualizar Meu GPS</span>
+                </button>
+              </div>
+              <p className="text-xs text-slate-300">
+                Acompanhe a sua posição exata no mapa de Blumenau em tempo real e visualized todas as entregas.
+              </p>
+            </div>
+
+            <div className="h-[400px] rounded-2xl overflow-hidden border border-slate-300 shadow-sm">
+              <RouteMap
+                origin={{
+                  name: 'Ponto de Partida / Loja',
+                  address: 'Blumenau - SC',
+                  lat: -26.9153287,
+                  lng: -49.1146253,
+                }}
+                motoboyName={activeMotoboy?.name}
+                motoboyVehicle={activeMotoboy?.vehicleModel}
+                showMotoboyMarker={true}
+                motoboyLat={deviceGps?.lat || activeMotoboy?.currentLat}
+                motoboyLng={deviceGps?.lng || activeMotoboy?.currentLng}
+                stops={assignedOrders.map((o, idx) => ({
+                  id: o.id,
+                  orderIndex: idx + 1,
+                  title: `#${o.codeNumber} - ${o.clientName}`,
+                  address: o.address,
+                  lat: o.lat,
+                  lng: o.lng,
+                  status: o.status === 'delivered' ? 'delivered' : o.status === 'in_transit' ? 'in_transit' : 'pending',
+                  priority: 'high',
+                  recipientName: o.clientName,
+                }))}
+              />
+            </div>
+          </div>
         ) : (
           /* COMPLETED ORDERS TAB */
           <div className="space-y-3">

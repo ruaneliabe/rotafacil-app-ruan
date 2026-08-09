@@ -12,6 +12,8 @@ interface RouteMapProps {
   motoboyName?: string;
   motoboyVehicle?: string;
   showMotoboyMarker?: boolean;
+  motoboyLat?: number;
+  motoboyLng?: number;
 }
 
 export const RouteMap: React.FC<RouteMapProps> = ({
@@ -23,6 +25,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   motoboyName,
   motoboyVehicle,
   showMotoboyMarker = true,
+  motoboyLat,
+  motoboyLng,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -193,12 +197,32 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     });
 
     // 3. Draw Motoboy Marker on Map if available
-    if (stops.length > 0 && showMotoboyMarker) {
-      const activeStop = stops.find((s) => s.status === 'in_transit') || stops[0];
-      if (activeStop) {
-        const motoboyLat = origin.lat + (activeStop.lat - origin.lat) * 0.55;
-        const motoboyLng = origin.lng + (activeStop.lng - origin.lng) * 0.55;
+    if (showMotoboyMarker) {
+      let mLat: number | null = null;
+      let mLng: number | null = null;
 
+      if (
+        typeof motoboyLat === 'number' &&
+        !isNaN(motoboyLat) &&
+        motoboyLat !== 0 &&
+        typeof motoboyLng === 'number' &&
+        !isNaN(motoboyLng) &&
+        motoboyLng !== 0
+      ) {
+        mLat = motoboyLat;
+        mLng = motoboyLng;
+      } else if (stops.length > 0) {
+        const activeStop = stops.find((s) => s.status === 'in_transit') || stops[0];
+        if (activeStop) {
+          mLat = activeStop.lat;
+          mLng = activeStop.lng;
+        }
+      } else {
+        mLat = origin.lat;
+        mLng = origin.lng;
+      }
+
+      if (mLat !== null && mLng !== null) {
         const motoboyIcon = L.divIcon({
           className: 'custom-motoboy-pin',
           html: `
@@ -216,17 +240,17 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           iconAnchor: [22, 27],
         });
 
-        const motoboyMarker = L.marker([motoboyLat, motoboyLng], { icon: motoboyIcon })
+        const motoboyMarker = L.marker([mLat, mLng], { icon: motoboyIcon })
           .bindPopup(`
             <div class="p-2.5 min-w-[200px]">
-              <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">🛵 Entregador em Rota</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">🛵 Localização do Entregador</span>
               <h4 class="font-extrabold text-slate-900 text-sm mt-1">${motoboyName || 'Entregador Dedicado'}</h4>
               ${motoboyVehicle ? `<p class="text-xs text-slate-500 mt-0.5">${motoboyVehicle}</p>` : ''}
-              <p class="text-xs text-emerald-700 font-bold mt-1">A caminho do destino 📍</p>
+              <p class="text-xs text-emerald-700 font-bold mt-1">📍 Lat: ${mLat.toFixed(5)}, Lng: ${mLng.toFixed(5)}</p>
             </div>
           `);
         markersGroup.addLayer(motoboyMarker);
-        bounds.push([motoboyLat, motoboyLng]);
+        bounds.push([mLat, mLng]);
       }
     }
 
