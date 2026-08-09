@@ -67,7 +67,14 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   const [gpsStatusMsg, setGpsStatusMsg] = useState<string>('Localização ativa');
   const [showDevGpsPanel, setShowDevGpsPanel] = useState<boolean>(false);
   const [isEarningsModalOpen, setIsEarningsModalOpen] = useState<boolean>(false);
-  const [availableSince, setAvailableSince] = useState<number>(Date.now() - 8 * 60 * 1000); // 8 mins ago default
+  const [availableSince, setAvailableSince] = useState<number>(Date.now());
+
+  // Sync availableSince with activeMotoboy joinedQueueAt timestamp
+  useEffect(() => {
+    if (activeMotoboy?.joinedQueueAt) {
+      setAvailableSince(activeMotoboy.joinedQueueAt);
+    }
+  }, [activeMotoboy?.joinedQueueAt]);
 
   // Track device GPS position in real time
   useEffect(() => {
@@ -739,7 +746,8 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                         const availableDrivers = motoboys.filter((m) => m.status === 'available');
                         const driverIndex = availableDrivers.findIndex((m) => m.id === activeMotoboy?.id);
                         const queuePos = driverIndex >= 0 ? driverIndex + 1 : 1;
-                        const minutesInQueue = Math.max(1, Math.floor((Date.now() - availableSince) / 60000));
+                        const effectiveTimestamp = activeMotoboy?.joinedQueueAt || availableSince;
+                        const minutesInQueue = Math.max(0, Math.floor((Date.now() - effectiveTimestamp) / 60000));
                         const formattedQueueTime = String(minutesInQueue).padStart(2, '0');
 
                         const isPaused = activeMotoboy?.status === 'busy' || activeMotoboy?.status === 'offline';

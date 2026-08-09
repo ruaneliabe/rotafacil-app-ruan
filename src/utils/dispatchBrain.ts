@@ -11,6 +11,7 @@ export interface DispatchRecommendation {
   orders: Order[];
   totalStops: number;
   totalDistanceKm: number;
+  interOrderDistanceKm?: number;
   estimatedTripMin: number;
   neighborhoodSummary: string;
   rationale: string;
@@ -18,6 +19,11 @@ export interface DispatchRecommendation {
     suggestWait: boolean;
     waitMinutes: number;
     reason: string;
+    subReason?: string;
+    readyOrderCode?: number;
+    readyOrderId?: string;
+    prepOrderCode?: number;
+    prepOrderId?: string;
   };
 }
 
@@ -119,22 +125,51 @@ export function analyzeOperationalBrain(
 
         const neighborhoods = Array.from(new Set(cluster.map((c) => c.neighborhood))).join(' + ');
 
-        // Check if any order in cluster is still preparing in kitchen (<5 min)
+        // Calculate inter-order distance if cluster has multiple stops
+        let interOrderDist = 0;
+        if (cluster.length >= 2) {
+          interOrderDist = calculateRoadDistanceKm(
+            cluster[0].lat,
+            cluster[0].lng,
+            cluster[1].lat,
+            cluster[1].lng
+          );
+        }
+
+        // Check if cluster has a ready order and an order preparing in kitchen
+        const readyOrder = cluster.find((c) => c.status === 'ready_at_counter' || (c.kitchenReadyInMin || 0) === 0);
         const kitchenWaitOrder = cluster.find((c) => (c.kitchenReadyInMin || 0) > 0);
         let waitSuggestion;
 
-        if (kitchenWaitOrder) {
-          const waitMins = kitchenWaitOrder.kitchenReadyInMin || 4;
+        if (readyOrder && kitchenWaitOrder) {
+          const waitMins = kitchenWaitOrder.kitchenReadyInMin || 3;
+          const distLabel = interOrderDist > 0 ? `${interOrderDist} km` : 'mesmo bairro';
           waitSuggestion = {
             suggestWait: true,
             waitMinutes: waitMins,
-            reason: `Pedido #${kitchenWaitOrder.codeNumber} ficará pronto em ~${waitMins} min na cozinha. Os destinos ficam na mesma região (${neighborhoods}). Aguardar evita uma segunda saída.`,
+            readyOrderCode: readyOrder.codeNumber,
+            readyOrderId: readyOrder.id,
+            prepOrderCode: kitchenWaitOrder.codeNumber,
+            prepOrderId: kitchenWaitOrder.id,
+            reason: `#${readyOrder.codeNumber} está pronto e #${kitchenWaitOrder.codeNumber} ficará pronto em aproximadamente ${waitMins} min.`,
+            subReason: `Os destinos são próximos (${distLabel}) e ambos permanecem dentro do prazo.`,
+          };
+        } else if (kitchenWaitOrder) {
+          const waitMins = kitchenWaitOrder.kitchenReadyInMin || 3;
+          waitSuggestion = {
+            suggestWait: true,
+            waitMinutes: waitMins,
+            prepOrderCode: kitchenWaitOrder.codeNumber,
+            prepOrderId: kitchenWaitOrder.id,
+            reason: `Pedido #${kitchenWaitOrder.codeNumber} ficará pronto em ~${waitMins} min na cozinha.`,
+            subReason: `Aguardar evita uma segunda saída e otimiza a rota do entregador.`,
           };
         } else if (chosenMotoboy.status === 'returning_to_store' && chosenMotoboy.eta > 0) {
           waitSuggestion = {
             suggestWait: true,
             waitMinutes: chosenMotoboy.eta,
             reason: `${chosenMotoboy.name} chega à loja em ~${chosenMotoboy.eta} min para assumir a rota.`,
+            subReason: `Os pedidos já estão prontos aguardando o retorno do motoboy à loja.`,
           };
         }
 

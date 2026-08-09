@@ -562,33 +562,50 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                       {/* SCENARIO B: Kitchen Wait / Return Delay Dual Decision Box */}
                       {rec.waitSuggestion?.suggestWait ? (
-                        <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-3 space-y-2 text-amber-100 text-xs">
+                        <div className="bg-amber-950/40 border-2 border-amber-500/50 rounded-xl p-3.5 space-y-2.5 text-amber-100 text-xs shadow-lg">
                           <div className="flex items-center justify-between gap-2 flex-wrap font-black text-amber-300">
-                            <span className="flex items-center gap-1.5">
+                            <span className="flex items-center gap-1.5 text-sm">
                               <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                              <span>⏳ Melhor aguardar ~{rec.waitSuggestion.waitMinutes} min</span>
+                              <span>Aguarde ~{rec.waitSuggestion.waitMinutes} min</span>
                             </span>
-                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded-md">
+                            <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/80 border border-emerald-500/50 px-2 py-0.5 rounded-md shadow-xs">
                               ⏱️ Ambos permanecem dentro do prazo
                             </span>
                           </div>
-                          <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                            {rec.waitSuggestion.reason}
-                          </p>
-                          <div className="flex items-center gap-2 pt-1">
+
+                          <div className="space-y-1 text-xs">
+                            <p className="font-black text-amber-100 leading-snug">
+                              {rec.waitSuggestion.reason}
+                            </p>
+                            {rec.waitSuggestion.subReason && (
+                              <p className="text-[11px] text-amber-200/90 leading-relaxed font-medium">
+                                {rec.waitSuggestion.subReason}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-1 flex-wrap sm:flex-nowrap">
                             <button
                               type="button"
-                              onClick={() => triggerActionToast(`⏳ Aguardando ~${rec.waitSuggestion?.waitMinutes} min para saída conjunta.`)}
-                              className="flex-1 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-extrabold rounded-xl border border-amber-500/40 text-xs transition-all cursor-pointer text-center"
+                              onClick={() => {
+                                handleApplyBrainRecommendation(rec);
+                                triggerActionToast(`⏳ Decisão Inteligente: Aguardando ~${rec.waitSuggestion?.waitMinutes} min para agrupar e despachar com ${rec.motoboyName}!`);
+                              }}
+                              className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black rounded-xl border border-emerald-400/50 text-xs transition-all cursor-pointer text-center shadow-md flex items-center justify-center gap-1.5"
                             >
-                              Aguardar e Agrupar (~{rec.waitSuggestion.waitMinutes} min)
+                              <span>[Aguardar e agrupar]</span>
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleApplyBrainRecommendation(rec)}
-                              className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold rounded-xl text-xs transition-all cursor-pointer text-center border border-slate-700"
+                              onClick={() => {
+                                const readyId = rec.waitSuggestion?.readyOrderId || rec.orders[0]?.id;
+                                const readyCode = rec.waitSuggestion?.readyOrderCode || rec.orders[0]?.codeNumber;
+                                onAssignOrderToMotoboy(readyId, rec.motoboyId);
+                                triggerActionToast(`⚡ Despachado apenas #${readyCode} agora com ${rec.motoboyName}.`);
+                              }}
+                              className="flex-1 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 font-extrabold rounded-xl text-xs transition-all cursor-pointer text-center border border-slate-700 flex items-center justify-center gap-1.5"
                             >
-                              Despachar #{rec.orders[0].codeNumber} agora
+                              <span>Despachar #{rec.waitSuggestion?.readyOrderCode || rec.orders[0]?.codeNumber} agora</span>
                             </button>
                           </div>
                         </div>
@@ -1242,7 +1259,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   ) : m.status === 'delivering' ? (
                                     `Em rota de entrega na rua • ${mOrders.length} ${mOrders.length === 1 ? 'parada restante' : 'paradas restantes'}`
                                   ) : mOrders.length === 0 ? (
-                                    queuePos ? `${queuePos}º lugar na fila de despacho • Aguardando pedidos` : 'Aguardando novos pedidos na fila'
+                                    queuePos
+                                      ? `${queuePos}º lugar na fila de despacho • Na fila há ${
+                                          m.joinedQueueAt ? Math.max(0, Math.floor((Date.now() - m.joinedQueueAt) / 60000)) : 0
+                                        } min`
+                                      : 'Aguardando novos pedidos na fila'
                                   ) : allOrdersReady ? (
                                     `${mOrders.length} ${mOrders.length === 1 ? 'pedido pronto' : 'pedidos prontos'} para saída`
                                   ) : (

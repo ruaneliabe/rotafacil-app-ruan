@@ -59,6 +59,7 @@ export interface Motoboy {
   perDeliveryFee: number; // R$ por corrida
   totalEarnedToday: number;
   deliveriesCountToday?: number;
+  joinedQueueAt?: number; // Timestamp in ms when joined queue at store
 }
 
 export type UserRole = 'store_admin' | 'motoboy' | 'customer';

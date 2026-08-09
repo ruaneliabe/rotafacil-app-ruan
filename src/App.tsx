@@ -121,10 +121,10 @@ export default function App() {
       setCloudSynced(true);
     });
 
-    // Reset local data cache to apply updated Blumenau coordinates
-    if (!localStorage.getItem('rota_facil_cleared_v3')) {
+    // Reset local data cache to apply updated Blumenau coordinates & smart scenario #104/#105
+    if (!localStorage.getItem('rota_facil_cleared_v4')) {
       clearAllDatabaseData().then(() => {
-        localStorage.setItem('rota_facil_cleared_v3', 'true');
+        localStorage.setItem('rota_facil_cleared_v4', 'true');
         saveShiftToCloud(INITIAL_STORE_SHIFT);
         setOrders(INITIAL_ORDERS);
         setMotoboys(INITIAL_MOTOBOYS);
@@ -324,10 +324,12 @@ export default function App() {
     const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
     if (!targetMotoboy) return;
 
+    const now = Date.now();
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
       activeOrdersCount: 0,
       status: 'available',
+      joinedQueueAt: now, // Reset queue timestamp when returning to store from delivery
     };
 
     // Coloca o motoboy no final da fila de rodízio
@@ -344,9 +346,11 @@ export default function App() {
     const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
     if (!targetMotoboy) return;
 
+    const now = Date.now();
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
       status,
+      joinedQueueAt: status === 'available' ? now : targetMotoboy.joinedQueueAt,
     };
 
     setMotoboys((prev) => prev.map((m) => (m.id === motoboyId ? updatedMotoboy : m)));
