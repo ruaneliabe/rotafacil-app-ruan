@@ -1278,6 +1278,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30">
                                       🟠 RETORNANDO À LOJA
                                     </span>
+                                  ) : m.status === 'busy' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                                      ⏸️ PAUSADO
+                                    </span>
                                   ) : (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-700 text-slate-400 border border-slate-600">
                                       ⚫ OFFLINE
@@ -1286,7 +1290,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 </div>
 
                                 <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                  {m.status === 'returning_to_store' ? (
+                                  {m.status === 'offline' ? (
+                                    'Fora de turno (Offline)'
+                                  ) : m.status === 'busy' ? (
+                                    'Indisponível (Pausado)'
+                                  ) : m.status === 'returning_to_store' ? (
                                     mOrders.length === 0
                                       ? 'Finalizou rota anterior e está retornando à loja'
                                       : `Retornando à loja (Já possui ${mOrders.length} ${mOrders.length === 1 ? 'pedido' : 'pedidos'} vinculados para a próxima rota)`
@@ -1297,7 +1305,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                       ? `${queuePos}º lugar na fila de despacho • Na fila há ${
                                           m.joinedQueueAt ? Math.max(0, Math.floor((Date.now() - m.joinedQueueAt) / 60000)) : 0
                                         } min`
-                                      : 'Aguardando novos pedidos na fila'
+                                      : 'Disponível na loja'
                                   ) : allOrdersReady ? (
                                     `${mOrders.length} ${mOrders.length === 1 ? 'pedido pronto' : 'pedidos prontos'} para saída`
                                   ) : (
@@ -1477,7 +1485,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
                   <span className="text-[11px] text-slate-400 block font-medium">Próxima entrega</span>
                   <strong className="text-emerald-400 text-xs font-bold line-clamp-1">
-                    {unassignedOrders[0]?.address || 'Rua dos Pioneiros 595, Água Verde • Blumenau'}
+                    {unassignedOrders.length > 0 && unassignedOrders[0]?.address
+                      ? `${unassignedOrders[0].address}${unassignedOrders[0].neighborhood ? ` • ${unassignedOrders[0].neighborhood}` : ''}`
+                      : 'Nenhuma entrega na fila'}
                   </strong>
                 </div>
               </div>

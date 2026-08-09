@@ -355,7 +355,7 @@ export default function App() {
           ? targetMotoboy.status !== 'available'
             ? now
             : targetMotoboy.joinedQueueAt || now
-          : targetMotoboy.joinedQueueAt,
+          : undefined,
     };
 
     setMotoboys((prev) => prev.map((m) => (m.id === motoboyId ? updatedMotoboy : m)));
