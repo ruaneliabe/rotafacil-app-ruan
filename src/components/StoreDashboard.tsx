@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Order, Motoboy, StoreShift, OrderStatus } from '../types';
 import {
   CheckCircle2,
@@ -127,6 +127,21 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const formattedCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+  // ⚡ Auto GPS Arrival Detection: If a returning motoboy enters ~150m radius of store, auto-mark arrived
+  useEffect(() => {
+    if (!shift.storeLat || !shift.storeLng || !onConfirmArrivalAtStore) return;
+
+    motoboys.forEach((m) => {
+      if (m.status === 'returning_to_store' && m.currentLat && m.currentLng) {
+        const distKm = calculateDistanceKm(m.currentLat, m.currentLng, shift.storeLat, shift.storeLng);
+        if (distKm <= 0.15) {
+          onConfirmArrivalAtStore(m.id);
+          triggerActionToast(`📍 Chegada automática por GPS: ${m.name} entrou no raio da loja (100m)! 🟢`);
+        }
+      }
+    });
+  }, [motoboys, shift.storeLat, shift.storeLng, onConfirmArrivalAtStore]);
+
   const handleNotifyMotoboyInApp = (m: Motoboy) => {
     const mOrders = orders.filter((o) => o.assignedMotoboyId === m.id && o.status !== 'delivered' && o.status !== 'cancelled');
     if (mOrders.length === 0) return;
@@ -171,42 +186,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         <div className="fixed top-4 right-4 z-50 bg-slate-900 border border-blue-500/40 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 animate-slideDown">
           <span className="text-blue-400 font-bold text-base">🔔</span>
           <span className="text-xs font-medium text-slate-100">{actionToast}</span>
-        </div>
-      )}
-
-      {/* ⚡ PROACTIVE RETURNING MOTOBOY ALERT BANNER (~5 min) */}
-      {returningMotoboysWithDistance.length > 0 && (
-        <div className="bg-amber-950/90 border-2 border-amber-500/80 text-amber-100 p-3.5 px-4 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xl shrink-0 shadow-md">
-              🛵
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[10px] uppercase">
-                  Aviso de Retorno (~5 min)
-                </span>
-                <span className="text-amber-300 text-xs font-bold">Acelere os próximos pedidos no balcão!</span>
-              </div>
-              <p className="text-xs text-amber-200 mt-1 font-semibold">
-                {returningMotoboysWithDistance.map(
-                  (m) => `${m.name} (${m.distKm > 0 ? `${m.distKm.toFixed(1)} km - ` : ''}~${m.estMin} min da loja)`
-                ).join(' • ')}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (onConfirmArrivalAtStore && returningMotoboysWithDistance[0]) {
-                onConfirmArrivalAtStore(returningMotoboysWithDistance[0].id);
-                triggerActionToast(`✅ Chegada do entregador ${returningMotoboysWithDistance[0].name} confirmada na loja!`);
-              }
-            }}
-            className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-md shrink-0 border border-amber-300"
-          >
-            Confirmar Chegada na Loja 🟢
-          </button>
         </div>
       )}
 
@@ -360,36 +339,51 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       {activeTab === 'operacao' && (
         <div className="space-y-4">
 
-          {/* ALERT BANNER: MOTOBOY RETURNING TO STORE */}
-          {returningMotoboys.length > 0 && (
-            <div className="bg-amber-950/40 border border-amber-500/30 p-3 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-100">
+          {/* 🛵 UNIFIED CLEAN RETURNING MOTOBOY ALERT BANNER */}
+          {returningMotoboysWithDistance.length > 0 && (
+            <div
+              onClick={() => {
+                setMapFilter('returning');
+                const mapEl = document.getElementById('dashboard-map-section');
+                if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="bg-amber-950/80 border border-amber-500/60 hover:border-amber-400 text-amber-100 p-3 px-4 rounded-xl shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 cursor-pointer transition-all group"
+            >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0">
-                  <Bike className="w-4 h-4 text-slate-950" />
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xl shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  🛵
                 </div>
                 <div>
-                  <h4 className="font-bold text-amber-300 text-xs flex items-center gap-2">
-                    <span>MOTOBOY RETORNANDO À LOJA</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase">
-                      {returningMotoboys.length} {returningMotoboys.length === 1 ? 'entregador' : 'entregadores'}
+                  <h4 className="font-extrabold text-sm text-amber-200 flex items-center gap-2 flex-wrap">
+                    <span>
+                      {returningMotoboysWithDistance.map(
+                        (m) => `${m.name} retorna em ~${m.estMin} min${m.distKm > 0 ? ` · ${m.distKm.toFixed(1)} km da loja` : ''}`
+                      ).join(' • ')}
+                    </span>
+                    <span className="text-[10px] bg-amber-500/30 text-amber-200 px-1.5 py-0.5 rounded border border-amber-500/40 font-bold uppercase tracking-wider">
+                      Ver no Mapa 🗺️
                     </span>
                   </h4>
-                  <p className="text-xs text-slate-300">
-                    <strong className="text-white">{returningMotoboys.map((m) => m.name).join(', ')}</strong> finalizou entregas e está chegando.
+                  <p className="text-xs text-amber-300/80 mt-0.5 font-medium">
+                    Aproveite para preparar os próximos pedidos.
                   </p>
                 </div>
               </div>
 
               {onConfirmArrivalAtStore && (
                 <div className="flex flex-wrap gap-2 shrink-0">
-                  {returningMotoboys.map((m) => (
+                  {returningMotoboysWithDistance.map((m) => (
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() => onConfirmArrivalAtStore(m.id)}
-                      className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-1 transition-all cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onConfirmArrivalAtStore(m.id);
+                        triggerActionToast(`✅ Chegada do entregador ${m.name} confirmada na loja!`);
+                      }}
+                      className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-sm border border-amber-400 shrink-0"
                     >
-                      <Check className="w-3.5 h-3.5" /> Confirmar Chegada: {m.name}
+                      Confirmar Chegada 🟢
                     </button>
                   ))}
                 </div>
@@ -723,7 +717,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               {/* Middle & Right Column: Map + Rotas Disponíveis (~58% width) */}
               <div className="lg:col-span-7 grid grid-cols-1 md:grid-cols-12 gap-3">
                 {/* Map Panel with Clean Filter Controls */}
-                <div className="md:col-span-7 h-[380px] md:h-auto min-h-[320px] flex flex-col bg-slate-900/80 rounded-2xl border border-slate-700/80 p-2 space-y-2">
+                <div id="dashboard-map-section" className="md:col-span-7 h-[380px] md:h-auto min-h-[320px] flex flex-col bg-slate-900/80 rounded-2xl border border-slate-700/80 p-2 space-y-2">
                   <div className="flex items-center justify-between gap-1.5 px-1 pt-0.5">
                     <span className="text-[11px] font-black text-slate-300 uppercase tracking-wide flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-emerald-400" />

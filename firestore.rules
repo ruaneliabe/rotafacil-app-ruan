@@ -2,8 +2,60 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Global Helper Functions
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // 1. Order Schema Validation Helper
+    function isValidOrder(data) {
+      return data.clientName is string && data.clientName.size() <= 100
+        && data.address is string && data.address.size() <= 300
+        && data.status is string && data.status.size() <= 50;
+    }
+
+    // 2. Motoboy Schema Validation Helper
+    function isValidMotoboy(data) {
+      return data.name is string && data.name.size() <= 100
+        && data.status is string && data.status.size() <= 50;
+    }
+
+    // 3. Shift Schema Validation Helper
+    function isValidShift(data) {
+      return !('storeName' in data) || (data.storeName is string && data.storeName.size() <= 100);
+    }
+
+    // Rules per Collection
+    match /orders/{orderId} {
+      allow read: if true;
+      allow create: if isValidId(orderId) && isValidOrder(incoming());
+      allow update: if isValidId(orderId) && isValidOrder(incoming());
+      allow delete: if isValidId(orderId);
+    }
+
+    match /motoboys/{motoboyId} {
+      allow read: if true;
+      allow create: if isValidId(motoboyId) && isValidMotoboy(incoming());
+      allow update: if isValidId(motoboyId) && isValidMotoboy(incoming());
+      allow delete: if isValidId(motoboyId);
+    }
+
+    match /shifts/{shiftId} {
+      allow read: if true;
+      allow create, update: if isValidId(shiftId) && isValidShift(incoming());
+      allow delete: if false;
+    }
+
+    // Default Deny Catch-all
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
+
+

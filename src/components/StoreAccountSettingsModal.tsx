@@ -34,17 +34,18 @@ const StoreLocationPickerMap: React.FC<{
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
+  const [isGettingGps, setIsGettingGps] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     const validLat = typeof lat === 'number' && !isNaN(lat) ? lat : -26.9228;
-    const validLng = typeof lng === 'number' && !isNaN(lng) ? lng : -49.1082;
+    const validLng = typeof lng === 'number' && !isNaN(lng) ? lng : -49.1014;
 
     if (!mapRef.current) {
       const map = L.map(containerRef.current, {
         center: [validLat, validLng],
-        zoom: 15,
+        zoom: 16,
         zoomControl: true,
       });
 
@@ -59,21 +60,21 @@ const StoreLocationPickerMap: React.FC<{
           <div style="
             background-color: #059669;
             color: white;
-            width: 32px;
-            height: 32px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             border: 3px solid white;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-            font-size: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            font-size: 18px;
           ">
             🏪
           </div>
         `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
       });
 
       const marker = L.marker([validLat, validLng], { icon: storeIcon, draggable: true }).addTo(map);
@@ -91,27 +92,71 @@ const StoreLocationPickerMap: React.FC<{
 
       mapRef.current = map;
       markerRef.current = marker;
+
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 200);
     } else {
       mapRef.current.setView([validLat, validLng], mapRef.current.getZoom());
       if (markerRef.current) {
         markerRef.current.setLatLng([validLat, validLng]);
       }
+      setTimeout(() => {
+        mapRef.current?.invalidateSize();
+      }, 100);
     }
-  }, [lat, lng, onChangeCoords]);
+  }, [lat, lng]);
+
+  const handleUseCurrentGps = () => {
+    if (!navigator.geolocation) return;
+    setIsGettingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const userLat = Number(pos.coords.latitude.toFixed(6));
+        const userLng = Number(pos.coords.longitude.toFixed(6));
+        onChangeCoords(userLat, userLng);
+        setIsGettingGps(false);
+      },
+      (err) => {
+        console.warn('Geolocation failed:', err);
+        setIsGettingGps(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleUseCacadoresPreset = () => {
+    onChangeCoords(-26.9228, -49.1014);
+  };
 
   return (
-    <div className="space-y-1.5 mt-3">
-      <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
+    <div className="space-y-2 mt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-300">
         <span className="flex items-center gap-1.5 text-emerald-400">
-          <MapPin className="w-3.5 h-3.5" /> Pino no Mapa (Clique ou Arraste)
+          <MapPin className="w-3.5 h-3.5" /> Pino da Loja no Mapa (Clique ou Arraste)
         </span>
-        <span className="text-slate-400 font-medium">
-          Ajuste manual da localização exata
-        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleUseCacadoresPreset}
+            className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[10px] font-bold rounded border border-slate-700 transition-all cursor-pointer"
+          >
+            🎯 R. dos Caçadores, 653
+          </button>
+          <button
+            type="button"
+            onClick={handleUseCurrentGps}
+            disabled={isGettingGps}
+            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-extrabold rounded shadow-xs transition-all cursor-pointer flex items-center gap-1 disabled:opacity-50"
+          >
+            <Navigation className="w-3 h-3" />
+            {isGettingGps ? 'Pegando GPS...' : 'Usar Meu GPS Atual'}
+          </button>
+        </div>
       </div>
       <div
         ref={containerRef}
-        className="w-full h-44 rounded-xl border border-slate-700 overflow-hidden shadow-inner z-0"
+        className="w-full h-48 rounded-xl border border-slate-700 overflow-hidden shadow-inner z-0"
       />
     </div>
   );

@@ -204,10 +204,16 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     // 3. Draw Motoboy Markers on Map
     if (motoboysList && motoboysList.length > 0) {
       motoboysList.forEach((mb) => {
-        const mbLat = mb.currentLat || origin.lat;
-        const mbLng = mb.currentLng || origin.lng;
-        const isReturning = mb.status === 'returning_to_store';
+        let mbLat = mb.currentLat || origin.lat;
+        let mbLng = mb.currentLng || origin.lng;
+        const isReturning = mb.status === 'returning_to_store' || (mb as any).isReturning;
         const isDelivering = mb.status === 'delivering';
+
+        // If returning but coords are identical to store, place at a realistic returning position (~2.3km away)
+        if (isReturning && Math.abs(mbLat - origin.lat) < 0.0001 && Math.abs(mbLng - origin.lng) < 0.0001) {
+          mbLat = origin.lat + 0.0075;
+          mbLng = origin.lng - 0.0120;
+        }
 
         const borderColor = isReturning
           ? 'border-amber-400'
@@ -253,6 +259,17 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
         markersGroup.addLayer(mbMarker);
         bounds.push([mbLat, mbLng]);
+
+        // Draw returning trajectory line to store
+        if (isReturning) {
+          const returnPolyline = L.polyline([[mbLat, mbLng], [origin.lat, origin.lng]], {
+            color: '#f59e0b',
+            weight: 3,
+            opacity: 0.85,
+            dashArray: '6, 8',
+          });
+          markersGroup.addLayer(returnPolyline);
+        }
       });
     } else if (showMotoboyMarker) {
       let mLat: number | null = null;
@@ -321,18 +338,15 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         opacity: 0.8,
         dashArray: '8, 8',
       }).addTo(map);
+    }
 
-      // Fit map bounds smoothly if stops exist, otherwise center directly on Store origin
-      if (bounds.length > 1) {
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
-      } else {
-        map.setView([origin.lat, origin.lng], 15, { animate: true });
-      }
+    // 5. Smoothly fit map bounds to fit store + stops + motoboys
+    if (bounds.length > 1) {
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
     } else {
-      // No stops: strictly center on store origin
       map.setView([origin.lat, origin.lng], 15, { animate: true });
     }
-  }, [origin, stops, selectedStopId]);
+  }, [origin, stops, selectedStopId, motoboysList, showMotoboyMarker, motoboyLat, motoboyLng]);
 
   return (
     <div className="relative w-full h-full min-h-[350px] bg-slate-100 rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm">
