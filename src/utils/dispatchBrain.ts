@@ -51,9 +51,9 @@ export function analyzeOperationalBrain(
   const storeLat = shift.storeLat || -26.9228;
   const storeLng = shift.storeLng || -49.1014;
 
-  // Active pending/ready orders needing dispatch
+  // Active pending/ready orders needing dispatch (unassigned only)
   const pendingOrders = orders.filter(
-    (o) => o.status === 'pending' || o.status === 'preparing' || o.status === 'ready_at_counter'
+    (o) => !o.assignedMotoboyId && (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready_at_counter')
   );
 
   // Active motoboys (available or returning)

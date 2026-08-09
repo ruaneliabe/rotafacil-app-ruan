@@ -91,6 +91,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isIntegrationsOpen, setIsIntegrationsOpen] = useState(false);
   const [isCalculationInfoOpen, setIsCalculationInfoOpen] = useState(false);
+  const [showAllRecommendations, setShowAllRecommendations] = useState(false);
 
   const handleSimulateIncomingOrder = (channel: 'ifood' | 'cardapio_web' | 'pdv' | 'whatsapp') => {
     if (!onAddOrder) return;
@@ -503,128 +504,155 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               </div>
 
               {/* Recommendation Cards Grid */}
-              <div className={`grid grid-cols-1 ${brainAnalysis.recommendations.length > 1 ? 'md:grid-cols-2' : ''} gap-3`}>
-                {brainAnalysis.recommendations.map((rec) => (
-                  <div
-                    key={rec.id}
-                    className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-3 hover:border-emerald-500/40 transition-all shadow-sm flex flex-col justify-between"
-                  >
-                    <div className="space-y-2.5">
-                      {/* Driver & Route Header */}
-                      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-slate-900 pb-2">
-                        <span className="text-xs font-black text-white bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
-                          🛵 <strong className="text-emerald-400">{rec.motoboyName}</strong>
-                          {rec.motoboyStatus === 'returning_to_store' && (
-                            <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
-                              retorna em ~{rec.motoboyEtaMin}m
-                            </span>
-                          )}
-                        </span>
+              {(() => {
+                const displayedRecs = showAllRecommendations
+                  ? brainAnalysis.recommendations
+                  : brainAnalysis.recommendations.slice(0, 2);
+                const hiddenCount = brainAnalysis.recommendations.length - displayedRecs.length;
 
-                        <span className="text-xs font-extrabold text-slate-300 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg">
-                          📍 {rec.totalStops} {rec.totalStops === 1 ? 'parada' : 'paradas'} · {rec.totalDistanceKm} km · ~{rec.estimatedTripMin} min
-                        </span>
-                      </div>
-
-                      {/* Orders List with Clear Origin Source Badge */}
-                      <div className="space-y-1.5">
-                        <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
-                          {rec.orders.length === 1 ? 'Pedido selecionado:' : 'Pedidos agrupados na mesma rota:'}
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {rec.orders.map((o) => (
-                            <span
-                              key={o.id}
-                              className="inline-flex items-center gap-1.5 text-xs text-slate-200 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg font-bold"
-                            >
-                              <strong className="text-emerald-400">#{o.codeNumber}</strong>
-                              <span>{o.clientName}</span>
-                              <span className="text-[10px] text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded font-medium border border-slate-700/60">
-                                {o.originChannel === 'ifood'
-                                  ? '🔴 iFood'
-                                  : o.originChannel === 'cardapio_web'
-                                  ? '🌐 Cardápio Web'
-                                  : o.originChannel === 'pdv'
-                                  ? '💻 PDV'
-                                  : '💬 WhatsApp'}
+                return (
+                  <div className="space-y-3">
+                    <div className={`grid grid-cols-1 ${displayedRecs.length > 1 ? 'md:grid-cols-2' : ''} gap-3`}>
+                      {displayedRecs.map((rec) => (
+                        <div
+                          key={rec.id}
+                          className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-3 hover:border-emerald-500/40 transition-all shadow-sm flex flex-col justify-between"
+                        >
+                          <div className="space-y-2.5">
+                            {/* Driver & Route Header */}
+                            <div className="flex items-center justify-between gap-2 flex-wrap border-b border-slate-900 pb-2">
+                              <span className="text-xs font-black text-white bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
+                                🛵 <strong className="text-emerald-400">{rec.motoboyName}</strong>
+                                {rec.motoboyStatus === 'returning_to_store' && (
+                                  <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
+                                    retorna em ~{rec.motoboyEtaMin}m
+                                  </span>
+                                )}
                               </span>
-                              <span className="text-emerald-300 bg-emerald-950/80 px-1.5 py-0.5 rounded text-[10px] font-extrabold border border-emerald-500/30">
-                                📍 Bairro: {o.neighborhood}
+
+                              <span className="text-xs font-extrabold text-slate-300 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg">
+                                📍 {rec.totalStops} {rec.totalStops === 1 ? 'parada' : 'paradas'} · {rec.totalDistanceKm} km · ~{rec.estimatedTripMin} min
                               </span>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+                            </div>
 
-                      {/* Rationale Text */}
-                      <p className="text-xs text-slate-300 font-medium bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
-                        💡 {rec.rationale}
-                      </p>
+                            {/* Orders List with Clear Origin Source Badge */}
+                            <div className="space-y-1.5">
+                              <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                                {rec.orders.length === 1 ? 'Pedido selecionado:' : 'Pedidos agrupados na mesma rota:'}
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {rec.orders.map((o) => (
+                                  <span
+                                    key={o.id}
+                                    className="inline-flex items-center gap-1.5 text-xs text-slate-200 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg font-bold"
+                                  >
+                                    <strong className="text-emerald-400">#{o.codeNumber}</strong>
+                                    <span>{o.clientName}</span>
+                                    <span className="text-[10px] text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded font-medium border border-slate-700/60">
+                                      {o.originChannel === 'ifood'
+                                        ? '🔴 iFood'
+                                        : o.originChannel === 'cardapio_web'
+                                        ? '🌐 Cardápio Web'
+                                        : o.originChannel === 'pdv'
+                                        ? '💻 PDV'
+                                        : '💬 WhatsApp'}
+                                    </span>
+                                    <span className="text-emerald-300 bg-emerald-950/80 px-1.5 py-0.5 rounded text-[10px] font-extrabold border border-emerald-500/30">
+                                      📍 Bairro: {o.neighborhood}
+                                    </span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
 
-                      {/* SCENARIO B: Kitchen Wait / Return Delay Dual Decision Box */}
-                      {rec.waitSuggestion?.suggestWait ? (
-                        <div className="bg-amber-950/40 border-2 border-amber-500/50 rounded-xl p-3.5 space-y-2.5 text-amber-100 text-xs shadow-lg">
-                          <div className="flex items-center justify-between gap-2 flex-wrap font-black text-amber-300">
-                            <span className="flex items-center gap-1.5 text-sm">
-                              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                              <span>Aguarde ~{rec.waitSuggestion.waitMinutes} min</span>
-                            </span>
-                            <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/80 border border-emerald-500/50 px-2 py-0.5 rounded-md shadow-xs">
-                              ⏱️ Ambos permanecem dentro do prazo
-                            </span>
-                          </div>
-
-                          <div className="space-y-1 text-xs">
-                            <p className="font-black text-amber-100 leading-snug">
-                              {rec.waitSuggestion.reason}
+                            {/* Rationale Text */}
+                            <p className="text-xs text-slate-300 font-medium bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
+                              💡 {rec.rationale}
                             </p>
-                            {rec.waitSuggestion.subReason && (
-                              <p className="text-[11px] text-amber-200/90 leading-relaxed font-medium">
-                                {rec.waitSuggestion.subReason}
-                              </p>
+
+                            {/* SCENARIO B: Kitchen Wait / Return Delay Dual Decision Box */}
+                            {rec.waitSuggestion?.suggestWait ? (
+                              <div className="bg-amber-950/40 border-2 border-amber-500/50 rounded-xl p-3.5 space-y-2.5 text-amber-100 text-xs shadow-lg">
+                                <div className="flex items-center justify-between gap-2 flex-wrap font-black text-amber-300">
+                                  <span className="flex items-center gap-1.5 text-sm">
+                                    <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                                    <span>Aguarde ~{rec.waitSuggestion.waitMinutes} min</span>
+                                  </span>
+                                  <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/80 border border-emerald-500/50 px-2 py-0.5 rounded-md shadow-xs">
+                                    ⏱️ Ambos permanecem dentro do prazo
+                                  </span>
+                                </div>
+
+                                <div className="space-y-1 text-xs">
+                                  <p className="font-black text-amber-100 leading-snug">
+                                    {rec.waitSuggestion.reason}
+                                  </p>
+                                  {rec.waitSuggestion.subReason && (
+                                    <p className="text-[11px] text-amber-200/90 leading-relaxed font-medium">
+                                      {rec.waitSuggestion.subReason}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-1 flex-wrap sm:flex-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleApplyBrainRecommendation(rec);
+                                      triggerActionToast(`⏳ Decisão Inteligente: Aguardando ~${rec.waitSuggestion?.waitMinutes} min para agrupar e despachar com ${rec.motoboyName}!`);
+                                    }}
+                                    className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black rounded-xl border border-emerald-400/50 text-xs transition-all cursor-pointer text-center shadow-md flex items-center justify-center gap-1.5"
+                                  >
+                                    <span>[Aguardar e agrupar]</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const readyId = rec.waitSuggestion?.readyOrderId || rec.orders[0]?.id;
+                                      const readyCode = rec.waitSuggestion?.readyOrderCode || rec.orders[0]?.codeNumber;
+                                      onAssignOrderToMotoboy(readyId, rec.motoboyId);
+                                      triggerActionToast(`⚡ Despachado apenas #${readyCode} agora com ${rec.motoboyName}.`);
+                                    }}
+                                    className="flex-1 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 font-extrabold rounded-xl text-xs transition-all cursor-pointer text-center border border-slate-700 flex items-center justify-center gap-1.5"
+                                  >
+                                    <span>Despachar #{rec.waitSuggestion?.readyOrderCode || rec.orders[0]?.codeNumber} agora</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              /* Direct Dispatch Action Button */
+                              <button
+                                type="button"
+                                onClick={() => handleApplyBrainRecommendation(rec)}
+                                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-xs rounded-xl shadow-md transition-all uppercase tracking-wide cursor-pointer flex items-center justify-center gap-2 mt-2"
+                              >
+                                <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200" />
+                                <span>Aplicar Despacho Recomendado</span>
+                              </button>
                             )}
                           </div>
-
-                          <div className="flex items-center gap-2 pt-1 flex-wrap sm:flex-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleApplyBrainRecommendation(rec);
-                                triggerActionToast(`⏳ Decisão Inteligente: Aguardando ~${rec.waitSuggestion?.waitMinutes} min para agrupar e despachar com ${rec.motoboyName}!`);
-                              }}
-                              className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black rounded-xl border border-emerald-400/50 text-xs transition-all cursor-pointer text-center shadow-md flex items-center justify-center gap-1.5"
-                            >
-                              <span>[Aguardar e agrupar]</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const readyId = rec.waitSuggestion?.readyOrderId || rec.orders[0]?.id;
-                                const readyCode = rec.waitSuggestion?.readyOrderCode || rec.orders[0]?.codeNumber;
-                                onAssignOrderToMotoboy(readyId, rec.motoboyId);
-                                triggerActionToast(`⚡ Despachado apenas #${readyCode} agora com ${rec.motoboyName}.`);
-                              }}
-                              className="flex-1 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 font-extrabold rounded-xl text-xs transition-all cursor-pointer text-center border border-slate-700 flex items-center justify-center gap-1.5"
-                            >
-                              <span>Despachar #{rec.waitSuggestion?.readyOrderCode || rec.orders[0]?.codeNumber} agora</span>
-                            </button>
-                          </div>
                         </div>
-                      ) : (
-                        /* Direct Dispatch Action Button */
+                      ))}
+                    </div>
+
+                    {brainAnalysis.recommendations.length > 2 && (
+                      <div className="flex justify-center pt-1">
                         <button
                           type="button"
-                          onClick={() => handleApplyBrainRecommendation(rec)}
-                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-xs rounded-xl shadow-md transition-all uppercase tracking-wide cursor-pointer flex items-center justify-center gap-2 mt-2"
+                          onClick={() => setShowAllRecommendations(!showAllRecommendations)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-extrabold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center gap-2 shadow-xs"
                         >
-                          <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200" />
-                          <span>Aplicar Despacho Recomendado</span>
+                          {showAllRecommendations ? (
+                            <span>▲ Recolher e mostrar apenas as 2 principais sugestões</span>
+                          ) : (
+                            <span>▼ Ver mais {hiddenCount} {hiddenCount === 1 ? 'sugestão de rota' : 'sugestões de rotas'}</span>
+                          )}
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
             </div>
           )}
 
