@@ -261,13 +261,16 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     prevAssignedIdsRef.current = currentAssignedIds;
   }, [assignedOrders]);
 
-  const handleOpenGoogleMaps = (address: string) => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const handleOpenGoogleMaps = (address: string, lat?: number, lng?: number) => {
+    const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(address);
+    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
     window.open(url, '_blank');
   };
 
-  const handleOpenWaze = (address: string) => {
-    const url = `https://www.waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`;
+  const handleOpenWaze = (address: string, lat?: number, lng?: number) => {
+    const url = (lat && lng)
+      ? `https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes`
+      : `https://www.waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`;
     window.open(url, '_blank');
   };
 
@@ -953,7 +956,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                               <div className="grid grid-cols-2 gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenWaze(order.address)}
+                                  onClick={() => handleOpenWaze(order.address, order.lat, order.lng)}
                                   className="py-3 px-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
                                 >
                                   <Navigation className="w-4 h-4 fill-current" />
@@ -962,7 +965,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenGoogleMaps(order.address)}
+                                  onClick={() => handleOpenGoogleMaps(order.address, order.lat, order.lng)}
                                   className="py-3 px-2 bg-blue-700 hover:bg-blue-600 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
                                 >
                                   <MapPin className="w-4 h-4" />

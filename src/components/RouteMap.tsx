@@ -81,6 +81,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     const markersGroup = markersGroupRef.current;
     if (!map || !markersGroup) return;
 
+    map.invalidateSize();
+
     markersGroup.clearLayers();
     if (polylineRef.current) {
       polylineRef.current.remove();

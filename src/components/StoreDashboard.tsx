@@ -25,10 +25,15 @@ import {
   ShoppingBag,
   Building2,
   Trash2,
+  Volume2,
+  VolumeX,
+  BarChart3,
 } from 'lucide-react';
 import { RouteMap } from './RouteMap';
 import { ThermalTicketModal } from './ThermalTicketModal';
 import { MotoboySettlementModal } from './MotoboySettlementModal';
+import { DeliveryHistoryModal } from './DeliveryHistoryModal';
+import { getSoundEnabled, setSoundEnabled, playNewOrderSound } from '../utils/soundUtils';
 
 interface StoreDashboardProps {
   shift: StoreShift;
@@ -71,10 +76,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   // Multi-select for multi-order grouping/bag dispatch
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
 
-  // Modal states for Step 4 & 5
+  // Modal states for Step 4 & 5 & History Report & Sound
   const [ticketOrder, setTicketOrder] = useState<Order | null>(null);
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [soundActive, setSoundActive] = useState(() => getSoundEnabled());
   const [actionToast, setActionToast] = useState<string | null>(null);
 
   const triggerActionToast = (msg: string) => {
@@ -165,6 +172,35 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !soundActive;
+              setSoundEnabled(next);
+              setSoundActive(next);
+              if (next) playNewOrderSound();
+            }}
+            className={`px-2.5 py-1.5 font-bold text-xs rounded-xl flex items-center gap-1 border transition-all cursor-pointer ${
+              soundActive
+                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/80'
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+            title={soundActive ? 'Som ativado (Clique para mutar)' : 'Som desativado (Clique para atvar)'}
+          >
+            {soundActive ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
+            <span className="hidden md:inline">{soundActive ? 'Som ON' : 'Som OFF'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Relatórios e Histórico de Entregas"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Relatórios</span>
+          </button>
+
           <button
             type="button"
             onClick={onOpenNewOrderModal}
@@ -1117,6 +1153,14 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         onClose={() => setIsSettlementOpen(false)}
         motoboys={motoboys}
         orders={orders}
+      />
+
+      <DeliveryHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        orders={orders}
+        motoboys={motoboys}
+        storeName={shift.storeName}
       />
     </div>
   );

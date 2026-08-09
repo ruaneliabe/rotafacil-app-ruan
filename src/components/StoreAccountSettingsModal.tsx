@@ -35,23 +35,25 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   const [storeName, setStoreName] = useState(shift.storeName || '');
   const [storePhone, setStorePhone] = useState(shift.storePhone || '');
   const [storeAddress, setStoreAddress] = useState(shift.storeAddress || '');
-  const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.9388);
-  const [storeLng, setStoreLng] = useState<number>(shift.storeLng || -49.1082);
+  const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.9153287);
+  const [storeLng, setStoreLng] = useState<number>(shift.storeLng || -49.1223501);
   const [adminPassword, setAdminPassword] = useState(shift.adminPassword || '123');
 
   const [showPassword, setShowPassword] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [geocodeSuccess, setGeocodeSuccess] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setStoreName(shift.storeName || '');
       setStorePhone(shift.storePhone || '');
       setStoreAddress(shift.storeAddress || '');
-      setStoreLat(shift.storeLat || -26.9388);
-      setStoreLng(shift.storeLng || -49.1082);
+      setStoreLat(shift.storeLat || -26.9153287);
+      setStoreLng(shift.storeLng || -49.1223501);
       setAdminPassword(shift.adminPassword || '123');
       setIsSaved(false);
+      setGeocodeSuccess(false);
     }
   }, [isOpen, shift]);
 
@@ -60,11 +62,13 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   const handleGeocodeStore = async () => {
     if (!storeAddress.trim() || isGeocoding) return;
     setIsGeocoding(true);
+    setGeocodeSuccess(false);
     try {
       const result = await geocodeAddress(storeAddress);
-      if (result && result.lat && result.lng) {
+      if (result && typeof result.lat === 'number' && typeof result.lng === 'number') {
         setStoreLat(result.lat);
         setStoreLng(result.lng);
+        setGeocodeSuccess(true);
       }
     } catch (err) {
       console.warn('Geocoding error:', err);
@@ -77,14 +81,14 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
     e.preventDefault();
     if (!storeName.trim()) return;
 
-    let finalLat = Number(storeLat) || -26.9388;
-    let finalLng = Number(storeLng) || -49.1082;
+    let finalLat = Number(storeLat) || -26.9153287;
+    let finalLng = Number(storeLng) || -49.1223501;
 
-    // Try auto-geocoding address if present
-    if (storeAddress.trim()) {
+    // If storeAddress was provided and coordinates haven't been geocoded yet, try geocoding
+    if (storeAddress.trim() && (!storeLat || storeLat === -26.9388)) {
       try {
         const geoRes = await geocodeAddress(storeAddress);
-        if (geoRes && geoRes.lat && geoRes.lng) {
+        if (geoRes && typeof geoRes.lat === 'number' && typeof geoRes.lng === 'number') {
           finalLat = geoRes.lat;
           finalLng = geoRes.lng;
           setStoreLat(finalLat);

@@ -184,35 +184,41 @@ export function calculateRouteSummary(
 }
 
 /**
- * Geocode search using Nominatim (OpenStreetMap) or viaCEP fallback
+ * Geocode search using Nominatim (OpenStreetMap), viaCEP, or neighborhood dictionary fallback
  */
 export async function geocodeAddress(query: string): Promise<LocationPoint | null> {
   const cleaned = query.trim();
   if (!cleaned) return null;
 
-  // Check if query is a CEP (8 digits e.g., 01310-100)
+  // 1. Check if query is a CEP (8 digits e.g., 89040-313 or 89040313)
   const cepMatch = cleaned.replace(/\D/g, '');
   if (cepMatch.length === 8) {
     try {
       const res = await fetch(`https://viacep.com.br/ws/${cepMatch}/json/`);
       const data = await res.json();
       if (!data.erro) {
-        const fullAddress = `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
-        // Search Nominatim for lat/lng of CEP address
-        const nomRes = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            fullAddress + ', Brasil'
-          )}`
-        );
-        const nomData = await nomRes.json();
-        if (nomData && nomData.length > 0) {
-          return {
-            address: fullAddress,
-            lat: parseFloat(nomData[0].lat),
-            lng: parseFloat(nomData[0].lon),
-            cep: data.cep,
-            name: data.logradouro,
-          };
+        const fullAddress = `${data.logradouro || ''}, ${data.bairro || ''}, ${data.localidade || 'Blumenau'} - ${data.uf || 'SC'}`;
+        // Try Nominatim for exact CEP street location
+        try {
+          const nomRes = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+              fullAddress + ', Brasil'
+            )}&limit=1`
+          );
+          if (nomRes.ok) {
+            const nomData = await nomRes.json();
+            if (nomData && nomData.length > 0) {
+              return {
+                address: fullAddress,
+                lat: parseFloat(nomData[0].lat),
+                lng: parseFloat(nomData[0].lon),
+                cep: data.cep,
+                name: data.logradouro || cleaned,
+              };
+            }
+          }
+        } catch {
+          // ignore nominatim cep error
         }
       }
     } catch {
@@ -220,7 +226,44 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
     }
   }
 
-  // Blumenau specific street & neighborhood lookup for 100% instant accurate pinning
+  const lowerQuery = cleaned.toLowerCase();
+
+  // 2. Try OpenStreetMap Nominatim Geocoding API with generous 4000ms timeout
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+    const searchQuery = lowerQuery.includes('sc') || lowerQuery.includes('brasil') 
+      ? cleaned 
+      : `${cleaned}, Blumenau, SC, Brasil`;
+
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        searchQuery
+      )}&limit=1`,
+      { 
+        headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' },
+        signal: controller.signal 
+      }
+    );
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.length > 0) {
+        return {
+          address: cleaned,
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon),
+          name: data[0].display_name ? data[0].display_name.split(',')[0] : cleaned,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Nominatim online geocoding skipped or timed out, trying local dictionary:', err);
+  }
+
+  // 3. Fallback: Blumenau specific street & neighborhood dictionary for offline / instant fallback
   const blumenauKnownLocations: Record<string, { lat: number; lng: number }> = {
     'pioneiros': { lat: -26.9175, lng: -49.1040 },
     'dos pioneiros': { lat: -26.9175, lng: -49.1040 },
@@ -232,8 +275,8 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
     'cacadores': { lat: -26.9153287, lng: -49.1223501 },
     'hope burger': { lat: -26.9153287, lng: -49.1223501 },
     'centro': { lat: -26.9189, lng: -49.0660 },
-    'velha': { lat: -26.9248, lng: -49.0988 },
     'velha central': { lat: -26.9153287, lng: -49.1223501 },
+    'velha': { lat: -26.9248, lng: -49.0988 },
     'vila nova': { lat: -26.9067, lng: -49.0785 },
     'victor konder': { lat: -26.9090, lng: -49.0710 },
     'agua verde': { lat: -26.9135, lng: -49.1020 },
@@ -252,7 +295,6 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
     'badenfurt': { lat: -26.8780, lng: -49.1450 },
   };
 
-  const lowerQuery = cleaned.toLowerCase();
   for (const [key, coords] of Object.entries(blumenauKnownLocations)) {
     if (lowerQuery.includes(key)) {
       return {
@@ -264,35 +306,7 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
     }
   }
 
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 900);
-
-    const searchQuery = lowerQuery.includes('blumenau') ? cleaned : `${cleaned}, Blumenau, SC, Brasil`;
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        searchQuery
-      )}&limit=1`,
-      { signal: controller.signal }
-    );
-    clearTimeout(timeoutId);
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.length > 0) {
-        return {
-          address: data[0].display_name,
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon),
-          name: data[0].name || cleaned,
-        };
-      }
-    }
-  } catch (err) {
-    console.warn('Geocoding timeout or error:', err);
-  }
-
-  // Graceful fallback centered on Hope Burger / Blumenau Velha Central
+  // Graceful fallback centered on Blumenau central area
   const randomOffsetLat = (Math.random() - 0.5) * 0.003;
   const randomOffsetLng = (Math.random() - 0.5) * 0.003;
 

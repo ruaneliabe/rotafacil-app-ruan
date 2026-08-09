@@ -13,6 +13,7 @@ import { AddMotoboyModal } from './components/AddMotoboyModal';
 import { LoginModal } from './components/LoginModal';
 import { StoreAccountSettingsModal } from './components/StoreAccountSettingsModal';
 import { OrderTrackingModal } from './components/OrderTrackingModal';
+import { playNewOrderSound, playDispatchSound, playDeliverySuccessSound } from './utils/soundUtils';
 import {
   subscribeToOrders,
   subscribeToMotoboys,
@@ -140,14 +141,7 @@ export default function App() {
 
     const unsubShift = subscribeToShift((cloudShift) => {
       if (cloudShift) {
-        const fixedShift = { ...cloudShift };
-        // Fix coordinates if old placeholder
-        if (!fixedShift.storeLat || Math.abs(fixedShift.storeLat - (-26.9388)) < 0.001) {
-          fixedShift.storeLat = -26.9153287;
-          fixedShift.storeLng = -49.1223501;
-          saveShiftToCloud(fixedShift);
-        }
-        setShift(fixedShift);
+        setShift(cloudShift);
       }
     });
 
@@ -225,6 +219,7 @@ export default function App() {
     setMotoboys((prev) => prev.map((m) => (m.id === targetMotoboy.id ? updatedMotoboy : m)));
     saveOrderToCloud(updatedOrder);
     saveMotoboyToCloud(updatedMotoboy);
+    playDispatchSound();
 
     showToast(`Pedido #${updatedOrder.codeNumber} vinculado a ${targetMotoboy.name}! 🛵`);
   };
@@ -377,6 +372,7 @@ export default function App() {
 
     // Update motoboy status & earnings if delivered
     if (status === 'delivered') {
+      playDeliverySuccessSound();
       const targetMotoboy = motoboys.find(
         (m) =>
           (targetOrder.assignedMotoboyId && m.id === targetOrder.assignedMotoboyId) ||
@@ -462,6 +458,7 @@ export default function App() {
 
     setOrders((prev) => [newOrd, ...prev]);
     saveOrderToCloud(newOrd);
+    playNewOrderSound();
     showToast(`Pedido #${nextCode} criado e salvo na nuvem! 🛵`);
   };
 
