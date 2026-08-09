@@ -137,7 +137,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     setActionToast(msg);
     setTimeout(() => {
       setActionToast(null);
-    }, 4000);
+    }, 2500);
   };
 
   useEffect(() => {
@@ -271,6 +271,20 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       }
     }
 
+    // Voice announcement (Speech Synthesis) for hands-free audio alert
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance('Novo pedido atribuído! Verifique a sua bolsa.');
+        utterance.lang = 'pt-BR';
+        utterance.rate = 1.0;
+        utterance.volume = 1.0;
+        window.speechSynthesis.speak(utterance);
+      } catch {
+        // ignore
+      }
+    }
+
     try {
       const AudioCtx =
         window.AudioContext ||
@@ -289,7 +303,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           osc.frequency.setValueAtTime(freq, ctx.currentTime + startTime);
 
           gain.gain.setValueAtTime(0, ctx.currentTime + startTime);
-          gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + startTime + 0.02);
+          gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + startTime + 0.02);
           gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
 
           osc.connect(gain);
@@ -311,10 +325,15 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     // Push system browser notification if allowed
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
-        new Notification('Rota Fácil Delivery 🛵', {
+        const notif = new Notification('🛵 Rota Fácil Delivery', {
           body: bodyMsg,
           tag: 'new-order-alert',
+          requireInteraction: true,
+          icon: '/favicon.ico',
         });
+        notif.onclick = () => {
+          window.focus();
+        };
       } catch (err) {
         console.warn('Error firing system notification:', err);
       }
@@ -397,65 +416,40 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
       {/* Official Store Automation Notification Toast */}
       {actionToast && (
-        <div className="absolute top-0 left-0 right-0 z-50 bg-slate-900/95 border-b-2 border-amber-400 text-white p-2.5 px-3.5 shadow-2xl flex items-center gap-2.5 animate-slideDown backdrop-blur-md rounded-t-3xl">
-          <div className="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 font-black text-sm">
+        <div className="absolute top-2 left-3 right-3 z-50 bg-slate-950/95 border border-emerald-500/50 text-white p-2 px-3 shadow-xl flex items-center gap-2 animate-fadeIn backdrop-blur-md rounded-2xl">
+          <div className="w-5 h-5 rounded-md bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 font-black text-xs">
             ✓
           </div>
-          <div className="text-xs font-bold text-slate-100 leading-snug">
+          <div className="text-xs font-bold text-slate-100 leading-snug truncate">
             {actionToast}
           </div>
         </div>
       )}
 
       {/* 1. Header Bar - Clean Motoboy Profile & Action Bar */}
-      <div className="bg-white px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3">
-        {/* Left: Driver Avatar + Protagonist Name + Online & GPS Badge */}
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Motoboy Photo / Avatar */}
-          <div className="w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-lg shadow-2xs shrink-0 border border-slate-700">
+      <div className="bg-slate-900 px-4 py-3 text-white flex items-center justify-between gap-3 shadow-xs border-b border-slate-800">
+        {/* Left: Driver Avatar + Name + Online Badge */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shrink-0 shadow-xs border border-amber-300">
             {activeMotoboy?.name ? activeMotoboy.name.charAt(0).toUpperCase() : '👤'}
           </div>
 
           <div className="min-w-0">
-            {/* Protagonist Name */}
-            <h3 className="font-black text-base sm:text-lg text-slate-900 leading-snug truncate">
+            <h3 className="font-extrabold text-sm sm:text-base text-white leading-tight truncate">
               {activeMotoboy?.name || 'Entregador'}
             </h3>
-
-            {/* Online Status & Discrete GPS Badge */}
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                <span className="text-xs font-bold text-emerald-700 truncate">
-                  Online
-                </span>
-              </div>
-              <span className="text-slate-300">•</span>
-              <div className="flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
-                <span className="text-emerald-600">📍</span>
-                <span>Localização ativa</span>
-              </div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+              <span className="text-[11px] font-bold text-emerald-300">
+                Online na Fila
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Right Action Icons: Sound Toggle, Dev Panel, Install, Logout/Switch */}
+        {/* Right Action Icons: Sound Test, Dev GPS, Logout/Switch */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Dev GPS Toggle (Discrete Tool) */}
-          <button
-            type="button"
-            onClick={() => setShowDevGpsPanel(!showDevGpsPanel)}
-            title="Alternar Painel Dev/Testes de GPS"
-            className={`p-2 rounded-xl transition-all cursor-pointer ${
-              showDevGpsPanel
-                ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-500 border border-slate-200'
-            }`}
-          >
-            <Zap className="w-4 h-4" />
-          </button>
-
-          {/* Sound Test / Toggle Button */}
+          {/* Sound / Notification Test Button */}
           <button
             type="button"
             onClick={() => {
@@ -466,10 +460,24 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               triggerSystemActionToast('Sinal sonoro de entrega testado!');
             }}
             title="Testar sinal sonoro de entregas"
-            className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 border border-slate-200 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer shadow-2xs"
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
           >
-            <Volume2 className="w-4 h-4 text-amber-600" />
-            <span className="hidden sm:inline text-slate-700">Som</span>
+            <Volume2 className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline text-slate-200">Testar Som</span>
+          </button>
+
+          {/* Dev GPS Toggle (Discrete Tool) */}
+          <button
+            type="button"
+            onClick={() => setShowDevGpsPanel(!showDevGpsPanel)}
+            title="Painel de Testes GPS"
+            className={`p-2 rounded-xl transition-all cursor-pointer ${
+              showDevGpsPanel
+                ? 'bg-amber-400 text-slate-950 font-black'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
+            }`}
+          >
+            <Zap className="w-4 h-4" />
           </button>
 
           {/* Profile Switcher or Logout Button */}
@@ -478,17 +486,16 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               type="button"
               onClick={handleLogoutAccount}
               title="Sair da Conta de Entregador"
-              className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+              className="p-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 transition-all cursor-pointer"
             >
-              <LogOut className="w-4 h-4 text-rose-600" />
-              <span className="hidden sm:inline">Sair</span>
+              <LogOut className="w-4 h-4 text-rose-300" />
             </button>
           ) : (
             <select
               value={activeMotoboyId}
               onChange={(e) => setActiveMotoboyId(e.target.value)}
               title="Alternar Perfil de Entregador"
-              className="bg-slate-100 text-slate-800 font-bold text-xs py-2 px-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 max-w-[110px] truncate cursor-pointer"
+              className="bg-slate-800 text-slate-200 font-bold text-xs py-1.5 px-2 rounded-xl border border-slate-700 focus:outline-none max-w-[100px] truncate cursor-pointer"
             >
               {motoboys.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -499,6 +506,23 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           )}
         </div>
       </div>
+
+      {/* BACKGROUND NOTIFICATION PERMISSION BANNER (If not granted) */}
+      {notificationPermission !== 'granted' && (
+        <div className="bg-amber-500 text-slate-950 px-3.5 py-2 text-xs font-bold flex items-center justify-between gap-2 shadow-xs border-b border-amber-600">
+          <div className="flex items-center gap-2 min-w-0">
+            <BellRing className="w-4 h-4 shrink-0 animate-bounce text-slate-950" />
+            <span className="truncate">Ative alertas p/ ouvir novos pedidos em 2º plano!</span>
+          </div>
+          <button
+            type="button"
+            onClick={requestNotificationPermission}
+            className="px-2.5 py-1 bg-slate-950 hover:bg-slate-900 text-amber-300 font-black rounded-lg text-[10px] uppercase transition-all cursor-pointer shrink-0"
+          >
+            Ativar
+          </button>
+        </div>
+      )}
 
       {/* DEV / TEST GPS PANEL (Only visible when toggled) */}
       {showDevGpsPanel && (
@@ -543,53 +567,81 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         </div>
       )}
 
-      {/* 2. Top Summary Earnings & Progress Bar (CLICKABLE TO OPEN DETAILED BREAKDOWN) */}
-      <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 space-y-1.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-800 font-extrabold flex items-center gap-1.5">
-              <ShoppingBag className="w-4 h-4 text-slate-700" />
-              {assignedOrders.length === 1 ? '1 pedido na bolsa' : `${assignedOrders.length} pedidos na bolsa`}
+      {/* 2. Three Clean, Intuitive Metric Cards */}
+      <div className="bg-slate-100 px-3.5 py-2.5 border-b border-slate-200">
+        <div className="grid grid-cols-3 gap-2">
+          {/* Card 1: Na Bag */}
+          <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs text-center flex flex-col justify-between">
+            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-tight block">
+              🎒 Na Bag
+            </span>
+            <div className="font-black text-xl text-slate-900 leading-tight my-0.5">
+              {assignedOrders.length}
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 block truncate">
+              {assignedOrders.length === 1 ? '1 parada' : 'paradas'}
             </span>
           </div>
 
-          {/* Clickable Earnings Summary */}
+          {/* Card 2: Concluídas Hoje */}
+          <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs text-center flex flex-col justify-between">
+            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-tight block">
+              📦 Entregas
+            </span>
+            <div className="font-black text-xl text-emerald-600 leading-tight my-0.5">
+              {completedOrders.length}
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 block truncate">
+              concluídas hoje
+            </span>
+          </div>
+
+          {/* Card 3: Ganhos Hoje (Clickable -> opens extrato modal) */}
           <button
             type="button"
             onClick={() => setIsEarningsModalOpen(true)}
-            className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 active:scale-98 px-3 py-1.5 rounded-xl shadow-2xs transition-all cursor-pointer group"
-            title="Clique para ver o resumo completo do dia"
+            className="bg-slate-900 hover:bg-slate-800 active:scale-98 p-2.5 rounded-2xl text-center flex flex-col justify-between transition-all cursor-pointer shadow-xs border border-slate-800 group"
           >
-            <span className="text-[11px] text-slate-500 font-black uppercase group-hover:text-slate-700">Hoje:</span>
-            <span className="font-black text-sm text-slate-900 flex items-center gap-1">
-              {completedOrders.length} {completedOrders.length === 1 ? 'entrega' : 'entregas'} • {formattedCurrency(
-                completedOrders.reduce((acc, o) => acc + o.total, 0) || (activeMotoboy?.totalEarnedToday || 0)
-              )} <span className="text-[10px] font-bold text-slate-400">cobrados</span>
+            <span className="text-[10px] font-extrabold text-amber-300 uppercase tracking-tight flex items-center justify-center gap-0.5">
+              💰 Taxas <ChevronRight className="w-3 h-3 text-amber-400 group-hover:translate-x-0.5 transition-transform" />
             </span>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            <div className="font-black text-sm sm:text-base text-emerald-400 leading-tight my-0.5 truncate">
+              {formattedCurrency(
+                completedOrders.reduce(
+                  (acc, o) => acc + (o.deliveryFee && o.deliveryFee > 0 ? o.deliveryFee : 7.00),
+                  0
+                ) || (activeMotoboy?.totalEarnedToday || 0)
+              )}
+            </div>
+            <span className="text-[9px] font-bold text-slate-400 block truncate">
+              ver extrato
+            </span>
           </button>
         </div>
 
-        {/* PROGRESS BAR FOR ACTIVE DELIVERY RUN ONLY */}
+        {/* PROGRESS BAR FOR ACTIVE ROUTE */}
         {assignedOrders.length > 0 && (
-          <div className="pt-1">
-            <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-500 mb-1">
-              <span>PROGRESSO DA ROTA ATIVA</span>
-              <span className="text-slate-800 font-bold">
+          <div className="mt-2.5 pt-2 border-t border-slate-200/80">
+            <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-600 mb-1">
+              <span className="flex items-center gap-1 text-slate-900">
+                <Zap className="w-3 h-3 text-amber-500 fill-amber-500" /> ROTA ATIVA:
+              </span>
+              <span className="text-emerald-700 font-bold">
                 {assignedOrders.filter((o) => o.status === 'in_transit').length > 0
-                  ? 'Em rota de entrega'
-                  : 'Retirada / A caminho'} • {assignedOrders.length} {assignedOrders.length === 1 ? 'parada pendente' : 'paradas pendentes'}
+                  ? 'Em deslocamento'
+                  : 'Retirando pedidos'}{' '}
+                • {assignedOrders.length} {assignedOrders.length === 1 ? 'parada restante' : 'paradas restantes'}
               </span>
             </div>
-            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden flex">
+            <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden flex">
               <div
-                className="bg-slate-900 h-full transition-all duration-500 rounded-full"
+                className="bg-emerald-500 h-full transition-all duration-500 rounded-full"
                 style={{
                   width: `${
                     assignedOrders.some((o) => o.status === 'in_transit')
-                      ? 65
+                      ? 70
                       : assignedOrders.some((o) => o.status === 'picked_up')
-                      ? 35
+                      ? 40
                       : 15
                   }%`
                 }}
@@ -678,29 +730,31 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                         onUpdateOrderStatus(o.id, 'picked_up');
                       }
                     });
-                    triggerSystemActionToast("✅ Retirada de todos os pedidos confirmada! Clique em Iniciar Rota ao sair.");
+                    triggerSystemActionToast("✅ Retirada dos pedidos confirmada!");
                   }}
-                  className="w-full py-3.5 px-4 bg-amber-400 hover:bg-amber-300 active:scale-[0.98] text-slate-950 font-black text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer"
+                  className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-xs rounded-2xl shadow-md flex items-center justify-center gap-2 uppercase transition-all cursor-pointer border border-emerald-400/30"
                 >
-                  <ShoppingBag className="w-4 h-4 fill-current" />
-                  Confirma retirada de todos os pedidos ({assignedOrders.length})
+                  <ShoppingBag className="w-4 h-4 fill-current text-white" />
+                  <span>✓ Retirar {assignedOrders.length === 1 ? 'o pedido' : `os ${assignedOrders.length} pedidos`}</span>
                 </button>
               ) : assignedOrders.some((o) => o.status === 'picked_up') ? (
                 /* BATCH START ROUTE BUTTON */
                 <button
                   type="button"
                   onClick={() => {
-                    assignedOrders.forEach((o) => {
-                      if (o.status === 'picked_up') {
-                        onUpdateOrderStatus(o.id, 'in_transit');
-                      }
-                    });
-                    triggerSystemActionToast("🚀 Rota Iniciada! Todas as entregas estão em andamento.");
+                    const firstOrder = assignedOrders.find((o) => o.status === 'picked_up') || assignedOrders[0];
+                    if (firstOrder) {
+                      onUpdateOrderStatus(firstOrder.id, 'in_transit');
+                    }
+                    if (onUpdateMotoboyStatus && activeMotoboy) {
+                      onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
+                    }
+                    triggerSystemActionToast(`🚀 Rota iniciada! Indo para a 1ª parada: #${firstOrder.codeNumber} (${firstOrder.neighborhood || 'Centro'}).`);
                   }}
                   className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer animate-pulse"
                 >
                   <Zap className="w-4 h-4 fill-current" />
-                  Iniciar rota completa ({assignedOrders.length} Entregas)
+                  Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'Entrega' : 'Entregas'})
                 </button>
               ) : null
             )}
@@ -911,10 +965,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                   onReorderMotoboyRoute(reordered.map((o) => o.id));
                                   setManualExpandedId(null);
                                 }}
-                                className="ml-1 px-2 py-1 bg-slate-900 hover:bg-slate-800 text-amber-300 font-extrabold text-[10px] rounded-lg transition-all cursor-pointer shadow-2xs"
-                                title="Fazer esta parada em 1º lugar"
+                                className="ml-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-amber-300 font-extrabold text-[10px] rounded-lg transition-all cursor-pointer shadow-2xs flex items-center gap-1"
+                                title="Priorizar esta entrega na rota"
                               >
-                                ▲ Fazer 1ª
+                                ▲ Priorizar
                               </button>
                             )}
                           </div>
@@ -975,52 +1029,72 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                       </div>
 
                       <div className="p-3.5 space-y-3">
-                        {/* 1. ENDEREÇO DA ENTREGA */}
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-                          <span className="text-[10px] font-extrabold uppercase text-slate-500 block">
-                            Endereço de Entrega
-                          </span>
-                          <p className="text-base font-black text-slate-900 leading-snug">
+                        {/* 1. ENDEREÇO DA ENTREGA (DOMINANTE) */}
+                        <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-1.5 text-white shadow-xs">
+                          <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                            <span>PRÓXIMA ENTREGA · #{order.codeNumber}</span>
+                            <span className="text-emerald-400 font-bold bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700">
+                              📍 {order.neighborhood || 'Centro'}
+                            </span>
+                          </div>
+
+                          <p className="text-lg font-black text-white leading-snug tracking-tight">
                             {streetLine}
                           </p>
-                          <div className="pt-1">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-950 font-black text-xs border border-emerald-300 shadow-2xs">
-                              📍 Bairro: {order.neighborhood || 'Centro'}
+
+                          <div className="flex items-center gap-2 pt-1 text-xs font-bold text-slate-300">
+                            <span className="bg-slate-800/90 text-amber-300 px-2.5 py-1 rounded-lg border border-slate-700">
+                              ⏱️ ~{order.estimatedMinutes || 7} min
+                            </span>
+                            <span className="bg-slate-800/90 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700">
+                              🗺️ ~{order.distanceKm || 3.2} km
                             </span>
                           </div>
                         </div>
 
-                        {/* 2. PAGAMENTO (ALTÍSSIMA VISIBILIDADE) */}
-                        <div className="bg-slate-900 p-3 rounded-xl text-white flex items-center justify-between border border-slate-800 shadow-2xs">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                              {order.paymentMethod === 'dinheiro' && <DollarSign className="w-5 h-5 text-amber-400" />}
-                              {order.paymentMethod === 'pix' && <QrCode className="w-5 h-5 text-emerald-400" />}
-                              {order.paymentMethod === 'cartao_maquininha' && <CreditCard className="w-5 h-5 text-sky-400" />}
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-extrabold text-slate-400 uppercase block tracking-wider">
-                                Forma de Pagamento
-                              </span>
-                              <span className="font-black text-xs text-amber-300 uppercase block">
-                                {order.paymentMethod === 'dinheiro'
-                                  ? '💵 DINHEIRO'
-                                  : order.paymentMethod === 'pix'
-                                  ? '⚡ PIX (PAGO NA LOJA)'
-                                  : '💳 CARTÃO (MAQUININHA)'}
-                              </span>
-                            </div>
+                        {/* ARRIVAL ALERT BANNER */}
+                        {hasArrived && (
+                          <div className="bg-amber-400 text-slate-950 p-2.5 rounded-xl font-extrabold text-xs border border-amber-300 flex items-center justify-between gap-2 shadow-xs animate-pulse">
+                            <span className="flex items-center gap-1.5 font-black text-sm">
+                              📍 Você está chegando!
+                            </span>
+                            <span className="text-[10px] font-bold bg-slate-900 text-amber-300 px-2 py-0.5 rounded-md">
+                              Cliente {order.clientName} avisado
+                            </span>
                           </div>
+                        )}
 
-                          <div className="text-right">
-                            <span className="text-[10px] font-extrabold text-slate-400 uppercase block">
-                              {order.paymentMethod === 'pix' ? 'Valor' : 'Cobrar Cliente'}
-                            </span>
-                            <span className="font-black text-2xl text-emerald-400 leading-none block">
-                              {formattedCurrency(order.total)}
-                            </span>
+                        {/* 2. PAGAMENTO (COMPACTO QUANDO PAGO, GIGANTE QUANDO COBRAR) */}
+                        {order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web' ? (
+                          <div className="bg-emerald-950/80 border border-emerald-500/40 px-3 py-2 rounded-xl flex items-center justify-between text-emerald-200 text-xs font-bold shadow-2xs">
+                            <div className="flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                              <span>✓ Já pago • {order.paymentMethod === 'pix' ? 'PIX' : order.originChannel === 'ifood' ? 'iFood' : 'ONLINE'}</span>
+                            </div>
+                            <span className="font-extrabold text-emerald-300 text-sm">{formattedCurrency(order.total)}</span>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="bg-amber-950 border-2 border-amber-500 p-3 rounded-xl text-white flex items-center justify-between shadow-md">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-black">
+                                {order.paymentMethod === 'dinheiro' ? <DollarSign className="w-5 h-5 stroke-[2.5]" /> : <CreditCard className="w-5 h-5 stroke-[2.5]" />}
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider block">
+                                  🚨 COBRAR NO LOCAL
+                                </span>
+                                <span className="font-black text-xs text-amber-100 uppercase block">
+                                  {order.paymentMethod === 'dinheiro' ? '💵 DINHEIRO' : '💳 CARTÃO (MAQUININHA)'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-[10px] font-extrabold text-amber-200 uppercase block">Cobrar</span>
+                              <span className="font-black text-2xl text-amber-300 leading-none block">{formattedCurrency(order.total)}</span>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Troco Info */}
                         {order.changeFor && order.paymentMethod === 'dinheiro' && (
@@ -1032,22 +1106,35 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                           </div>
                         )}
 
-                        {/* CLIENTE & CONTATO (QUANDO EM ROTA) */}
-                        {isInTransit && (
-                          <div className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 text-xs">
+                        {/* CLIENTE & CONTATO (LIGAR + WHATSAPP) */}
+                        {(isInTransit || isPickedUp) && (
+                          <div className="flex items-center justify-between bg-slate-100 px-3 py-2 rounded-xl border border-slate-200 text-xs">
                             <div className="flex items-center gap-1.5 font-bold text-slate-900">
                               <User className="w-3.5 h-3.5 text-slate-500" />
-                              <span>{order.clientName}</span>
+                              <span className="truncate max-w-[120px] sm:max-w-[160px]">{order.clientName}</span>
                             </div>
 
                             {order.clientPhone && (
-                              <a
-                                href={`tel:${order.clientPhone}`}
-                                className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 flex items-center gap-1 text-[11px] font-extrabold transition-all shadow-2xs"
-                              >
-                                <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Ligar</span>
-                              </a>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <a
+                                  href={`tel:${order.clientPhone.replace(/\D/g, '')}`}
+                                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 flex items-center gap-1 text-[11px] font-extrabold transition-all shadow-2xs"
+                                >
+                                  <Phone className="w-3.5 h-3.5 text-blue-600" />
+                                  <span>Ligar</span>
+                                </a>
+                                <a
+                                  href={`https://wa.me/55${order.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                                    `Olá ${order.clientName}, sou o entregador da Hope Burger com seu pedido #${order.codeNumber}. Estou na sua rua/portão!`
+                                  )}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 text-[11px] font-extrabold transition-all shadow-2xs"
+                                >
+                                  <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                                  <span>WhatsApp</span>
+                                </a>
+                              </div>
                             )}
                           </div>
                         )}
@@ -1101,15 +1188,21 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                assignedOrders.forEach((o) => {
+                                const firstOrder = assignedOrders[0];
+                                if (firstOrder) {
+                                  onUpdateOrderStatus(firstOrder.id, 'in_transit');
+                                }
+                                assignedOrders.slice(1).forEach((o) => {
                                   if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
-                                    onUpdateOrderStatus(o.id, 'in_transit');
+                                    if (o.status !== 'picked_up') {
+                                      onUpdateOrderStatus(o.id, 'picked_up');
+                                    }
                                   }
                                 });
                                 if (onUpdateMotoboyStatus && activeMotoboy) {
                                   onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
                                 }
-                                triggerSystemActionToast(`🚀 Rota iniciada com ${assignedOrders.length} ${assignedOrders.length === 1 ? 'parada' : 'paradas'}!`);
+                                triggerSystemActionToast(`🚀 Rota iniciada! 1ª parada: #${firstOrder?.codeNumber} (${firstOrder?.neighborhood || 'Centro'})`);
                               }}
                               className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer"
                             >
@@ -1117,25 +1210,25 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                               <span>Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'parada' : 'paradas'})</span>
                             </button>
                           ) : isInTransit ? (
-                            <div className="space-y-2">
-                              {/* ROTA GPS BUTTONS */}
-                              <div className="grid grid-cols-2 gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenWaze(order.address, order.lat, order.lng)}
-                                  className="py-3 px-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                                >
-                                  <Navigation className="w-4 h-4 fill-current" />
-                                  <span>WAZE</span>
-                                </button>
+                            <div className="space-y-2.5 pt-1">
+                              {/* MODO ROTA: NAVEGAÇÃO DESTACADA */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenWaze(order.address, order.lat, order.lng)}
+                                className="w-full py-4 bg-sky-600 hover:bg-sky-500 active:scale-98 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer uppercase tracking-wide border border-sky-400/40"
+                              >
+                                <Navigation className="w-5 h-5 fill-current text-white animate-bounce" />
+                                <span>🧭 ABRIR NAVEGAÇÃO (WAZE)</span>
+                              </button>
 
+                              <div className="flex items-center gap-2">
                                 <button
                                   type="button"
                                   onClick={() => handleOpenGoogleMaps(order.address, order.lat, order.lng)}
-                                  className="py-3 px-2 bg-blue-700 hover:bg-blue-600 active:scale-95 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-700"
                                 >
-                                  <MapPin className="w-4 h-4" />
-                                  <span>GOOGLE MAPS</span>
+                                  <MapPin className="w-3.5 h-3.5 text-sky-400" />
+                                  <span>Google Maps</span>
                                 </button>
                               </div>
 
@@ -1148,7 +1241,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                     onSimulateArrival(order);
                                     triggerSystemActionToast("📍 Cheguei ao local! Cliente notificado.");
                                   }}
-                                  className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
+                                  className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer border border-slate-800"
                                 >
                                   <MapPin className="w-4 h-4 text-emerald-400" />
                                   <span>CHEGUEI AO LOCAL</span>
@@ -1161,7 +1254,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                     setManualExpandedId(null);
                                     triggerSystemActionToast("✓ Entrega concluída!");
                                   }}
-                                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer"
+                                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer border border-emerald-400/50"
                                 >
                                   <CheckCircle2 className="w-5 h-5" />
                                   <span>✓ CONCLUIR ENTREGA</span>

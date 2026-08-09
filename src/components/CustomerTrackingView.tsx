@@ -18,6 +18,7 @@ interface CustomerTrackingViewProps {
   order: Order;
   motoboy?: Motoboy | null;
   shift: StoreShift;
+  allOrders?: Order[];
   onBackToDashboard: () => void;
 }
 
@@ -25,6 +26,7 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
   order,
   motoboy,
   shift,
+  allOrders = [],
   onBackToDashboard,
 }) => {
   const [estimatedETA, setEstimatedETA] = useState<number>(order.estimatedMinutes);
@@ -39,6 +41,18 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
 
   const formattedCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+  // Calculate route stop queue position for this motoboy
+  const motoboyOrders = (allOrders || [])
+    .filter(
+      (o) =>
+        (o.assignedMotoboyId && motoboy?.id && o.assignedMotoboyId === motoboy.id) ||
+        (o.assignedMotoboyName && motoboy?.name && o.assignedMotoboyName.toLowerCase() === motoboy.name.toLowerCase())
+    )
+    .filter((o) => o.status !== 'delivered' && o.status !== 'cancelled')
+    .sort((a, b) => (a.routeSequence || 99) - (b.routeSequence || 99));
+
+  const stopsAhead = motoboyOrders.findIndex((o) => o.id === order.id);
 
   const getStatusStep = () => {
     switch (order.status) {
@@ -92,18 +106,33 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
           </div>
 
           <div>
-            <h1 className="text-xl font-black text-slate-900">
+            <h1 className="text-xl font-black text-slate-900 leading-snug">
               {order.status === 'delivered'
                 ? 'Seu pedido foi entregue! Bom apetite! 😋'
                 : order.status === 'in_transit'
                 ? 'O entregador está a caminho do seu endereço! 🛵💨'
+                : stopsAhead > 0
+                ? 'O entregador já está com seu pedido na bag! 🎒'
                 : order.status === 'picked_up'
-                ? 'O entregador já retirou seu pedido na loja e iniciará a rota de entrega em instantes! 🎒'
+                ? 'O entregador já retirou seu pedido na loja e iniciará a rota em instantes! 🎒'
                 : order.status === 'ready_at_counter'
                 ? 'Seu pedido está pronto e preparado para a saída do entregador! 📦'
                 : 'Seu pedido está sendo preparado na cozinha! 🔥'}
             </h1>
             <p className="text-xs text-slate-500 mt-1">Código de Rastreio: {order.trackingCode}</p>
+
+            {/* Sub-banner for queue status ahead */}
+            {stopsAhead > 0 && order.status !== 'delivered' && order.status !== 'in_transit' && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-xs text-left space-y-1 font-medium">
+                <span className="font-extrabold text-amber-950 flex items-center gap-1.5">
+                  📍 Entrega antecedente em andamento
+                </span>
+                <p className="text-amber-800 leading-relaxed">
+                  O entregador <strong>{motoboy?.name || 'da loja'}</strong> está realizando{' '}
+                  <strong>{stopsAhead} {stopsAhead === 1 ? 'entrega' : 'entregas'}</strong> na sua frente. Assim que ele concluir a parada anterior, a rota para o seu endereço será iniciada!
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Stepper Progress */}
@@ -123,14 +152,14 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
         </div>
 
         {/* Motoboy Card (If assigned) */}
-        {motoboy && order.status === 'in_transit' && (
-          <div className="bg-white rounded-3xl p-4 border border-emerald-200 shadow-sm space-y-3">
+        {motoboy && (order.status === 'in_transit' || order.status === 'picked_up' || stopsAhead >= 0) && order.status !== 'delivered' && (
+          <div className="bg-white rounded-3xl p-4 border border-emerald-200 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-extrabold text-emerald-800 uppercase">
                 Seu Entregador Dedicado
               </span>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                A caminho
+                {order.status === 'in_transit' ? 'A caminho' : 'Na Bag / Em rota'}
               </span>
             </div>
 

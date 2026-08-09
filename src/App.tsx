@@ -383,7 +383,16 @@ export default function App() {
       const updated = prev.map((ord) => {
         const seqIdx = orderedOrderIds.indexOf(ord.id);
         if (seqIdx !== -1) {
-          const updatedOrd = { ...ord, routeSequence: seqIdx + 1 };
+          // If first place in new sequence and not finished, mark as in_transit if active
+          const isFinished = ord.status === 'delivered' || ord.status === 'cancelled';
+          const newStatus =
+            seqIdx === 0 && !isFinished
+              ? 'in_transit'
+              : ord.status === 'in_transit'
+              ? 'picked_up'
+              : ord.status;
+
+          const updatedOrd: Order = { ...ord, routeSequence: seqIdx + 1, status: newStatus };
           saveOrderToCloud(updatedOrd);
           return updatedOrd;
         }
@@ -391,7 +400,7 @@ export default function App() {
       });
       return updated;
     });
-    showToast('🗺️ Sequência de entregas atualizada! O motoboy verá a nova ordem das paradas.');
+    showToast('MAPA: Sequência de entregas atualizada! A 1ª parada agora está em deslocamento.');
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
@@ -441,16 +450,31 @@ export default function App() {
       );
 
       if (targetMotoboy) {
-        const remainingActiveCount = orders.filter(
-          (o) =>
-            o.id !== orderId &&
-            (o.assignedMotoboyId === targetMotoboy.id ||
-             (o.assignedMotoboyName && targetMotoboy.name && o.assignedMotoboyName.toLowerCase() === targetMotoboy.name.toLowerCase())) &&
-            o.status !== 'delivered' &&
-            o.status !== 'cancelled'
-        ).length;
+        const remainingActiveOrders = orders
+          .filter(
+            (o) =>
+              o.id !== orderId &&
+              (o.assignedMotoboyId === targetMotoboy.id ||
+               (o.assignedMotoboyName && targetMotoboy.name && o.assignedMotoboyName.toLowerCase() === targetMotoboy.name.toLowerCase())) &&
+              o.status !== 'delivered' &&
+              o.status !== 'cancelled'
+          )
+          .sort((a, b) => (a.routeSequence || 99) - (b.routeSequence || 99));
 
-        const isFinishedAll = remainingActiveCount === 0;
+        const isFinishedAll = remainingActiveOrders.length === 0;
+
+        // Auto-promote next remaining order in sequence to 'in_transit'
+        if (!isFinishedAll && remainingActiveOrders.length > 0) {
+          const nextOrder = remainingActiveOrders[0];
+          if (nextOrder.status !== 'in_transit') {
+            const updatedNextOrder: Order = {
+              ...nextOrder,
+              status: 'in_transit',
+            };
+            setOrders((prev) => prev.map((ord) => (ord.id === nextOrder.id ? updatedNextOrder : ord)));
+            saveOrderToCloud(updatedNextOrder);
+          }
+        }
 
         const feeEarned = targetOrder.deliveryFee && targetOrder.deliveryFee > 0
           ? targetOrder.deliveryFee
@@ -460,7 +484,7 @@ export default function App() {
           ...targetMotoboy,
           deliveriesCountToday: (targetMotoboy.deliveriesCountToday || 0) + 1,
           totalEarnedToday: (targetMotoboy.totalEarnedToday || 0) + feeEarned,
-          activeOrdersCount: remainingActiveCount,
+          activeOrdersCount: remainingActiveOrders.length,
           status: isFinishedAll ? 'returning_to_store' : 'delivering',
         };
 
@@ -473,8 +497,9 @@ export default function App() {
             7000
           );
         } else {
+          const nextCode = remainingActiveOrders[0]?.codeNumber;
           showToast(
-            `Pedido #${targetOrder.codeNumber} entregue por ${targetMotoboy.name}! 🎉 (+${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(feeEarned)})`
+            `Pedido #${targetOrder.codeNumber} entregue! 🎉 Próxima parada da rota: #${nextCode || 'Próximo'}`
           );
         }
       } else {
@@ -577,6 +602,7 @@ export default function App() {
             order={matchedOrder}
             motoboy={motoboys.find((m) => m.id === matchedOrder.assignedMotoboyId)}
             shift={shift}
+            allOrders={orders}
             onBackToDashboard={() => {
               window.history.pushState({}, '', window.location.pathname);
               setUrlTrackingCode(null);
