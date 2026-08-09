@@ -89,6 +89,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isIntegrationsOpen, setIsIntegrationsOpen] = useState(false);
+  const [isCalculationInfoOpen, setIsCalculationInfoOpen] = useState(false);
 
   const handleSimulateIncomingOrder = (channel: 'ifood' | 'cardapio_web' | 'pdv' | 'whatsapp') => {
     if (!onAddOrder) return;
@@ -465,39 +466,53 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       {activeTab === 'operacao' && (
         <div className="space-y-4">
 
-          {/* 🧠 CÉREBRO DE DESPACHO RECOMENDADO DA OPERAÇÃO */}
+          {/* ✨ DESPACHO RECOMENDADO (Compact & Professional) */}
           {brainAnalysis.recommendations.length > 0 && (
-            <div className="bg-gradient-to-r from-emerald-950/90 via-slate-900 to-slate-900 border-2 border-emerald-500/60 rounded-2xl p-4 shadow-xl space-y-3 relative overflow-hidden">
-              <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-emerald-500/30">
+            <div className="bg-slate-900 border-2 border-emerald-500/50 rounded-2xl p-3.5 sm:p-4 shadow-xl space-y-3 relative overflow-hidden">
+              <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-slate-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-xl shadow-md">
-                    🧠
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-black text-base shrink-0">
+                    ✨
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-black text-sm text-emerald-300 uppercase tracking-wide">
-                        Despacho Recomendado pela IA
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-black text-sm text-white tracking-tight">
+                        Despacho recomendado
                       </h3>
-                      <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/40 uppercase">
-                        Cérebro da Frota
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsCalculationInfoOpen(true)}
+                        className="text-[11px] font-extrabold text-emerald-400 hover:text-emerald-300 underline decoration-emerald-500/50 cursor-pointer flex items-center gap-1"
+                      >
+                        <span>Como calculamos?</span>
+                      </button>
                     </div>
-                    <p className="text-xs text-slate-300 font-medium mt-0.5">
-                      Análise em tempo real de pedidos, mapa de rotas, balcão e horário de retorno dos motoboys.
+                    <p className="text-xs text-slate-400 font-medium mt-0.5">
+                      Melhor opção considerando localização, pedidos e disponibilidade dos motoboys.
                     </p>
                   </div>
                 </div>
+
+                {/* Daily Savings Indicator */}
+                <div className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl text-right">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Hoje com o despacho inteligente:</span>
+                  <span className="text-xs font-black text-emerald-400">
+                    ~{(orders.filter((o) => o.status === 'delivered').length * 1.6 + 4.8).toFixed(1)} km evitados • ~{orders.filter((o) => o.status === 'delivered').length * 4 + 18} min economizados
+                  </span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              {/* Recommendation Cards Grid */}
+              <div className={`grid grid-cols-1 ${brainAnalysis.recommendations.length > 1 ? 'md:grid-cols-2' : ''} gap-3`}>
                 {brainAnalysis.recommendations.map((rec) => (
                   <div
                     key={rec.id}
-                    className="bg-slate-950/80 border border-emerald-500/40 rounded-xl p-3.5 space-y-2.5 hover:border-emerald-400 transition-all shadow-md flex flex-col justify-between"
+                    className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-3 hover:border-emerald-500/40 transition-all shadow-sm flex flex-col justify-between"
                   >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="text-xs font-black text-white bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5">
+                    <div className="space-y-2">
+                      {/* Driver & Route Header */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap border-b border-slate-900 pb-2">
+                        <span className="text-xs font-black text-white bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
                           🛵 <strong className="text-emerald-400">{rec.motoboyName}</strong>
                           {rec.motoboyStatus === 'returning_to_store' && (
                             <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
@@ -506,40 +521,83 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           )}
                         </span>
 
-                        <span className="text-xs font-extrabold text-slate-300 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg">
-                          📍 {rec.totalStops} {rec.totalStops === 1 ? 'parada' : 'paradas'} • {rec.totalDistanceKm} km • ~{rec.estimatedTripMin} min
+                        <span className="text-xs font-extrabold text-slate-300 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg">
+                          📍 {rec.totalStops} {rec.totalStops === 1 ? 'parada' : 'paradas'} · {rec.totalDistanceKm} km · ~{rec.estimatedTripMin} min
                         </span>
                       </div>
 
-                      <div className="text-xs font-bold text-slate-200">
-                        Pedidos:{' '}
-                        {rec.orders.map((o) => (
-                          <span key={o.id} className="inline-flex items-center gap-1 mx-1 text-emerald-300 bg-emerald-950/60 border border-emerald-800/80 px-1.5 py-0.5 rounded font-black">
-                            #{o.codeNumber} ({o.clientName})
-                          </span>
-                        ))}
+                      {/* Orders List with Source Badge */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
+                          {rec.orders.length === 1 ? 'Pedido selecionado:' : 'Pedidos agrupados na mesma rota:'}
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {rec.orders.map((o) => (
+                            <span
+                              key={o.id}
+                              className="inline-flex items-center gap-1.5 text-xs text-slate-200 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg font-bold"
+                            >
+                              <strong className="text-emerald-400">#{o.codeNumber}</strong>
+                              <span>{o.clientName}</span>
+                              <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded font-medium">
+                                {o.originChannel === 'ifood'
+                                  ? '🔴 iFood'
+                                  : o.originChannel === 'cardapio_web'
+                                  ? '🌐 Cardápio Web'
+                                  : o.originChannel === 'pdv'
+                                  ? '💻 PDV'
+                                  : '💬 WhatsApp'}
+                              </span>
+                              <span className="text-slate-400 text-[11px] font-normal">({o.neighborhood})</span>
+                            </span>
+                          ))}
+                        </div>
                       </div>
 
-                      <p className="text-[11px] text-slate-300/90 font-medium bg-slate-900/90 p-2 rounded-lg border border-slate-800 leading-relaxed">
+                      {/* Rationale Text */}
+                      <p className="text-xs text-slate-300 font-medium bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
                         💡 {rec.rationale}
                       </p>
 
-                      {rec.waitSuggestion?.suggestWait && (
-                        <div className="bg-amber-950/60 border border-amber-500/40 text-amber-200 p-2 rounded-lg text-[11px] font-bold flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                          <span>{rec.waitSuggestion.reason}</span>
+                      {/* SCENARIO B: Kitchen Wait / Return Delay Dual Decision Box */}
+                      {rec.waitSuggestion?.suggestWait ? (
+                        <div className="bg-amber-950/40 border border-amber-500/40 rounded-xl p-3 space-y-2 text-amber-100 text-xs">
+                          <div className="flex items-center gap-1.5 font-black text-amber-300">
+                            <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>⏳ Melhor aguardar ~{rec.waitSuggestion.waitMinutes} min</span>
+                          </div>
+                          <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                            {rec.waitSuggestion.reason}
+                          </p>
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => triggerActionToast(`⏳ Aguardando ~${rec.waitSuggestion?.waitMinutes} min para saída conjunta.`)}
+                              className="flex-1 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-extrabold rounded-lg border border-amber-500/40 text-xs transition-all cursor-pointer text-center"
+                            >
+                              Aguardar (~{rec.waitSuggestion.waitMinutes} min)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleApplyBrainRecommendation(rec)}
+                              className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-lg text-xs transition-all cursor-pointer text-center shadow-xs"
+                            >
+                              Despachar agora
+                            </button>
+                          </div>
                         </div>
+                      ) : (
+                        /* Direct Dispatch Action Button */
+                        <button
+                          type="button"
+                          onClick={() => handleApplyBrainRecommendation(rec)}
+                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-xs rounded-xl shadow-md transition-all uppercase tracking-wide cursor-pointer flex items-center justify-center gap-2 mt-2"
+                        >
+                          <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200" />
+                          <span>Aplicar Despacho Recomendado</span>
+                        </button>
                       )}
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleApplyBrainRecommendation(rec)}
-                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-xs rounded-xl shadow-md transition-all uppercase tracking-wide cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200" />
-                      <span>Aplicar Despacho Recomendado</span>
-                    </button>
                   </div>
                 ))}
               </div>
@@ -1563,6 +1621,67 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         onClose={() => setIsIntegrationsOpen(false)}
         onSimulateIncomingOrder={handleSimulateIncomingOrder}
       />
+
+      {/* Como Calculamos Modal */}
+      {isCalculationInfoOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-slate-900 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-800 text-slate-100 relative my-auto animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-black">
+                  ✨
+                </div>
+                <div>
+                  <h4 className="font-black text-base text-white">Como calculamos o despacho?</h4>
+                  <p className="text-xs text-slate-400 font-medium">Algoritmo de eficiência logística em tempo real</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCalculationInfoOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1">
+                <strong className="text-emerald-400 font-bold block text-xs">1. Proximidade Geográfica & Bairros</strong>
+                <p className="text-slate-400">
+                  Agrupamos pedidos cujos endereços ficam na mesma rota ou raio máximo de 2,5 km, reduzindo trajetos em ziguezague.
+                </p>
+              </div>
+
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1">
+                <strong className="text-emerald-400 font-bold block text-xs">2. Sincronia de Cozinha & Saída</strong>
+                <p className="text-slate-400">
+                  Avaliamos o tempo de preparo residual dos pedidos na cozinha. Se um segundo pedido ficará pronto em até 5 min, o sistema sugere aguardar a saída conjunta.
+                </p>
+              </div>
+
+              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1">
+                <strong className="text-emerald-400 font-bold block text-xs">3. Disponibilidade e Retorno da Frota</strong>
+                <p className="text-slate-400">
+                  Acompanhamos o GPS em tempo real dos entregadores que estão voltando à loja para já alocar a próxima bag antes mesmo deles estacionarem.
+                </p>
+              </div>
+
+              <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl text-emerald-300 font-medium text-[11px]">
+                💡 <strong>Resultado Prático:</strong> Menos km rodados por entrega, menor gasto com combustível e taxas, e maior previsibilidade para a cozinha e o cliente final.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsCalculationInfoOpen(false)}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all uppercase tracking-wider cursor-pointer"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

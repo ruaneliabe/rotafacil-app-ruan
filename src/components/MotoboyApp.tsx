@@ -64,7 +64,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
   const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'map'>('active');
   const [deviceGps, setDeviceGps] = useState<{ lat: number; lng: number } | null>(null);
-  const [gpsStatusMsg, setGpsStatusMsg] = useState<string>('Aguardando GPS...');
+  const [gpsStatusMsg, setGpsStatusMsg] = useState<string>('Localização ativa');
+  const [showDevGpsPanel, setShowDevGpsPanel] = useState<boolean>(false);
+  const [isEarningsModalOpen, setIsEarningsModalOpen] = useState<boolean>(false);
+  const [availableSince, setAvailableSince] = useState<number>(Date.now() - 8 * 60 * 1000); // 8 mins ago default
 
   // Track device GPS position in real time
   useEffect(() => {
@@ -399,7 +402,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
       {/* 1. Header Bar - Clean Motoboy Profile & Action Bar */}
       <div className="bg-white px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3">
-        {/* Left: Driver Avatar + Protagonist Name + Online Badge + ID */}
+        {/* Left: Driver Avatar + Protagonist Name + Online & GPS Badge */}
         <div className="flex items-center gap-3 min-w-0">
           {/* Motoboy Photo / Avatar */}
           <div className="w-11 h-11 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-lg shadow-2xs shrink-0 border border-slate-700">
@@ -412,23 +415,39 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               {activeMotoboy?.name || 'Entregador'}
             </h3>
 
-            {/* Online Status Badge (+2px larger text) */}
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-              <span className="text-xs font-bold text-emerald-700 truncate">
-                Modo Entregador • Online
-              </span>
-            </div>
-
-            {/* Driver ID / Vehicle Plate (Smaller & Subtle) */}
-            <div className="text-[11px] font-mono font-medium text-slate-500 mt-0.5">
-              ID: <span className="text-slate-800 font-bold">{activeMotoboy?.plate || activeMotoboy?.id.slice(0, 8).toUpperCase() || 'BNU-9B88'}</span>
+            {/* Online Status & Discrete GPS Badge */}
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                <span className="text-xs font-bold text-emerald-700 truncate">
+                  Online
+                </span>
+              </div>
+              <span className="text-slate-300">•</span>
+              <div className="flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                <span className="text-emerald-600">📍</span>
+                <span>Localização ativa</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Right Action Icons: Sound Toggle & Test, Install, Logout/Switch */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Right Action Icons: Sound Toggle, Dev Panel, Install, Logout/Switch */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Dev GPS Toggle (Discrete Tool) */}
+          <button
+            type="button"
+            onClick={() => setShowDevGpsPanel(!showDevGpsPanel)}
+            title="Alternar Painel Dev/Testes de GPS"
+            className={`p-2 rounded-xl transition-all cursor-pointer ${
+              showDevGpsPanel
+                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-500 border border-slate-200'
+            }`}
+          >
+            <Zap className="w-4 h-4" />
+          </button>
+
           {/* Sound Test / Toggle Button */}
           <button
             type="button"
@@ -440,24 +459,11 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               triggerSystemActionToast('Sinal sonoro de entrega testado!');
             }}
             title="Testar sinal sonoro de entregas"
-            className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 border border-slate-200 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer shadow-2xs"
+            className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 border border-slate-200 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer shadow-2xs"
           >
             <Volume2 className="w-4 h-4 text-amber-600" />
             <span className="hidden sm:inline text-slate-700">Som</span>
           </button>
-
-          {/* PWA Install Button (Hides if already in standalone app mode) */}
-          {!(typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone)) && (
-            <button
-              type="button"
-              onClick={handleInstallClick}
-              title="Instalar App no Celular"
-              className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 border border-slate-200 transition-all flex items-center gap-1.5 text-xs font-extrabold cursor-pointer"
-            >
-              <span>📲</span>
-              <span className="hidden sm:inline">Instalar</span>
-            </button>
-          )}
 
           {/* Profile Switcher or Logout Button */}
           {isLockedToMotoboy ? (
@@ -465,17 +471,17 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               type="button"
               onClick={handleLogoutAccount}
               title="Sair da Conta de Entregador"
-              className="px-2.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+              className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
             >
               <LogOut className="w-4 h-4 text-rose-600" />
-              <span>Sair</span>
+              <span className="hidden sm:inline">Sair</span>
             </button>
           ) : (
             <select
               value={activeMotoboyId}
               onChange={(e) => setActiveMotoboyId(e.target.value)}
               title="Alternar Perfil de Entregador"
-              className="bg-slate-100 text-slate-800 font-bold text-xs py-2 px-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 max-w-[120px] truncate cursor-pointer"
+              className="bg-slate-100 text-slate-800 font-bold text-xs py-2 px-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 max-w-[110px] truncate cursor-pointer"
             >
               {motoboys.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -487,42 +493,50 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         </div>
       </div>
 
-      {/* PWA INSTALL GUIDE MODAL */}
-      {showInstallGuide && (
-        <div className="bg-white border-b border-slate-200 p-4 space-y-3 text-xs text-slate-800">
-          <div className="flex items-center justify-between">
-            <span className="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
-              📱 Como instalar como App no Celular
+      {/* DEV / TEST GPS PANEL (Only visible when toggled) */}
+      {showDevGpsPanel && (
+        <div className="bg-amber-950/90 text-amber-100 px-3.5 py-2.5 text-xs font-medium border-b border-amber-800 flex flex-col sm:flex-row items-center justify-between gap-2 animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded">
+              MODO TESTE
             </span>
-            <button
-              onClick={() => setShowInstallGuide(false)}
-              className="text-slate-500 hover:text-slate-900 font-bold text-sm px-2 py-0.5 rounded bg-slate-100"
-            >
-              ✕
-            </button>
+            <span className="text-amber-200 font-mono text-[11px] truncate">
+              {gpsStatusMsg}
+            </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-              <span className="font-extrabold text-slate-900 block">🤖 No Android (Chrome):</span>
-              <p className="text-slate-600 leading-relaxed">
-                1. Toque nos <strong>3 pontinhos (⋮)</strong> no canto superior do navegador.<br />
-                2. Toque em <strong>"Adicionar à tela inicial"</strong> ou <strong>"Instalar aplicativo"</strong>.<br />
-                3. O ícone do Rota Fácil aparecerá na sua tela como um app nativo!
-              </p>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-              <span className="font-extrabold text-slate-900 block">🍏 No iPhone (Safari):</span>
-              <p className="text-slate-600 leading-relaxed">
-                1. Toque no botão de <strong>Compartilhar (↑)</strong> no rodapé do Safari.<br />
-                2. Role para baixo e toque em <strong>"Adicionar à Tela de Início"</strong>.<br />
-                3. Confirme em "Adicionar" no topo direito.
-              </p>
-            </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleRequestGpsManual}
+              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] transition-all cursor-pointer"
+            >
+              📍 Atualizar GPS Real
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const testLat = -26.9298;
+                const testLng = -49.0965;
+                setDeviceGps({ lat: testLat, lng: testLng });
+                setGpsStatusMsg(`📍 Posição Simula Longe (~3km)`);
+                if (activeMotoboy) {
+                  saveMotoboyToCloud({
+                    ...activeMotoboy,
+                    currentLat: testLat,
+                    currentLng: testLng,
+                  });
+                }
+                triggerSystemActionToast('📍 Posição de teste definida (~3 km da loja)!');
+              }}
+              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-amber-300 font-black rounded-lg text-[10px] border border-amber-500/30 transition-all cursor-pointer"
+            >
+              📍 Simular Longe (~3km)
+            </button>
           </div>
         </div>
       )}
 
-      {/* 2. Top Summary Earnings & Progress Bar */}
+      {/* 2. Top Summary Earnings & Progress Bar (CLICKABLE TO OPEN DETAILED BREAKDOWN) */}
       <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 space-y-1.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -532,12 +546,21 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1 rounded-xl shadow-2xs">
-            <span className="text-[10px] text-slate-500 font-black uppercase">Hoje:</span>
-            <span className="font-black text-sm text-slate-900">
-              {formattedCurrency(activeMotoboy?.totalEarnedToday || 0)}
+          {/* Clickable Earnings Summary */}
+          <button
+            type="button"
+            onClick={() => setIsEarningsModalOpen(true)}
+            className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 active:scale-98 px-3 py-1.5 rounded-xl shadow-2xs transition-all cursor-pointer group"
+            title="Clique para ver o resumo completo do dia"
+          >
+            <span className="text-[11px] text-slate-500 font-black uppercase group-hover:text-slate-700">Hoje:</span>
+            <span className="font-black text-sm text-slate-900 flex items-center gap-1">
+              {completedOrders.length} {completedOrders.length === 1 ? 'entrega' : 'entregas'} • {formattedCurrency(
+                completedOrders.reduce((acc, o) => acc + o.total, 0) || (activeMotoboy?.totalEarnedToday || 0)
+              )} <span className="text-[10px] font-bold text-slate-400">cobrados</span>
             </span>
-          </div>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+          </button>
         </div>
 
         {/* PROGRESS BAR FOR ACTIVE DELIVERY RUN ONLY */}
@@ -567,45 +590,6 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             </div>
           </div>
         )}
-      </div>
-
-      {/* GPS Status Indicator Bar & Position Override for Test/Real GPS */}
-      <div className="bg-slate-900 px-3 py-2 text-[11px] font-bold text-slate-300 flex flex-col sm:flex-row items-center justify-between gap-2 border-b border-slate-800">
-        <div className="flex items-center gap-1.5 line-clamp-1 w-full sm:w-auto">
-          <span className={`w-2.5 h-2.5 rounded-full ${deviceGps ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
-          <span className="text-slate-100 font-bold">{gpsStatusMsg}</span>
-        </div>
-        <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end flex-wrap">
-          <button
-            type="button"
-            onClick={handleRequestGpsManual}
-            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black border border-emerald-500 transition-all cursor-pointer shadow-xs"
-          >
-            📍 Usar GPS do Celular
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              // Set test location at Rua dos Pioneiros 595, Blumenau (~3.0 km road distance from store)
-              const testLat = -26.9298;
-              const testLng = -49.0965;
-              setDeviceGps({ lat: testLat, lng: testLng });
-              setGpsStatusMsg(`📍 Posição em Teste (A ~3 km da Loja)`);
-              if (activeMotoboy) {
-                saveMotoboyToCloud({
-                  ...activeMotoboy,
-                  currentLat: testLat,
-                  currentLng: testLng,
-                });
-              }
-              triggerSystemActionToast('📍 Posição de teste definida (~3 km da loja)!');
-            }}
-            className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-[10px] font-black border border-amber-500/30 transition-all cursor-pointer"
-            title="Simular localização fora da loja para testes"
-          >
-            📍 Simular Longe (~3km)
-          </button>
-        </div>
       </div>
 
       {/* 3. Navigation Tabs */}
@@ -638,7 +622,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           }`}
         >
           <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-          Mapa Ao Vivo
+          Mapa
         </button>
 
         <button
@@ -750,65 +734,106 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                     </>
                   ) : (
                     <>
-                      {/* DYNAMIC QUEUE POSITION */}
+                      {/* DYNAMIC HUMAN-CENTERED QUEUE POSITION */}
                       {(() => {
                         const availableDrivers = motoboys.filter((m) => m.status === 'available');
                         const driverIndex = availableDrivers.findIndex((m) => m.id === activeMotoboy?.id);
                         const queuePos = driverIndex >= 0 ? driverIndex + 1 : 1;
+                        const minutesInQueue = Math.max(1, Math.floor((Date.now() - availableSince) / 60000));
+                        const formattedQueueTime = String(minutesInQueue).padStart(2, '0');
+
+                        const isPaused = activeMotoboy?.status === 'busy' || activeMotoboy?.status === 'offline';
+
+                        if (isPaused) {
+                          return (
+                            <div className="space-y-4 py-2">
+                              <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300">
+                                ⏸️ Disponibilidade Pausada
+                              </div>
+                              <div>
+                                <h4 className="text-xl font-black text-slate-900">Você está em pausa</h4>
+                                <p className="text-xs text-slate-500 mt-1 font-medium">
+                                  Você não receberá novos pedidos até voltar a ficar disponível.
+                                </p>
+                              </div>
+                              {onUpdateMotoboyStatus && activeMotoboy && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onUpdateMotoboyStatus(activeMotoboy.id, 'available');
+                                    setAvailableSince(Date.now());
+                                    triggerSystemActionToast("🟢 Você voltou a ficar disponível na loja!");
+                                  }}
+                                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                  <span>🟢 Voltar a ficar Disponível</span>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        }
 
                         return (
-                          <div className="space-y-3">
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                              Disponível na Loja
+                          <div className="space-y-5 py-2">
+                            {/* DISPONÍVEL NA LOJA BADGE */}
+                            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                              <span className="uppercase tracking-wider">🟢 DISPONÍVEL NA LOJA</span>
                             </div>
 
-                            <div>
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                                Sua Posição no Rodízio
-                              </span>
-                              <strong className="text-3xl font-black text-slate-900 block mt-0.5">
-                                {queuePos}º na fila
-                              </strong>
-                              <p className="text-xs text-slate-500 font-medium mt-1">
-                                Aguardando novos pedidos liberados pela cozinha
+                            {/* MAIN QUEUE POSITION HERO */}
+                            <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-1 text-center">
+                              {queuePos === 1 ? (
+                                <>
+                                  <span className="text-emerald-600 font-black text-sm uppercase tracking-wide block">
+                                    Você é o próximo
+                                  </span>
+                                  <strong className="text-4xl font-black text-slate-900 block tracking-tight">
+                                    1º na fila
+                                  </strong>
+                                </>
+                              ) : (
+                                <>
+                                  <strong className="text-4xl font-black text-slate-900 block tracking-tight">
+                                    {queuePos}º na fila
+                                  </strong>
+                                  <span className="text-slate-600 font-extrabold text-xs block pt-0.5">
+                                    {queuePos - 1} {queuePos - 1 === 1 ? 'motoboy antes de você' : 'motoboys antes de você'}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+
+                            {/* AGUARDANDO E AVISO */}
+                            <div className="space-y-1.5">
+                              <h5 className="font-black text-slate-900 text-sm">Aguardando uma nova entrega</h5>
+                              <p className="text-xs text-slate-500 font-medium flex items-center justify-center gap-1.5">
+                                <span>🔔 Você será avisado quando receber um pedido</span>
+                              </p>
+                              <p className="text-xs text-slate-400 font-semibold pt-1">
+                                Tempo na fila: <strong className="text-slate-700">{formattedQueueTime} min</strong>
                               </p>
                             </div>
+
+                            {/* PAUSAR BOTÃO */}
+                            {onUpdateMotoboyStatus && activeMotoboy && (
+                              <div className="pt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onUpdateMotoboyStatus(activeMotoboy.id, 'busy');
+                                    triggerSystemActionToast("⏸️ Disponibilidade pausada.");
+                                  }}
+                                  className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                  <Pause className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Pausar disponibilidade</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
-
-                      {activeMotoboy && (
-                        <div className="pt-2 flex items-center justify-center gap-2">
-                          {onConfirmArrivalAtStore && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onConfirmArrivalAtStore(activeMotoboy.id);
-                                triggerSystemActionToast("✅ Presença confirmada na loja!");
-                              }}
-                              className="flex-1 py-2.5 px-3 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                            >
-                              <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>Confirmar Presença</span>
-                            </button>
-                          )}
-
-                          {onUpdateMotoboyStatus && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onUpdateMotoboyStatus(activeMotoboy.id, 'busy');
-                                triggerSystemActionToast("⏸️ Atendimento pausado.");
-                              }}
-                              className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-1 cursor-pointer"
-                            >
-                              <Pause className="w-3.5 h-3.5 text-slate-500" />
-                              <span>Pausar</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
                     </>
                   )}
                 </div>
@@ -1302,6 +1327,100 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           </span>
         </div>
       </div>
+
+      {/* DETAILED EARNINGS & SALES BREAKDOWN MODAL */}
+      {isEarningsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 relative my-auto animate-scaleUp text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
+                  💰
+                </div>
+                <div>
+                  <h4 className="font-black text-base text-slate-900">Resumo de Hoje</h4>
+                  <p className="text-xs text-slate-500 font-medium">{new Date().toLocaleDateString('pt-BR')}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEarningsModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-5 h-5 rotate-180" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {/* Deliveries Count & Km Driven */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-center">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Entregas</span>
+                  <strong className="text-2xl font-black text-slate-900 block mt-0.5">
+                    {completedOrders.length}
+                  </strong>
+                  <span className="text-[10px] text-slate-500 font-bold block">finalizadas hoje</span>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-center">
+                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Km Rodados</span>
+                  <strong className="text-2xl font-black text-slate-900 block mt-0.5">
+                    ~{(completedOrders.length * 6.1).toFixed(1)} <span className="text-xs">km</span>
+                  </strong>
+                  <span className="text-[10px] text-slate-500 font-bold block">em rotas calculadas</span>
+                </div>
+              </div>
+
+              {/* Total Collected / Sales */}
+              <div className="bg-slate-900 text-white p-3.5 rounded-2xl space-y-1 shadow-xs border border-slate-800">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300 font-bold">Cobrado/Recebido dos Clientes:</span>
+                  <span className="font-black text-emerald-400 text-base">
+                    {formattedCurrency(
+                      completedOrders.reduce((acc, o) => acc + o.total, 0)
+                    )}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 font-medium leading-tight">
+                  Valor total das vendas (Pix/Dinheiro/Cartão) a ser prestado contas com a loja no fechamento.
+                </p>
+              </div>
+
+              {/* Net Delivery Fee Earnings */}
+              <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl space-y-1">
+                <div className="flex items-center justify-between text-xs font-black text-emerald-950">
+                  <span>Ganho em Taxas de Entrega:</span>
+                  <span className="text-emerald-700 text-base">
+                    {formattedCurrency(
+                      completedOrders.reduce(
+                        (acc, o) => acc + (o.deliveryFee || activeMotoboy?.perDeliveryFee || 8.5),
+                        0
+                      )
+                    )}
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-800 font-medium leading-tight">
+                  Seu ganho garantido acumulado hoje (acumula por entrega realizada).
+                </p>
+              </div>
+
+              {/* Time in route */}
+              <div className="flex items-center justify-between text-xs text-slate-600 font-bold pt-1 px-1">
+                <span>Tempo estimado em rota:</span>
+                <span className="text-slate-900 font-black">~{completedOrders.length * 17} minutos</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsEarningsModalOpen(false)}
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

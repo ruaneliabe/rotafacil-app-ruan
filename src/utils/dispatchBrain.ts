@@ -124,10 +124,11 @@ export function analyzeOperationalBrain(
         let waitSuggestion;
 
         if (kitchenWaitOrder) {
+          const waitMins = kitchenWaitOrder.kitchenReadyInMin || 4;
           waitSuggestion = {
             suggestWait: true,
-            waitMinutes: kitchenWaitOrder.kitchenReadyInMin || 4,
-            reason: `Pedido #${kitchenWaitOrder.codeNumber} ficará pronto em ~${kitchenWaitOrder.kitchenReadyInMin || 4} min na cozinha.`,
+            waitMinutes: waitMins,
+            reason: `Pedido #${kitchenWaitOrder.codeNumber} ficará pronto em ~${waitMins} min na cozinha. Os destinos ficam na mesma região (${neighborhoods}). Aguardar evita uma segunda saída.`,
           };
         } else if (chosenMotoboy.status === 'returning_to_store' && chosenMotoboy.eta > 0) {
           waitSuggestion = {
@@ -137,11 +138,19 @@ export function analyzeOperationalBrain(
           };
         }
 
-        let rationale = `Sugerimos agrupar ${cluster.length} ${cluster.length === 1 ? 'pedido' : 'pedidos'} na região do ${neighborhoods}. `;
-        if (chosenMotoboy.status === 'returning_to_store') {
-          rationale += `Atribuído ao entregador ${chosenMotoboy.name} assim que ele chegar à loja (~${chosenMotoboy.eta} min). Economia estimada de 1 saída individual.`;
+        let rationale = '';
+        if (cluster.length === 1) {
+          if (chosenMotoboy.status === 'returning_to_store') {
+            rationale = `${chosenMotoboy.name} é a melhor opção. Chega à loja em ~${chosenMotoboy.eta} min e assume a entrega para ${cluster[0].clientName} (${neighborhoods}).`;
+          } else {
+            rationale = `${chosenMotoboy.name} é a melhor opção para este pedido. Está na loja e a entrega leva aproximadamente ${estimatedTripMin} min.`;
+          }
         } else {
-          rationale += `Despacho imediato com ${chosenMotoboy.name} na loja. Estimativa de ${cluster.length} paradas em ~${estimatedTripMin} min.`;
+          if (chosenMotoboy.status === 'returning_to_store') {
+            rationale = `Vale agrupar estes ${cluster.length} pedidos. Os destinos ficam na região do ${neighborhoods} e podem sair juntos com ${chosenMotoboy.name} assim que ele chegar à loja (~${chosenMotoboy.eta} min).`;
+          } else {
+            rationale = `Vale agrupar estes ${cluster.length} pedidos. Os destinos estão próximos (${neighborhoods}) e seguem na mesma direção com ${chosenMotoboy.name}.`;
+          }
         }
 
         recommendations.push({
