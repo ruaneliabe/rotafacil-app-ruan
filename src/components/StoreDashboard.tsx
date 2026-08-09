@@ -39,6 +39,7 @@ import { IntegrationsModal } from './IntegrationsModal';
 import { getSoundEnabled, setSoundEnabled, playNewOrderSound } from '../utils/soundUtils';
 import { calculateDistanceKm, calculateRoadDistanceKm } from '../utils/geoUtils';
 import { analyzeOperationalBrain, DispatchRecommendation, OperationalAlert } from '../utils/dispatchBrain';
+import { saveMotoboyToCloud } from '../lib/firebase';
 
 interface StoreDashboardProps {
   shift: StoreShift;

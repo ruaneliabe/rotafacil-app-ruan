@@ -69,13 +69,6 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   const [isEarningsModalOpen, setIsEarningsModalOpen] = useState<boolean>(false);
   const [availableSince, setAvailableSince] = useState<number>(Date.now());
 
-  // Sync availableSince with activeMotoboy joinedQueueAt timestamp
-  useEffect(() => {
-    if (activeMotoboy?.joinedQueueAt) {
-      setAvailableSince(activeMotoboy.joinedQueueAt);
-    }
-  }, [activeMotoboy?.joinedQueueAt]);
-
   // Track device GPS position in real time
   useEffect(() => {
     if (typeof window !== 'undefined' && 'geolocation' in navigator) {
@@ -175,6 +168,13 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         m.name.toLowerCase() === activeMotoboyId.toLowerCase() ||
         m.name.toLowerCase().includes(activeMotoboyId.toLowerCase())
     ) || motoboys[0];
+
+  // Sync availableSince with activeMotoboy joinedQueueAt timestamp
+  useEffect(() => {
+    if (activeMotoboy?.joinedQueueAt) {
+      setAvailableSince(activeMotoboy.joinedQueueAt);
+    }
+  }, [activeMotoboy?.joinedQueueAt]);
 
   useEffect(() => {
     if (deviceGps && activeMotoboy) {
