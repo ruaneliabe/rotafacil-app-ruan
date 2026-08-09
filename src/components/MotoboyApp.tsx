@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Order, Motoboy } from '../types';
 import { RouteMap } from './RouteMap';
 import { saveMotoboyToCloud } from '../lib/firebase';
@@ -52,13 +52,25 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   isLockedToMotoboy = false,
   onLogout,
 }) => {
-  const [activeMotoboyId, setActiveMotoboyId] = useState<string>(
-    initialMotoboyId || motoboys[0]?.id || ''
-  );
+  const [activeMotoboyId, setActiveMotoboyId] = useState<string>(() => {
+    if (initialMotoboyId) return initialMotoboyId;
+    try {
+      const saved = localStorage.getItem('rota_facil_active_motoboy_id');
+      if (saved) return saved;
+    } catch {
+      // ignore
+    }
+    return '';
+  });
 
   useEffect(() => {
     if (initialMotoboyId) {
       setActiveMotoboyId(initialMotoboyId);
+      try {
+        localStorage.setItem('rota_facil_active_motoboy_id', initialMotoboyId);
+      } catch {
+        // ignore
+      }
     }
   }, [initialMotoboyId]);
 
@@ -160,14 +172,22 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     }
   };
 
-  const activeMotoboy =
-    motoboys.find(
-      (m) =>
-        m.id === activeMotoboyId ||
-        (m.username && m.username.toLowerCase() === activeMotoboyId.toLowerCase()) ||
-        m.name.toLowerCase() === activeMotoboyId.toLowerCase() ||
-        m.name.toLowerCase().includes(activeMotoboyId.toLowerCase())
-    ) || motoboys[0];
+  const activeMotoboy = useMemo(() => {
+    if (!motoboys || motoboys.length === 0) return undefined;
+    const targetId = (activeMotoboyId || initialMotoboyId || '').trim().toLowerCase();
+    if (targetId) {
+      const found = motoboys.find(
+        (m) =>
+          m.id.toLowerCase() === targetId ||
+          (m.username && m.username.toLowerCase() === targetId) ||
+          m.name.toLowerCase() === targetId ||
+          m.name.toLowerCase().includes(targetId)
+      );
+      if (found) return found;
+    }
+    // If locked to a motoboy or initial ID given, don't fallback to motoboys[0] if loading
+    return isLockedToMotoboy ? undefined : motoboys[0];
+  }, [motoboys, activeMotoboyId, initialMotoboyId, isLockedToMotoboy]);
 
   // Sync availableSince with activeMotoboy joinedQueueAt timestamp
   useEffect(() => {
@@ -177,19 +197,28 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   }, [activeMotoboy?.joinedQueueAt]);
 
   useEffect(() => {
+    // Strictly guard GPS update: Only update cloud if activeMotoboy matches the actual device session
     if (deviceGps && activeMotoboy) {
-      if (
-        Math.abs((activeMotoboy.currentLat || 0) - deviceGps.lat) > 0.0001 ||
-        Math.abs((activeMotoboy.currentLng || 0) - deviceGps.lng) > 0.0001
-      ) {
-        saveMotoboyToCloud({
-          ...activeMotoboy,
-          currentLat: deviceGps.lat,
-          currentLng: deviceGps.lng,
-        });
+      const targetId = (activeMotoboyId || initialMotoboyId || '').trim().toLowerCase();
+      const isExactMatch =
+        targetId &&
+        (activeMotoboy.id.toLowerCase() === targetId ||
+          (activeMotoboy.username && activeMotoboy.username.toLowerCase() === targetId));
+
+      if (isExactMatch) {
+        if (
+          Math.abs((activeMotoboy.currentLat || 0) - deviceGps.lat) > 0.0001 ||
+          Math.abs((activeMotoboy.currentLng || 0) - deviceGps.lng) > 0.0001
+        ) {
+          saveMotoboyToCloud({
+            ...activeMotoboy,
+            currentLat: deviceGps.lat,
+            currentLng: deviceGps.lng,
+          });
+        }
       }
     }
-  }, [deviceGps, activeMotoboy]);
+  }, [deviceGps, activeMotoboy, activeMotoboyId, initialMotoboyId]);
 
   const effectiveMotoboyId = activeMotoboy?.id || activeMotoboyId;
 
@@ -341,7 +370,103 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   };
 
   const prevAssignedIdsRef = useRef<string[]>([]);
+  const prevQueuePosRef = useRef<number | null>(null);
   const isInitialMount = useRef(true);
+
+  // Monitor queue position advances and notify motoboy when someone ahead leaves
+  useEffect(() => {
+    if (!activeMotoboy || activeMotoboy.status !== 'available') {
+      prevQueuePosRef.current = null;
+      return;
+    }
+
+    const availableDrivers = [...motoboys]
+      .filter((m) => m.status === 'available')
+      .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
+
+    const driverIndex = availableDrivers.findIndex((m) => m.id === activeMotoboy.id);
+    const currentQueuePos = driverIndex >= 0 ? driverIndex + 1 : null;
+
+    if (currentQueuePos !== null) {
+      if (prevQueuePosRef.current !== null && currentQueuePos < prevQueuePosRef.current) {
+        // Motoboy moved up in the queue (e.g., 3 -> 2 or 2 -> 1)
+        const toastMsg =
+          currentQueuePos === 1
+            ? '🚀 Você agora é o 1º DA FILA de entregas!'
+            : `🚀 Você subiu na fila! Agora você é o ${currentQueuePos}º da fila!`;
+
+        triggerSystemActionToast(toastMsg);
+
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          try {
+            navigator.vibrate([150, 100, 150]);
+          } catch {
+            // ignore
+          }
+        }
+
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          try {
+            window.speechSynthesis.cancel();
+            const voiceText =
+              currentQueuePos === 1
+                ? 'Você subiu na fila. Agora você é o primeiro da fila!'
+                : `Você subiu na fila. Agora você é o ${currentQueuePos}º da fila.`;
+            const utterance = new SpeechSynthesisUtterance(voiceText);
+            utterance.lang = 'pt-BR';
+            utterance.rate = 1.0;
+            utterance.volume = 1.0;
+            window.speechSynthesis.speak(utterance);
+          } catch {
+            // ignore
+          }
+        }
+
+        try {
+          const AudioCtx =
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+          if (AudioCtx) {
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.4);
+          }
+        } catch {
+          // ignore
+        }
+
+        if (
+          typeof window !== 'undefined' &&
+          'Notification' in window &&
+          Notification.permission === 'granted'
+        ) {
+          try {
+            const notif = new Notification('🛵 Atualização da Fila', {
+              body: toastMsg,
+              tag: 'queue-position-update',
+              requireInteraction: true,
+              icon: '/favicon.ico',
+            });
+            notif.onclick = () => {
+              window.focus();
+            };
+          } catch (err) {
+            console.warn('Queue notification error:', err);
+          }
+        }
+      }
+      prevQueuePosRef.current = currentQueuePos;
+    }
+  }, [motoboys, activeMotoboy?.id, activeMotoboy?.status]);
 
   useEffect(() => {
     const currentAssignedIds = assignedOrders.map((o) => o.id);
@@ -797,9 +922,11 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                     <>
                       {/* DYNAMIC HUMAN-CENTERED QUEUE POSITION */}
                       {(() => {
-                        const availableDrivers = motoboys.filter((m) => m.status === 'available');
+                        const availableDrivers = [...motoboys]
+                          .filter((m) => m.status === 'available')
+                          .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
                         const driverIndex = availableDrivers.findIndex((m) => m.id === activeMotoboy?.id);
-                        const queuePos = driverIndex >= 0 ? driverIndex + 1 : 1;
+                        const queuePos = driverIndex >= 0 ? driverIndex + 1 : availableDrivers.length + 1;
                         const effectiveTimestamp = activeMotoboy?.joinedQueueAt || availableSince;
                         const minutesInQueue = Math.max(0, Math.floor((Date.now() - effectiveTimestamp) / 60000));
                         const formattedQueueTime = String(minutesInQueue).padStart(2, '0');
@@ -1159,8 +1286,33 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             </div>
                           ) : null}
 
-                          {/* ACTION BUTTONS */}
-                          {isPendingInKitchen ? (
+                          {/* ACTION BUTTONS (STRICTLY LOCKED FOR NON-FIRST STOPS) */}
+                          {!isFirstOrder ? (
+                            <div className="bg-slate-900 border border-amber-500/50 p-3.5 rounded-2xl space-y-2 text-white shadow-sm">
+                              <div className="flex items-center gap-1.5 font-black text-amber-300 text-xs uppercase tracking-wide">
+                                <span>🔒 PARADA #{index + 1} AGUARDANDO NA FILA</span>
+                              </div>
+                              <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                                Conclua a <strong>1ª Parada (#{assignedOrders[0]?.codeNumber})</strong> para liberar a navegação desta entrega.
+                              </p>
+                              {onReorderMotoboyRoute && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const reordered = [...assignedOrders];
+                                    const [moved] = reordered.splice(index, 1);
+                                    reordered.unshift(moved);
+                                    onReorderMotoboyRoute(reordered.map((o) => o.id));
+                                    setManualExpandedId(null);
+                                    triggerSystemActionToast(`▲ Pedido #${order.codeNumber} priorizado para 1º lugar!`);
+                                  }}
+                                  className="w-full py-3 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all uppercase cursor-pointer"
+                                >
+                                  <span>▲ PRIORIZAR ESTA ENTREGA (COLOCAR EM 1º)</span>
+                                </button>
+                              )}
+                            </div>
+                          ) : isPendingInKitchen ? (
                             <button
                               type="button"
                               onClick={() => {

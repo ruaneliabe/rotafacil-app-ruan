@@ -19,8 +19,7 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
   const [password, setPassword] = useState('');
   const [vehicleModel, setVehicleModel] = useState('Honda Titan 160');
   const [plate, setPlate] = useState('');
-  const [fixedFee, setFixedFee] = useState(40.0);
-  const [perDeliveryFee, setPerDeliveryFee] = useState(8.0);
+  const [arranqueInput, setArranqueInput] = useState('40.00');
 
   if (!isOpen) return null;
 
@@ -30,6 +29,7 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
 
     const generatedUsername = username.trim() || name.trim().toLowerCase().split(' ')[0];
     const generatedPassword = password.trim() || '123';
+    const parsedArranque = parseFloat(arranqueInput.replace(',', '.')) || 0;
 
     onAddMotoboy({
       name,
@@ -38,8 +38,8 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
       password: generatedPassword,
       vehicleModel,
       plate: plate || 'ABC-1234',
-      fixedFee,
-      perDeliveryFee,
+      fixedFee: parsedArranque,
+      perDeliveryFee: 0,
       currentLat: -25.432,
       currentLng: -49.272,
     });
@@ -138,27 +138,18 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+          <div className="border-t border-slate-100 pt-3">
             <div>
-              <label className="font-bold text-slate-700 block mb-1">Arranque (R$)</label>
+              <label className="font-bold text-slate-700 block mb-1">Arranque Inicial (R$)</label>
               <input
-                type="number"
-                step="0.5"
-                value={fixedFee}
-                onChange={(e) => setFixedFee(Number(e.target.value))}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-xs text-slate-900"
+                type="text"
+                inputMode="decimal"
+                value={arranqueInput}
+                onChange={(e) => setArranqueInput(e.target.value)}
+                placeholder="Ex: 40.00"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-extrabold text-sm text-slate-900 placeholder:text-slate-400"
               />
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1">Taxa por Entrega (R$)</label>
-              <input
-                type="number"
-                step="0.5"
-                value={perDeliveryFee}
-                onChange={(e) => setPerDeliveryFee(Number(e.target.value))}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-xs text-slate-900"
-              />
+              <p className="text-[10px] text-slate-400 mt-1">Valor fixo inicial a receber no acerto diário.</p>
             </div>
           </div>
 

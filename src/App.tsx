@@ -350,7 +350,12 @@ export default function App() {
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
       status,
-      joinedQueueAt: status === 'available' ? now : targetMotoboy.joinedQueueAt,
+      joinedQueueAt:
+        status === 'available'
+          ? targetMotoboy.status !== 'available'
+            ? now
+            : targetMotoboy.joinedQueueAt || now
+          : targetMotoboy.joinedQueueAt,
     };
 
     setMotoboys((prev) => prev.map((m) => (m.id === motoboyId ? updatedMotoboy : m)));

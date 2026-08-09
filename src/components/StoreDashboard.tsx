@@ -1042,7 +1042,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             {/* Row 2: Dispatch / Assignment controls */}
                             <div className="flex items-center gap-1.5 pt-0.5">
                               {motoboys.length > 0 && (() => {
-                                const firstAvailable = motoboys.find((m) => m.status === 'available') || motoboys[0];
+                                const sortedAvailable = [...motoboys]
+                                  .filter((m) => m.status === 'available')
+                                  .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
+                                const firstAvailable = sortedAvailable[0] || motoboys[0];
                                 const firstName = firstAvailable
                                   ? firstAvailable.name.replace(/\s*\(.*?\)\s*/g, '').trim().split(' ')[0]
                                   : 'Motoboy';
@@ -1231,7 +1234,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                     <div className="space-y-2.5 max-h-[400px] overflow-y-auto pr-0.5">
                       {motoboys.map((m) => {
-                        const availableMotoboys = motoboys.filter((x) => x.status === 'available');
+                        const availableMotoboys = [...motoboys]
+                          .filter((x) => x.status === 'available')
+                          .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
                         const queuePos = m.status === 'available' ? availableMotoboys.findIndex((x) => x.id === m.id) + 1 : null;
 
                         const mOrders = orders

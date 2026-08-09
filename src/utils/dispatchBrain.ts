@@ -56,8 +56,10 @@ export function analyzeOperationalBrain(
     (o) => !o.assignedMotoboyId && (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready_at_counter')
   );
 
-  // Active motoboys (available or returning)
-  const availableMotoboys = motoboys.filter((m) => m.status === 'available');
+  // Active motoboys (available or returning) - sorted by queue time (FIFO)
+  const availableMotoboys = [...motoboys]
+    .filter((m) => m.status === 'available')
+    .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
   const returningMotoboys = motoboys.filter((m) => m.status === 'returning_to_store');
 
   const recommendations: DispatchRecommendation[] = [];
