@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import L from 'leaflet';
 import { StoreShift } from '../types';
 import { geocodeAddress } from '../utils/geoUtils';
 import {
@@ -24,6 +25,97 @@ interface StoreAccountSettingsModalProps {
   onSaveSettings: (updatedShift: StoreShift) => void;
   onClearAllData?: () => void;
 }
+
+const StoreLocationPickerMap: React.FC<{
+  lat: number;
+  lng: number;
+  onChangeCoords: (lat: number, lng: number) => void;
+}> = ({ lat, lng, onChangeCoords }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const validLat = typeof lat === 'number' && !isNaN(lat) ? lat : -26.9228;
+    const validLng = typeof lng === 'number' && !isNaN(lng) ? lng : -49.1082;
+
+    if (!mapRef.current) {
+      const map = L.map(containerRef.current, {
+        center: [validLat, validLng],
+        zoom: 15,
+        zoomControl: true,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(map);
+
+      const storeIcon = L.divIcon({
+        className: 'custom-store-pin',
+        html: `
+          <div style="
+            background-color: #059669;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            font-size: 16px;
+          ">
+            🏪
+          </div>
+        `,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+
+      const marker = L.marker([validLat, validLng], { icon: storeIcon, draggable: true }).addTo(map);
+
+      marker.on('dragend', () => {
+        const pos = marker.getLatLng();
+        onChangeCoords(pos.lat, pos.lng);
+      });
+
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        const { lat: newLat, lng: newLng } = e.latlng;
+        marker.setLatLng([newLat, newLng]);
+        onChangeCoords(newLat, newLng);
+      });
+
+      mapRef.current = map;
+      markerRef.current = marker;
+    } else {
+      mapRef.current.setView([validLat, validLng], mapRef.current.getZoom());
+      if (markerRef.current) {
+        markerRef.current.setLatLng([validLat, validLng]);
+      }
+    }
+  }, [lat, lng, onChangeCoords]);
+
+  return (
+    <div className="space-y-1.5 mt-3">
+      <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
+        <span className="flex items-center gap-1.5 text-emerald-400">
+          <MapPin className="w-3.5 h-3.5" /> Pino no Mapa (Clique ou Arraste)
+        </span>
+        <span className="text-slate-400 font-medium">
+          Ajuste manual da localização exata
+        </span>
+      </div>
+      <div
+        ref={containerRef}
+        className="w-full h-44 rounded-xl border border-slate-700 overflow-hidden shadow-inner z-0"
+      />
+    </div>
+  );
+};
 
 export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps> = ({
   isOpen,
@@ -226,32 +318,43 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
             </p>
           </div>
 
-          {/* Latitude & Longitude */}
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400">
-                Latitude
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={storeLat}
-                onChange={(e) => setStoreLat(parseFloat(e.target.value) || -26.9388)}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
-              />
+          {/* Latitude & Longitude + Map Picker */}
+          <div className="space-y-3 pt-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-slate-400">
+                  Latitude
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={storeLat}
+                  onChange={(e) => setStoreLat(parseFloat(e.target.value) || -26.9228)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-slate-400">
+                  Longitude
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={storeLng}
+                  onChange={(e) => setStoreLng(parseFloat(e.target.value) || -49.1082)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="block text-[11px] font-bold text-slate-400">
-                Longitude
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={storeLng}
-                onChange={(e) => setStoreLng(parseFloat(e.target.value) || -49.1082)}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
+
+            <StoreLocationPickerMap
+              lat={storeLat}
+              lng={storeLng}
+              onChangeCoords={(newLat, newLng) => {
+                setStoreLat(Number(newLat.toFixed(6)));
+                setStoreLng(Number(newLng.toFixed(6)));
+              }}
+            />
           </div>
 
           {/* Senha de Administrador da Loja */}

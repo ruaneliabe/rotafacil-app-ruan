@@ -184,21 +184,42 @@ export function calculateRouteSummary(
 }
 
 /**
+ * Helper to expand common Portuguese address abbreviations and clean hyphens
+ */
+export function normalizeAddressQuery(raw: string): string {
+  let cleaned = raw.trim();
+  // Expand common street prefixes
+  cleaned = cleaned.replace(/^r\.\s*/i, 'Rua ');
+  cleaned = cleaned.replace(/^av\.\s*/i, 'Avenida ');
+  cleaned = cleaned.replace(/^tv\.\s*/i, 'Travessa ');
+  cleaned = cleaned.replace(/^tr\.\s*/i, 'Travessa ');
+  cleaned = cleaned.replace(/^al\.\s*/i, 'Alameda ');
+  cleaned = cleaned.replace(/^pç\.\s*/i, 'Praça ');
+  cleaned = cleaned.replace(/\br\.\b/gi, 'Rua');
+  cleaned = cleaned.replace(/\bav\.\b/gi, 'Avenida');
+  
+  // Replace hyphens separating neighborhood e.g. "R. dos Caçadores, 653 - Velha" -> "Rua dos Caçadores, 653, Velha"
+  cleaned = cleaned.replace(/\s*-\s*/g, ', ');
+  return cleaned;
+}
+
+/**
  * Geocode search using Nominatim (OpenStreetMap), viaCEP, or neighborhood dictionary fallback
  */
 export async function geocodeAddress(query: string): Promise<LocationPoint | null> {
-  const cleaned = query.trim();
-  if (!cleaned) return null;
+  const rawCleaned = query.trim();
+  if (!rawCleaned) return null;
+
+  const normalized = normalizeAddressQuery(rawCleaned);
 
   // 1. Check if query is a CEP (8 digits e.g., 89040-313 or 89040313)
-  const cepMatch = cleaned.replace(/\D/g, '');
+  const cepMatch = rawCleaned.replace(/\D/g, '');
   if (cepMatch.length === 8) {
     try {
       const res = await fetch(`https://viacep.com.br/ws/${cepMatch}/json/`);
       const data = await res.json();
       if (!data.erro) {
         const fullAddress = `${data.logradouro || ''}, ${data.bairro || ''}, ${data.localidade || 'Blumenau'} - ${data.uf || 'SC'}`;
-        // Try Nominatim for exact CEP street location
         try {
           const nomRes = await fetch(
             `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
@@ -213,7 +234,7 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
                 lat: parseFloat(nomData[0].lat),
                 lng: parseFloat(nomData[0].lon),
                 cep: data.cep,
-                name: data.logradouro || cleaned,
+                name: data.logradouro || rawCleaned,
               };
             }
           }
@@ -226,57 +247,84 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
     }
   }
 
-  const lowerQuery = cleaned.toLowerCase();
+  // 2. Try OpenStreetMap Nominatim with normalized query variations
+  const searchQueries = [
+    `${normalized}, Blumenau, SC, Brasil`,
+    normalized.includes(',') ? `${normalized.split(',')[0]}, Blumenau, SC, Brasil` : `${normalized}, Blumenau, SC`
+  ];
 
-  // 2. Try OpenStreetMap Nominatim Geocoding API with generous 4000ms timeout
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+  for (const sq of searchQueries) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-    const searchQuery = lowerQuery.includes('sc') || lowerQuery.includes('brasil') 
-      ? cleaned 
-      : `${cleaned}, Blumenau, SC, Brasil`;
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(sq)}&limit=1`,
+        { 
+          headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' },
+          signal: controller.signal 
+        }
+      );
+      clearTimeout(timeoutId);
 
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        searchQuery
-      )}&limit=1`,
-      { 
-        headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' },
-        signal: controller.signal 
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          const lat = parseFloat(data[0].lat);
+          const lng = parseFloat(data[0].lon);
+          // Check if coordinates are reasonably inside/near Blumenau area (-27.2 to -26.7, -49.3 to -48.8)
+          if (lat < -26.7 && lat > -27.2 && lng < -48.8 && lng > -49.3) {
+            return {
+              address: rawCleaned,
+              lat,
+              lng,
+              name: data[0].display_name ? data[0].display_name.split(',')[0] : rawCleaned,
+            };
+          }
+        }
       }
-    );
-    clearTimeout(timeoutId);
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.length > 0) {
-        return {
-          address: cleaned,
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon),
-          name: data[0].display_name ? data[0].display_name.split(',')[0] : cleaned,
-        };
-      }
+    } catch (err) {
+      console.warn('Nominatim geocode attempt failed:', err);
     }
-  } catch (err) {
-    console.warn('Nominatim online geocoding skipped or timed out, trying local dictionary:', err);
   }
 
-  // 3. Fallback: Blumenau specific street & neighborhood dictionary for offline / instant fallback
+  // 3. Fallback: Smart Blumenau street & neighborhood dictionary with house number ranges
+  const lowerNorm = normalized.toLowerCase();
+  
+  // Extract house number if present
+  const numberMatch = normalized.match(/\b(\d{1,5})\b/);
+  const houseNum = numberMatch ? parseInt(numberMatch[1], 10) : null;
+
+  if (lowerNorm.includes('caçadores') || lowerNorm.includes('cacadores')) {
+    if (houseNum !== null) {
+      if (houseNum <= 400) return { address: rawCleaned, lat: -26.9248, lng: -49.0988, name: 'Rua dos Caçadores' };
+      if (houseNum <= 1000) return { address: rawCleaned, lat: -26.9228, lng: -49.1082, name: 'Rua dos Caçadores' };
+      if (houseNum <= 1800) return { address: rawCleaned, lat: -26.9185, lng: -49.1160, name: 'Rua dos Caçadores' };
+      return { address: rawCleaned, lat: -26.9153287, lng: -49.1223501, name: 'Rua dos Caçadores' };
+    }
+    return { address: rawCleaned, lat: -26.9228, lng: -49.1082, name: 'Rua dos Caçadores' };
+  }
+
+  if (lowerNorm.includes('pioneiros')) {
+    return { address: rawCleaned, lat: -26.9175, lng: -49.1040, name: 'Rua dos Pioneiros' };
+  }
+
+  if (lowerNorm.includes('guabiruba') || lowerNorm.includes('gabiruba')) {
+    return { address: rawCleaned, lat: -26.9140, lng: -49.1125, name: 'Rua Guabiruba' };
+  }
+
+  if (lowerNorm.includes('humberto de campos')) {
+    return { address: rawCleaned, lat: -26.9120, lng: -49.0810, name: 'Rua Humberto de Campos' };
+  }
+
+  if (lowerNorm.includes('general osorio') || lowerNorm.includes('osorio')) {
+    return { address: rawCleaned, lat: -26.9220, lng: -49.0920, name: 'Rua General Osório' };
+  }
+
   const blumenauKnownLocations: Record<string, { lat: number; lng: number }> = {
-    'pioneiros': { lat: -26.9175, lng: -49.1040 },
-    'dos pioneiros': { lat: -26.9175, lng: -49.1040 },
-    'guabiruba': { lat: -26.9140, lng: -49.1125 },
-    'gabiruba': { lat: -26.9140, lng: -49.1125 },
-    'rua guabiruba': { lat: -26.9140, lng: -49.1125 },
-    'rua gabiruba': { lat: -26.9140, lng: -49.1125 },
-    'caçadores': { lat: -26.9153287, lng: -49.1223501 },
-    'cacadores': { lat: -26.9153287, lng: -49.1223501 },
-    'hope burger': { lat: -26.9153287, lng: -49.1223501 },
     'centro': { lat: -26.9189, lng: -49.0660 },
     'velha central': { lat: -26.9153287, lng: -49.1223501 },
-    'velha': { lat: -26.9248, lng: -49.0988 },
+    'velha': { lat: -26.9228, lng: -49.1082 },
     'vila nova': { lat: -26.9067, lng: -49.0785 },
     'victor konder': { lat: -26.9090, lng: -49.0710 },
     'agua verde': { lat: -26.9135, lng: -49.1020 },
@@ -296,25 +344,25 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
   };
 
   for (const [key, coords] of Object.entries(blumenauKnownLocations)) {
-    if (lowerQuery.includes(key)) {
+    if (lowerNorm.includes(key)) {
       return {
-        address: cleaned,
+        address: rawCleaned,
         lat: coords.lat,
         lng: coords.lng,
-        name: cleaned.split('-')[0],
+        name: rawCleaned.split('-')[0],
       };
     }
   }
 
   // Graceful fallback centered on Blumenau central area
-  const randomOffsetLat = (Math.random() - 0.5) * 0.003;
-  const randomOffsetLng = (Math.random() - 0.5) * 0.003;
+  const randomOffsetLat = (Math.random() - 0.5) * 0.002;
+  const randomOffsetLng = (Math.random() - 0.5) * 0.002;
 
   return {
-    address: cleaned,
-    lat: -26.9153287 + randomOffsetLat,
-    lng: -49.1223501 + randomOffsetLng,
-    name: cleaned.split('-')[0],
+    address: rawCleaned,
+    lat: -26.9228 + randomOffsetLat,
+    lng: -49.1082 + randomOffsetLng,
+    name: rawCleaned.split('-')[0],
   };
 }
 
