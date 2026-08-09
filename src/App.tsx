@@ -649,6 +649,7 @@ export default function App() {
             onOpenMotoboyModal={() => setIsMotoboyModalOpen(true)}
             onDeleteMotoboy={handleDeleteMotoboy}
             onDeleteAllMotoboys={handleDeleteAllMotoboys}
+            onAddOrder={handleAddOrder}
             onSelectOrderForTracking={(ord) => {
               setSelectedTrackingOrder(ord);
               const trackingUrl = `${window.location.origin}/?rastreio=${ord.trackingCode || ord.id}`;

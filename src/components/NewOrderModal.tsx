@@ -58,6 +58,8 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
   const [houseNumber, setHouseNumber] = useState('');
   const [complement, setComplement] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
+  const [originChannel, setOriginChannel] = useState<'ifood' | 'cardapio_web' | 'whatsapp' | 'pdv' | 'manual'>('whatsapp');
+  const [kitchenReadyInMin, setKitchenReadyInMin] = useState<number>(0);
   const [selectedItems, setSelectedItems] = useState<OrderItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [changeFor, setChangeFor] = useState<number | undefined>(undefined);
@@ -470,6 +472,8 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
         estimatedMinutes: 25,
         assignedMotoboyId: null,
         assignedMotoboyName: null,
+        originChannel,
+        kitchenReadyInMin,
       });
 
       onClose();
@@ -711,8 +715,130 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
                     />
                   </div>
                 </div>
+              {/* 2.1 Origem do Pedido e Tempo de Cozinha */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="font-bold text-slate-300 block mb-1 text-[11px] flex items-center justify-between">
+                    <span>Canal / Origem do Pedido</span>
+                    <span className="text-[10px] text-emerald-400 font-extrabold uppercase">Agnóstico</span>
+                  </label>
+                  <div className="grid grid-cols-5 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setOriginChannel('whatsapp')}
+                      className={`py-1.5 rounded-lg text-[10px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                        originChannel === 'whatsapp'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                      title="WhatsApp / Pedido Direto"
+                    >
+                      <span className="text-xs">💬</span>
+                      <span>Whats</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setOriginChannel('ifood')}
+                      className={`py-1.5 rounded-lg text-[10px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                        originChannel === 'ifood'
+                          ? 'bg-red-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                      title="iFood Delivery"
+                    >
+                      <span className="text-xs">🔴</span>
+                      <span>iFood</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setOriginChannel('cardapio_web')}
+                      className={`py-1.5 rounded-lg text-[10px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                        originChannel === 'cardapio_web'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                      title="Cardápio Web / Site Próprio"
+                    >
+                      <span className="text-xs">🌐</span>
+                      <span>Cardápio</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setOriginChannel('pdv')}
+                      className={`py-1.5 rounded-lg text-[10px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                        originChannel === 'pdv'
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                      title="PDV / Anota AI / Sistema Interno"
+                    >
+                      <span className="text-xs">💻</span>
+                      <span>PDV</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setOriginChannel('manual')}
+                      className={`py-1.5 rounded-lg text-[10px] font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                        originChannel === 'manual'
+                          ? 'bg-slate-700 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                      title="Telefone ou Balcão"
+                    >
+                      <span className="text-xs">📞</span>
+                      <span>Manual</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-300 block mb-1 text-[11px] flex items-center justify-between">
+                    <span>Previsão da Cozinha</span>
+                    <span className="text-[10px] text-amber-400 font-extrabold uppercase">Sincronia</span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setKitchenReadyInMin(0)}
+                      className={`py-2 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                        kitchenReadyInMin === 0
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      ✅ Pronto Já
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKitchenReadyInMin(5)}
+                      className={`py-2 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                        kitchenReadyInMin === 5
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      ⏳ ~5 min
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKitchenReadyInMin(12)}
+                      className={`py-2 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                        kitchenReadyInMin === 12
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      🔥 ~12 min
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
 
             {/* 3. Adicionar Item Manualmente */}
             <div className="pt-2 border-t border-slate-800 space-y-2">

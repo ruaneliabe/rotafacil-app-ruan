@@ -21,6 +21,7 @@ import {
   Printer,
   Receipt,
   Share2,
+  Copy,
   Package,
   ShoppingBag,
   Building2,
@@ -28,13 +29,16 @@ import {
   Volume2,
   VolumeX,
   BarChart3,
+  Webhook,
 } from 'lucide-react';
 import { RouteMap } from './RouteMap';
 import { ThermalTicketModal } from './ThermalTicketModal';
 import { MotoboySettlementModal } from './MotoboySettlementModal';
 import { DeliveryHistoryModal } from './DeliveryHistoryModal';
+import { IntegrationsModal } from './IntegrationsModal';
 import { getSoundEnabled, setSoundEnabled, playNewOrderSound } from '../utils/soundUtils';
 import { calculateDistanceKm, calculateRoadDistanceKm } from '../utils/geoUtils';
+import { analyzeOperationalBrain, DispatchRecommendation, OperationalAlert } from '../utils/dispatchBrain';
 
 interface StoreDashboardProps {
   shift: StoreShift;
@@ -52,6 +56,7 @@ interface StoreDashboardProps {
   onSelectOrderForTracking: (order: Order) => void;
   onDeleteMotoboy?: (motoboyId: string) => void;
   onDeleteAllMotoboys?: () => void;
+  onAddOrder?: (newOrder: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'>) => void;
 }
 
 export const StoreDashboard: React.FC<StoreDashboardProps> = ({
@@ -70,6 +75,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   onSelectOrderForTracking,
   onDeleteMotoboy,
   onDeleteAllMotoboys,
+  onAddOrder,
 }) => {
   const [activeTab, setActiveTab] = useState<'operacao' | 'equipe' | 'financeiro' | 'historico'>('operacao');
   const [selectedMotoboyId, setSelectedMotoboyId] = useState<string | null>(motoboys[0]?.id || null);
@@ -82,6 +88,69 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const [isTicketOpen, setIsTicketOpen] = useState(false);
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isIntegrationsOpen, setIsIntegrationsOpen] = useState(false);
+
+  const handleSimulateIncomingOrder = (channel: 'ifood' | 'cardapio_web' | 'pdv' | 'whatsapp') => {
+    if (!onAddOrder) return;
+
+    const baseLat = shift.storeLat || -26.9228;
+    const baseLng = shift.storeLng || -49.1014;
+
+    let clientName = 'Cliente iFood';
+    let address = 'Rua XV de Novembro, 1200';
+    let neighborhood = 'Centro';
+    let itemsSummary = '2x X-Burguer Especial, 1x Batata Frita';
+    let total = 58.00;
+
+    if (channel === 'ifood') {
+      clientName = 'Rodrigo (iFood #4829)';
+      address = 'Av. Brasil, 450 - Ap 201';
+      neighborhood = 'Victor Konder';
+      itemsSummary = '1x Combo Smash Bacon, 1x Milkshake Chocolate';
+      total = 64.90;
+    } else if (channel === 'cardapio_web') {
+      clientName = 'Camila Ribeiro (Cardápio Web)';
+      address = 'Rua 7 de Setembro, 1820';
+      neighborhood = 'Centro';
+      itemsSummary = '2x Pizza Artesanal Marguerita 35cm';
+      total = 89.00;
+    } else if (channel === 'pdv') {
+      clientName = 'Balcão / Caixa PDV';
+      address = 'Rua São Paulo, 310';
+      neighborhood = 'Itoupava Seca';
+      itemsSummary = '3x Beirute de Filé Mignon';
+      total = 105.00;
+    } else {
+      clientName = 'Juliana Martins (WhatsApp Bot)';
+      address = 'Rua Joinville, 520';
+      neighborhood = 'Vila Nova';
+      itemsSummary = '1x X-Salada Duplo, 1x Guaraná 2L';
+      total = 42.50;
+    }
+
+    const latJitter = (Math.random() - 0.5) * 0.02;
+    const lngJitter = (Math.random() - 0.5) * 0.02;
+
+    onAddOrder({
+      clientName,
+      clientPhone: '47998811223',
+      address,
+      neighborhood,
+      lat: baseLat + latJitter,
+      lng: baseLng + lngJitter,
+      itemsSummary,
+      total,
+      deliveryFee: 8.00,
+      paymentMethod: 'pix',
+      estimatedMinutes: 25,
+      assignedMotoboyId: null,
+      assignedMotoboyName: null,
+      originChannel: channel,
+      kitchenReadyInMin: 0,
+    });
+
+    triggerActionToast(`⚡ Novo Pedido Sincronizado do ${channel.toUpperCase()}! Entrou na fila de despacho.`);
+  };
   const [soundActive, setSoundActive] = useState(() => getSoundEnabled());
   const [actionToast, setActionToast] = useState<string | null>(null);
 
@@ -123,6 +192,53 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   }).filter((m) => m.isReturning);
 
   const returningMotoboys = motoboys.filter((m) => m.status === 'returning_to_store');
+
+  // 🧠 Operational AI Brain Analysis
+  const brainAnalysis = analyzeOperationalBrain(orders, motoboys, shift);
+
+  const handleApplyBrainRecommendation = (rec: DispatchRecommendation) => {
+    if (onAssignBatchToMotoboy) {
+      onAssignBatchToMotoboy(rec.orderIds, rec.motoboyId);
+    } else {
+      rec.orderIds.forEach((id) => onAssignOrderToMotoboy(id, rec.motoboyId));
+    }
+    triggerActionToast(`⚡ Despacho Recomendado Aplicado! ${rec.orderIds.length} pedidos vinculados a ${rec.motoboyName}.`);
+  };
+
+  const renderChannelBadge = (channel?: string) => {
+    switch (channel) {
+      case 'ifood':
+        return (
+          <span className="inline-flex items-center gap-1 bg-red-500/20 text-red-300 border border-red-500/30 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shadow-xs">
+            🔴 iFood
+          </span>
+        );
+      case 'cardapio_web':
+        return (
+          <span className="inline-flex items-center gap-1 bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shadow-xs">
+            🌐 Cardápio
+          </span>
+        );
+      case 'pdv':
+        return (
+          <span className="inline-flex items-center gap-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shadow-xs">
+            💻 PDV
+          </span>
+        );
+      case 'manual':
+        return (
+          <span className="inline-flex items-center gap-1 bg-slate-700/80 text-slate-300 border border-slate-600 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shadow-xs">
+            📞 Manual
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shadow-xs">
+            💬 WhatsApp
+          </span>
+        );
+    }
+  };
 
   const formattedCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -244,6 +360,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
           <button
             type="button"
+            onClick={() => setIsIntegrationsOpen(true)}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 font-bold text-xs rounded-xl border border-purple-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Hub de Integrações Automáticas (iFood, Cardápio Web, Webhooks)"
+          >
+            <Webhook className="w-3.5 h-3.5 text-purple-400" />
+            <span>Integrações</span>
+          </button>
+
+          <button
+            type="button"
             onClick={onOpenNewOrderModal}
             className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
@@ -338,6 +464,125 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
       {activeTab === 'operacao' && (
         <div className="space-y-4">
+
+          {/* 🧠 CÉREBRO DE DESPACHO RECOMENDADO DA OPERAÇÃO */}
+          {brainAnalysis.recommendations.length > 0 && (
+            <div className="bg-gradient-to-r from-emerald-950/90 via-slate-900 to-slate-900 border-2 border-emerald-500/60 rounded-2xl p-4 shadow-xl space-y-3 relative overflow-hidden">
+              <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-emerald-500/30">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-xl shadow-md">
+                    🧠
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-black text-sm text-emerald-300 uppercase tracking-wide">
+                        Despacho Recomendado pela IA
+                      </h3>
+                      <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/40 uppercase">
+                        Cérebro da Frota
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 font-medium mt-0.5">
+                      Análise em tempo real de pedidos, mapa de rotas, balcão e horário de retorno dos motoboys.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                {brainAnalysis.recommendations.map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="bg-slate-950/80 border border-emerald-500/40 rounded-xl p-3.5 space-y-2.5 hover:border-emerald-400 transition-all shadow-md flex flex-col justify-between"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-xs font-black text-white bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5">
+                          🛵 <strong className="text-emerald-400">{rec.motoboyName}</strong>
+                          {rec.motoboyStatus === 'returning_to_store' && (
+                            <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
+                              retorna em ~{rec.motoboyEtaMin}m
+                            </span>
+                          )}
+                        </span>
+
+                        <span className="text-xs font-extrabold text-slate-300 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg">
+                          📍 {rec.totalStops} {rec.totalStops === 1 ? 'parada' : 'paradas'} • {rec.totalDistanceKm} km • ~{rec.estimatedTripMin} min
+                        </span>
+                      </div>
+
+                      <div className="text-xs font-bold text-slate-200">
+                        Pedidos:{' '}
+                        {rec.orders.map((o) => (
+                          <span key={o.id} className="inline-flex items-center gap-1 mx-1 text-emerald-300 bg-emerald-950/60 border border-emerald-800/80 px-1.5 py-0.5 rounded font-black">
+                            #{o.codeNumber} ({o.clientName})
+                          </span>
+                        ))}
+                      </div>
+
+                      <p className="text-[11px] text-slate-300/90 font-medium bg-slate-900/90 p-2 rounded-lg border border-slate-800 leading-relaxed">
+                        💡 {rec.rationale}
+                      </p>
+
+                      {rec.waitSuggestion?.suggestWait && (
+                        <div className="bg-amber-950/60 border border-amber-500/40 text-amber-200 p-2 rounded-lg text-[11px] font-bold flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>{rec.waitSuggestion.reason}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyBrainRecommendation(rec)}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-xs rounded-xl shadow-md transition-all uppercase tracking-wide cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200" />
+                      <span>Aplicar Despacho Recomendado</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 🚨 CENTRAL DE EXCEÇÕES E ALERTAS DA OPERAÇÃO */}
+          {brainAnalysis.alerts.length > 0 && (
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2 shadow-sm">
+              <div className="flex items-center justify-between gap-2 px-1">
+                <span className="text-xs font-black text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  <span>Central de Exceções e Alertas da Operação</span>
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-800 px-2 py-0.5 rounded-full">
+                  {brainAnalysis.alerts.length} {brainAnalysis.alerts.length === 1 ? 'alerta ativo' : 'alertas ativos'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {brainAnalysis.alerts.map((alt) => (
+                  <div
+                    key={alt.id}
+                    className={`p-2.5 rounded-xl border text-xs space-y-1 transition-all ${
+                      alt.severity === 'high'
+                        ? 'bg-red-950/40 border-red-500/50 text-red-100'
+                        : alt.severity === 'medium'
+                        ? 'bg-amber-950/40 border-amber-500/50 text-amber-100'
+                        : 'bg-slate-950/60 border-slate-700/80 text-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between font-extrabold gap-1">
+                      <span>{alt.title}</span>
+                      <span className="text-[10px] text-slate-400 font-medium">{alt.timestamp}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-medium leading-tight">
+                      {alt.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 🛵 UNIFIED CLEAN RETURNING MOTOBOY ALERT BANNER */}
           {returningMotoboysWithDistance.length > 0 && (
@@ -622,9 +867,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 }}
                                 className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 cursor-pointer bg-slate-900 border-slate-700"
                               />
-                              <span className="font-extrabold text-sm text-white">
-                                #{ord.codeNumber} - {ord.clientName}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-extrabold text-sm text-white">
+                                  #{ord.codeNumber} - {ord.clientName}
+                                </span>
+                                {renderChannelBadge(ord.originChannel)}
+                              </div>
                             </div>
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-emerald-400 border border-slate-700">
                               {formattedCurrency(ord.total)}
@@ -641,14 +889,30 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                           <div className="pt-2 border-t border-slate-700/80 space-y-2">
                             {/* Row 1: Quick Action Links */}
-                            <div className="flex items-center justify-between gap-2">
-                              <button
-                                type="button"
-                                onClick={() => onSelectOrderForTracking(ord)}
-                                className="text-[11px] font-semibold text-slate-300 hover:text-white hover:bg-slate-700 px-2 py-1 rounded-md transition-colors flex items-center gap-1 cursor-pointer"
-                              >
-                                Rastreio <ArrowUpRight className="w-3 h-3 text-slate-400" />
-                              </button>
+                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => onSelectOrderForTracking(ord)}
+                                  className="text-[11px] font-extrabold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                                  title="Abrir mapa de rastreio em tempo real"
+                                >
+                                  <MapPin className="w-3 h-3 text-emerald-400" /> Rastreio
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const url = `${window.location.origin}/?rastreio=${ord.trackingCode || ord.id}`;
+                                    navigator.clipboard.writeText(url);
+                                    triggerActionToast(`🔗 Link de rastreio do pedido #${ord.codeNumber} copiado!`);
+                                  }}
+                                  className="text-[11px] font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-1 transition-all cursor-pointer"
+                                  title="Copiar Link de Rastreio do Cliente"
+                                >
+                                  <Copy className="w-3 h-3 text-amber-400" /> Copiar Link
+                                </button>
+                              </div>
 
                               <button
                                 type="button"
@@ -657,7 +921,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   setIsTicketOpen(true);
                                 }}
                                 className="text-[11px] font-bold text-slate-200 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded-md border border-slate-600 flex items-center gap-1 transition-colors cursor-pointer"
-                                title="Imprimir Comanda 80mm / Enviar WhatsApp"
+                                title="Imprimir Comanda 80mm / Enviar WhatsApp ao Cliente"
                               >
                                 <Printer className="w-3 h-3 text-slate-300" /> Comanda
                               </button>
@@ -1224,11 +1488,31 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   <span className="font-bold text-white">#{o.codeNumber} • {o.clientName}</span>
                   <p className="text-slate-400">{o.itemsSummary} — {o.address}</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <div className="text-right">
                     <span className="font-bold text-emerald-400 block">{formattedCurrency(o.total)}</span>
                     <span className="text-[10px] uppercase font-bold text-slate-400">{o.paymentMethod}</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => onSelectOrderForTracking(o)}
+                    className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1"
+                    title="Ver Rastreio / Mapa"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `${window.location.origin}/?rastreio=${o.trackingCode || o.id}`;
+                      navigator.clipboard.writeText(url);
+                      triggerActionToast(`🔗 Link de rastreio de #${o.codeNumber} copiado!`);
+                    }}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg font-bold transition-all cursor-pointer"
+                    title="Copiar Link de Rastreio"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-amber-400" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -1272,6 +1556,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         orders={orders}
         motoboys={motoboys}
         storeName={shift.storeName}
+      />
+
+      <IntegrationsModal
+        isOpen={isIntegrationsOpen}
+        onClose={() => setIsIntegrationsOpen(false)}
+        onSimulateIncomingOrder={handleSimulateIncomingOrder}
       />
     </div>
   );

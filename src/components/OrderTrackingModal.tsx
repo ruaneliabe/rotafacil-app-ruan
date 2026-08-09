@@ -11,7 +11,8 @@ import {
   Phone,
   User,
   ShoppingBag,
-  Bike
+  Bike,
+  Share2
 } from 'lucide-react';
 import { RouteMap } from './RouteMap';
 
@@ -63,6 +64,15 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   const handleOpenWaze = () => {
     const query = encodeURIComponent(`${order.address}, ${order.neighborhood}`);
     const url = `https://www.waze.com/ul?q=${query}&navigate=yes`;
+    window.open(url, '_blank');
+  };
+
+  const handleSendWhatsAppClient = () => {
+    const cleanPhone = order.clientPhone ? order.clientPhone.replace(/\D/g, '') : '';
+    const msg = `Olá *${order.clientName}*! 🛵 Seu pedido *#${order.codeNumber}* (${shift.storeName || 'Delivery'}) está em andamento!\n\n📍 *Acompanhe no mapa em tempo real:* ${trackingUrl}`;
+    const url = cleanPhone
+      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msg)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
   };
 
@@ -211,11 +221,20 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
               </button>
 
               <button
+                onClick={handleSendWhatsAppClient}
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm"
+                title="Enviar Link de Rastreio no WhatsApp do Cliente"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>WhatsApp</span>
+              </button>
+
+              <button
                 onClick={handleOpenTrackingTab}
-                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0"
                 title="Abrir Rastreio em Nova Aba"
               >
-                <ExternalLink className="w-4 h-4" />
+                <ExternalLink className="w-4 h-4 text-emerald-400" />
                 <span className="hidden sm:inline">Abrir Aba</span>
               </button>
             </div>

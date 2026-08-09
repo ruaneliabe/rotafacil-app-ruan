@@ -37,6 +37,9 @@ export interface Order {
   notes?: string;
   trackingCode: string;
   routeSequence?: number;
+  originChannel?: 'ifood' | 'cardapio_web' | 'whatsapp' | 'pdv' | 'manual';
+  kitchenReadyInMin?: number; // 0 = ready at counter, 5 = ready in 5 mins
+  promisedTime?: string; // e.g. "20:45"
 }
 
 export interface Motoboy {

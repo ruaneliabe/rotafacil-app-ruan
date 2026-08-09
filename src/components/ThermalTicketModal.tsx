@@ -63,6 +63,7 @@ export const ThermalTicketModal: React.FC<ThermalTicketModalProps> = ({
             <div>${shift.storePhone ? `Fone / WhatsApp: ${shift.storePhone}` : 'WhatsApp / Pedidos'}</div>
             <div class="line"></div>
             <div class="big-code">PEDIDO #${order.codeNumber}</div>
+            <div>CANAL: <span class="bold">${(order.originChannel || 'WHATSAPP').toUpperCase()}</span></div>
             <div>Data/Hora: ${order.createdAt}</div>
           </div>
 
