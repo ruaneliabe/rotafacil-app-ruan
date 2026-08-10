@@ -1,0 +1,98 @@
+name: Final Preflight Hotfix V3B
+on:
+  push:
+    paths:
+      - '.github/workflows/final-preflight-hotfix-v3b.yml'
+permissions:
+  contents: write
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Apply safe GPS hardening
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          # Firebase partial GPS writer.
+          p=Path('src/lib/firebase.ts'); s=p.read_text(encoding='utf-8')
+          if 'export async function updateMotoboyLocation' not in s:
+              insert="""export async function updateMotoboyLocation(motoboyId: string, lat: number, lng: number) {
+  try {
+    const ref = doc(db, 'motoboys', motoboyId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const current = snap.data() as Motoboy;
+    if (current.accessRevokedAt) return;
+    await setDoc(ref, { currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() }, { merge: true });
+  } catch (err) {
+    console.warn('Could not update motoboy location:', err);
+  }
+}
+
+"""
+              s=s.replace('export async function saveMotoboyToCloud(motoboy: Motoboy) {', insert+'export async function saveMotoboyToCloud(motoboy: Motoboy) {')
+          # Revoked docs never enter the visible list; logged device is forced out by missing identity.
+          s=s.replace("      const raw = { id: docSnap.id, ...docSnap.data() } as Motoboy;\n      if (raw.statsDate !== today) {", "      const raw = { id: docSnap.id, ...docSnap.data() } as Motoboy;\n      if (raw.accessRevokedAt) return;\n      if (raw.statsDate !== today) {")
+          p.write_text(s,encoding='utf-8')
+
+          # App uses partial GPS and guards rapid duplicate delivery completion.
+          p=Path('src/App.tsx'); s=p.read_text(encoding='utf-8')
+          s=s.replace("import React, { useState, useEffect } from 'react';", "import React, { useState, useEffect, useRef } from 'react';")
+          if 'updateMotoboyLocation,' not in s:
+              s=s.replace('  saveMotoboyToCloud,\n', '  saveMotoboyToCloud,\n  updateMotoboyLocation,\n', 1)
+          # Only replace the GPS-effect occurrence: it is directly after updatedMotoboy construction.
+          gps_old="""        const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() };
+        saveMotoboyToCloud(updatedMotoboy);"""
+          gps_new="""        const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() };
+        updateMotoboyLocation(motoboyId, lat, lng);"""
+          s=s.replace(gps_old,gps_new,1)
+          if 'deliveryActionsInFlightRef' not in s:
+              s=s.replace("  const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);", "  const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);\n  const deliveryActionsInFlightRef = useRef<Set<string>>(new Set());")
+              s=s.replace("    if (targetOrder.status === 'delivered' || targetOrder.status === 'cancelled') return;", "    if (targetOrder.status === 'delivered' || targetOrder.status === 'cancelled') return;\n    if (status === 'delivered') {\n      if (deliveryActionsInFlightRef.current.has(orderId)) return;\n      deliveryActionsInFlightRef.current.add(orderId);\n      window.setTimeout(() => deliveryActionsInFlightRef.current.delete(orderId), 5000);\n    }")
+          p.write_text(s,encoding='utf-8')
+
+          # MotoboyApp no longer writes the whole driver doc from its own GPS watcher.
+          p=Path('src/components/MotoboyApp.tsx'); s=p.read_text(encoding='utf-8')
+          s=s.replace("import { saveMotoboyToCloud } from '../lib/firebase';\n", "")
+          old="""      if (activeMotoboy && (Math.abs((activeMotoboy.currentLat || 0) - lat) > 0.0001 || Math.abs((activeMotoboy.currentLng || 0) - lng) > 0.0001)) {
+        saveMotoboyToCloud({ ...activeMotoboy, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() });
+      }"""
+          s=s.replace(old,'')
+          p.write_text(s,encoding='utf-8')
+
+          # Tracking reevaluates stale GPS every 5s even if Firestore stops emitting snapshots.
+          p=Path('src/components/CustomerTrackingView.tsx'); s=p.read_text(encoding='utf-8')
+          if 'const [nowMs, setNowMs]' not in s:
+              s=s.replace("  isOperator = false,\n}) => {", "  isOperator = false,\n}) => {\n  const [nowMs, setNowMs] = React.useState(() => Date.now());\n  React.useEffect(() => {\n    const timer = window.setInterval(() => setNowMs(Date.now()), 5000);\n    return () => window.clearInterval(timer);\n  }, []);")
+          s=s.replace('Date.now() - motoboy.locationUpdatedAt <= 30000', 'nowMs - motoboy.locationUpdatedAt <= 30000')
+          p.write_text(s,encoding='utf-8')
+
+          # Admin map refresh button: remove any code that writes the PC location into Ruan.
+          p=Path('src/components/StoreDashboard.tsx'); s=p.read_text(encoding='utf-8')
+          start=s.find("onClick={() => {\n                          if (typeof window !== 'undefined' && 'geolocation' in navigator) {")
+          if start != -1:
+              class_pos=s.find('className="p-1.5 bg-slate-800 hover:bg-emerald-500/20', start)
+              if class_pos != -1:
+                  s=s[:start]+"onClick={() => {\n                          triggerActionToast('📡 O mapa recebe o GPS automaticamente dos celulares dos motoboys.');\n                        }}\n                        "+s[class_pos:]
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Install dependencies
+        run: npm ci
+      - name: TypeScript preflight
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Commit verified changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/App.tsx src/lib/firebase.ts src/components/MotoboyApp.tsx src/components/CustomerTrackingView.tsx src/components/StoreDashboard.tsx
+          git diff --cached --quiet || git commit -m 'Endurece GPS logout e conclusao de entrega'
+          git push
