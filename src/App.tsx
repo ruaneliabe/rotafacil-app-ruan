@@ -539,10 +539,11 @@ export default function App() {
   const handleAddOrder = (
     newOrdData: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'>
   ) => {
-    const nextCode = orders.length + 101;
+    const maxCode = orders.reduce((max, o) => Math.max(max, o.codeNumber || 0), 100);
+    const nextCode = maxCode + 1;
     const newOrd: Order = {
       ...newOrdData,
-      id: `ord-${nextCode}`,
+      id: `ord-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       codeNumber: nextCode,
       status: 'pending',
       assignedMotoboyId: null,
