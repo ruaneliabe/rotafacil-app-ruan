@@ -36,7 +36,7 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
   if (!isOpen) return null;
 
   const webhookUrl = `${window.location.origin}/api/v1/integrations/webhook/orders`;
-  const storeApiKey = 'rf_live_sec_89f3a9a82e11d402';
+  const storeApiKey = 'DEMO_ONLY_NOT_CONFIGURED';
 
   const handleCopy = (text: string, keyName: string) => {
     navigator.clipboard.writeText(text);
@@ -308,6 +308,10 @@ export const IntegrationsModal: React.FC<IntegrationsModalProps> = ({
             </div>
           </div>
         )}
+
+        <div className="bg-amber-950/60 border border-amber-500/50 text-amber-200 rounded-xl p-3 text-xs font-bold leading-relaxed">
+          ⚠️ Integrações externas ainda estão em modo de demonstração. iFood, WhatsApp, Cardápio Web e Webhooks não estão conectados de verdade nesta versão.
+        </div>
 
         {/* TAB 3: DOCS & WEBHOOK KEYS */}
         {selectedTab === 'docs' && (

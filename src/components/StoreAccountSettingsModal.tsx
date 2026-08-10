@@ -172,9 +172,9 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   const [storeName, setStoreName] = useState(shift.storeName || '');
   const [storePhone, setStorePhone] = useState(shift.storePhone || '');
   const [storeAddress, setStoreAddress] = useState(shift.storeAddress || '');
-  const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.9228);
-  const [storeLng, setStoreLng] = useState<number>(shift.storeLng || -49.1014);
-  const [adminPassword, setAdminPassword] = useState(shift.adminPassword || '123');
+  const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.92130);
+  const [storeLng, setStoreLng] = useState<number>(shift.storeLng || -49.09480);
+  const [adminPassword, setAdminPassword] = useState(shift.adminPassword || 'hope2026');
 
   const [showPassword, setShowPassword] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -186,9 +186,9 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       setStoreName(shift.storeName || '');
       setStorePhone(shift.storePhone || '');
       setStoreAddress(shift.storeAddress || '');
-      setStoreLat(shift.storeLat || -26.9228);
-      setStoreLng(shift.storeLng || -49.1014);
-      setAdminPassword(shift.adminPassword || '123');
+      setStoreLat(shift.storeLat || -26.92130);
+      setStoreLng(shift.storeLng || -49.09480);
+      setAdminPassword(shift.adminPassword || 'hope2026');
       setIsSaved(false);
       setGeocodeSuccess(false);
     }
@@ -218,7 +218,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
     e.preventDefault();
     if (!storeName.trim()) return;
 
-    let finalLat = Number(storeLat) || -26.9228;
+    let finalLat = Number(storeLat) || -26.92130;
     let finalLng = Number(storeLng) || -49.1082;
 
     // If storeAddress was provided and coordinates haven't been geocoded yet, try geocoding
@@ -243,7 +243,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       storeAddress: storeAddress.trim(),
       storeLat: finalLat,
       storeLng: finalLng,
-      adminPassword: adminPassword.trim() || '123',
+      adminPassword: adminPassword.trim() || shift.adminPassword || 'hope2026',
     };
 
     onSaveSettings(updated);
@@ -374,7 +374,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
                   type="number"
                   step="any"
                   value={storeLat}
-                  onChange={(e) => setStoreLat(parseFloat(e.target.value) || -26.9228)}
+                  onChange={(e) => setStoreLat(parseFloat(e.target.value) || -26.92130)}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
                 />
               </div>

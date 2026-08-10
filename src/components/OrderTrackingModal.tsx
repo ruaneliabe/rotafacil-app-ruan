@@ -121,8 +121,8 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
               origin={{
                 name: shift.storeName || 'Hope Burger',
                 address: shift.storeAddress || 'Rua dos Caçadores, 653',
-                lat: shift.storeLat || -26.9228,
-                lng: shift.storeLng || -49.1014,
+                lat: shift.storeLat || -26.92130,
+                lng: shift.storeLng || -49.09480,
               }}
               motoboyName={motoboy?.name}
               motoboyVehicle={motoboy ? `${motoboy.vehicleModel} (${motoboy.plate})` : undefined}
@@ -135,8 +135,8 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                   orderIndex: 1,
                   title: `${order.clientName} (#${order.codeNumber})`,
                   address: order.address,
-                  lat: order.lat || -26.9228,
-                  lng: order.lng || -49.1014,
+                  lat: order.lat || -26.92130,
+                  lng: order.lng || -49.09480,
                   status: order.status === 'delivered' ? 'delivered' : 'in_transit',
                   priority: 'high',
                   recipientName: order.clientName,

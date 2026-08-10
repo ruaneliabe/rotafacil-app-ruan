@@ -5,84 +5,16 @@ export const INITIAL_STORE_SHIFT: StoreShift = {
   openedAt: '18:00',
   initialCash: 0,
   storeName: 'Hope Burger',
-  storePhone: '(47) 99887-6655',
+  storePhone: '(47) 99153-9855',
   storeAddress: 'Rua dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
   storeLat: -26.92130,
   storeLng: -49.09480,
-  adminPassword: '123',
+  adminPassword: 'hope2026',
 };
 
-export const INITIAL_MOTOBOYS: Motoboy[] = [
-  {
-    id: 'm1',
-    name: 'Ruan',
-    phone: '(47) 99123-4567',
-    vehicleModel: 'Honda CG 160 Fan',
-    plate: 'ABC-1234',
-    status: 'available',
-    activeOrdersCount: 0,
-    currentLat: -26.92130,
-    currentLng: -49.09480,
-    fixedFee: 60.0,
-    perDeliveryFee: 8.5,
-    deliveriesCountToday: 2,
-    totalEarnedToday: 77.0,
-    username: 'ruan',
-  },
-];
+export const INITIAL_MOTOBOYS: Motoboy[] = [];
 
-export const INITIAL_ORDERS: Order[] = [
-  {
-    id: 'ord_104',
-    codeNumber: 104,
-    clientName: 'Lucas (Jardim Blumenau)',
-    clientPhone: '(47) 99123-4567',
-    address: 'Rua Nereu Ramos, 320 - Jardim Blumenau',
-    neighborhood: 'Jardim Blumenau • Blumenau',
-    lat: -26.9240,
-    lng: -49.0640,
-    items: [
-      { id: 'item_1', name: 'Hope Monster Triple Bacon', quantity: 1, price: 44.0 },
-      { id: 'item_2', name: 'Porção de Batata Rústica', quantity: 1, price: 22.0 },
-    ],
-    itemsSummary: 'Hope Monster Triple Bacon + Batata Rústica',
-    subtotal: 66.0,
-    deliveryFee: 10.00,
-    total: 76.00,
-    paymentMethod: 'cartao_maquininha',
-    status: 'ready_at_counter',
-    kitchenReadyInMin: 0,
-    createdAt: '19:42',
-    estimatedMinutes: 30,
-    trackingCode: 'HOPE104',
-    originChannel: 'ifood',
-  },
-  {
-    id: 'ord_105',
-    codeNumber: 105,
-    clientName: 'Camila (Centro)',
-    clientPhone: '(47) 98877-6655',
-    address: 'Rua XV de Novembro, 850 - Centro',
-    neighborhood: 'Centro • Blumenau',
-    lat: -26.9215,
-    lng: -49.0630,
-    items: [
-      { id: 'item_3', name: 'Hope Smash Bacon', quantity: 1, price: 32.0 },
-      { id: 'item_4', name: 'Coca-Cola 350ml lata', quantity: 1, price: 7.0 },
-    ],
-    itemsSummary: 'Hope Smash Bacon + Coca-Cola',
-    subtotal: 39.0,
-    deliveryFee: 8.00,
-    total: 47.00,
-    paymentMethod: 'pix',
-    status: 'preparing',
-    kitchenReadyInMin: 3,
-    createdAt: '19:48',
-    estimatedMinutes: 30,
-    trackingCode: 'HOPE105',
-    originChannel: 'whatsapp',
-  },
-];
+export const INITIAL_ORDERS: Order[] = [];
 
 export const INITIAL_ITEMS_MENU = [
   { name: 'Hope Smash Cheeseburger', price: 28.0 },

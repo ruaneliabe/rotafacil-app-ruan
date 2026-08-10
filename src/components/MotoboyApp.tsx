@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Order, Motoboy } from '../types';
+import { Order, Motoboy, StoreShift } from '../types';
 import { RouteMap } from './RouteMap';
 import { saveMotoboyToCloud } from '../lib/firebase';
+import { calculateDistanceKm } from '../utils/geoUtils';
 import {
   Bike,
   MapPin,
@@ -39,6 +40,7 @@ import {
 interface MotoboyAppProps {
   motoboys: Motoboy[];
   orders: Order[];
+  shift: StoreShift;
   onUpdateOrderStatus: (orderId: string, status: Order['status']) => void;
   onSimulateArrival: (order: Order) => void;
   onReorderMotoboyRoute?: (orderedOrderIds: string[]) => void;
@@ -54,6 +56,7 @@ interface MotoboyAppProps {
 export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   motoboys,
   orders,
+  shift,
   onUpdateOrderStatus,
   onSimulateArrival,
   onReorderMotoboyRoute,
@@ -775,7 +778,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         <div className="bg-amber-500 text-slate-950 px-3.5 py-2 text-xs font-bold flex items-center justify-between gap-2 shadow-xs border-b border-amber-600">
           <div className="flex items-center gap-2 min-w-0">
             <BellRing className="w-4 h-4 shrink-0 animate-bounce text-slate-950" />
-            <span className="truncate">Ative alertas p/ ouvir novos pedidos em 2º plano!</span>
+            <span className="truncate">Ative alertas de novos pedidos enquanto o app estiver aberto!</span>
           </div>
           <button
             type="button"
@@ -1300,6 +1303,12 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                   // Circle stop numbers: ⚡ 1ª PARADA, 2ª PARADA, etc.
                   const stopLabel = isFirstOrder ? '⚡ 1ª PARADA' : `${index + 1}ª PARADA`;
+                  const distanceToOrderKm = calculateDistanceKm(
+                    deviceGps?.lat || activeMotoboy?.currentLat || shift.storeLat,
+                    deviceGps?.lng || activeMotoboy?.currentLng || shift.storeLng,
+                    order.lat,
+                    order.lng
+                  );
 
                   // COMPACT CARD FOR SECONDARY PARADAS
                   if (!isExpanded) {
@@ -1438,11 +1447,11 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                               {hasArrived ? '⏱️ No local (0 min)' : `⏱️ ~${Math.max(2, Math.round((order.estimatedMinutes || 8) * 0.5))} min`}
                             </span>
                             <span className="bg-slate-900 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-800 font-extrabold">
-                              {hasArrived ? '📍 ~0.1 km (No destino)' : `🗺️ ~${(order.distanceKm || 2.4).toFixed(1)} km`}
+                              {hasArrived ? '📍 ~0.1 km (No destino)' : `🗺️ ~${distanceToOrderKm.toFixed(1)} km`}
                             </span>
-                            {order.deliveryWindow && (
+                            {order.promisedTime && (
                               <span className="bg-slate-900 text-amber-400 px-2.5 py-1 rounded-lg border border-slate-800 font-extrabold">
-                                🕒 {order.deliveryWindow}
+                                🕒 {order.promisedTime}
                               </span>
                             )}
                           </div>
@@ -1736,8 +1745,8 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                 type="button"
                 onClick={() => {
                   if (activeMotoboy) {
-                    const nextLat = deviceGps?.lat || activeMotoboy.currentLat || -26.9248;
-                    const nextLng = deviceGps?.lng || activeMotoboy.currentLng || -49.0815;
+                    const nextLat = deviceGps?.lat || activeMotoboy.currentLat || shift.storeLat;
+                    const nextLng = deviceGps?.lng || activeMotoboy.currentLng || shift.storeLng;
                     const updated = {
                       ...activeMotoboy,
                       status: 'returning_to_store' as const,
@@ -1769,10 +1778,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             <div className="h-[400px] rounded-2xl overflow-hidden border border-slate-300 shadow-sm">
               <RouteMap
                 origin={{
-                  name: 'Ponto de Partida / Loja',
-                  address: 'Rua dos Caçadores, 653, Blumenau - SC',
-                  lat: -26.9228,
-                  lng: -49.1014,
+                  name: shift.storeName || 'Ponto de Partida / Loja',
+                  address: shift.storeAddress,
+                  lat: shift.storeLat,
+                  lng: shift.storeLng,
                 }}
                 motoboyName={activeMotoboy?.name}
                 motoboyVehicle={activeMotoboy?.vehicleModel}

@@ -25,23 +25,23 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name) return;
+    if (!name.trim() || !username.trim() || !password.trim()) return;
 
-    const generatedUsername = username.trim() || name.trim().toLowerCase().split(' ')[0];
-    const generatedPassword = password.trim() || '123';
+    const generatedUsername = username.trim().toLowerCase();
+    const generatedPassword = password.trim();
     const parsedArranque = parseFloat(arranqueInput.replace(',', '.')) || 0;
 
     onAddMotoboy({
       name,
-      phone: phone || '(41) 99999-0000',
+      phone: phone.trim(),
       username: generatedUsername,
       password: generatedPassword,
       vehicleModel,
-      plate: plate || 'ABC-1234',
+      plate: plate.trim().toUpperCase(),
       fixedFee: parsedArranque,
       perDeliveryFee: 0,
-      currentLat: -25.432,
-      currentLng: -49.272,
+      currentLat: -26.92130,
+      currentLng: -49.09480,
     });
 
     setName('');
@@ -118,6 +118,7 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
                 <label className="font-bold text-purple-900 block mb-1">Usuário *</label>
                 <input
                   type="text"
+                  required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Ex: ruan"
@@ -129,9 +130,11 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
                 <label className="font-bold text-purple-900 block mb-1">Senha *</label>
                 <input
                   type="text"
+                  required
+                  minLength={4}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Ex: 123"
+                  placeholder="Mín. 4 caracteres"
                   className="w-full px-3 py-2 bg-white border border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium text-xs font-mono text-slate-900 placeholder:text-slate-400"
                 />
               </div>

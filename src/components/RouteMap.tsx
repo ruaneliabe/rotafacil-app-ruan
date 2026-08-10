@@ -331,10 +331,9 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           mb.currentLng !== 0 &&
           (Math.abs(mb.currentLat - origin.lat) > 0.0003 || Math.abs(mb.currentLng - origin.lng) > 0.0003);
 
-        if (!hasCustomGps && isReturning) {
-          mbLat = origin.lat + 0.0075;
-          mbLng = origin.lng - 0.0120;
-        }
+        // Never invent a driver's position. If there is no valid GPS yet,
+        // omit the road marker until the device publishes a real location.
+        if (!hasCustomGps) return;
 
         const initial = mb.name ? mb.name.charAt(0).toUpperCase() : 'M';
 
@@ -454,14 +453,10 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       ) {
         mLat = motoboyLat;
         mLng = motoboyLng;
-      } else if (stops.length > 0) {
-        const activeStop = stops.find((s) => s.status === 'in_transit') || stops[0];
-        if (activeStop) {
-          mLat = activeStop.lat;
-          mLng = activeStop.lng;
-        }
       }
 
+      // No GPS means no motoboy marker; showing the destination as the driver
+      // would create a false real-time tracking position.
       if (mLat !== null && mLng !== null) {
         const initial = motoboyName ? motoboyName.charAt(0).toUpperCase() : 'M';
         const motoboyIcon = L.divIcon({
@@ -496,8 +491,14 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     const activeStops = stops.filter((s) => s.status === 'in_transit');
 
     if (activeStops.length > 0) {
+      const hasLiveMotoboyGps =
+        typeof motoboyLat === 'number' && !isNaN(motoboyLat) && motoboyLat !== 0 &&
+        typeof motoboyLng === 'number' && !isNaN(motoboyLng) && motoboyLng !== 0;
+      const routeStart: [number, number] = hasLiveMotoboyGps
+        ? [motoboyLat as number, motoboyLng as number]
+        : [origin.lat, origin.lng];
       const routeCoords: [number, number][] = [
-        [origin.lat, origin.lng],
+        routeStart,
         ...activeStops.map((s) => [s.lat, s.lng] as [number, number]),
       ];
 

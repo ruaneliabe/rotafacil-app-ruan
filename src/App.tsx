@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { StoreShift, Order, Motoboy, OrderStatus, UserSession } from './types';
 import {
   INITIAL_STORE_SHIFT,
-  INITIAL_MOTOBOYS,
-  INITIAL_ORDERS,
 } from './data/initialData';
 import { StoreDashboard } from './components/StoreDashboard';
 import { MotoboyApp } from './components/MotoboyApp';
@@ -41,7 +39,8 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-const logoImg = '/src/assets/images/hope_burger_logo_1786042748845.jpg';
+
+const logoImg = '/hope-burger-logo.jpg';
 
 export default function App() {
   const [activeViewMode, setActiveViewMode] = useState<'store' | 'motoboy'>('store');
@@ -59,8 +58,8 @@ export default function App() {
   const [shift, setShift] = useState<StoreShift>({
     ...INITIAL_STORE_SHIFT,
   });
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [motoboys, setMotoboys] = useState<Motoboy[]>(INITIAL_MOTOBOYS);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
   const [selectedTrackingOrder, setSelectedTrackingOrder] = useState<Order | null>(null);
 
   // Listen for popstate URL changes
@@ -108,6 +107,32 @@ export default function App() {
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [cloudSynced, setCloudSynced] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
+
+  // Remove legacy operational data from older browser-only builds.
+  // Operational state must always come from Firestore so every device sees the same data.
+  useEffect(() => {
+    const legacyOperationalKeys = [
+      'rota_facil_orders',
+      'rota_facil_motoboys',
+      'rota_facil_shift',
+      'rota_facil_store_shift',
+      'rota_facil_saved_routes_v1',
+    ];
+
+    legacyOperationalKeys.forEach((key) => localStorage.removeItem(key));
+  }, []);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleSaveStoreSettings = (updatedShift: StoreShift) => {
     setShift(updatedShift);
@@ -117,29 +142,32 @@ export default function App() {
 
   // 1. Firebase Cloud Sync initialization & snapshot listeners
   useEffect(() => {
-    seedInitialDataIfEmpty().then(() => {
-      setCloudSynced(true);
-    });
+    // Firestore is the single source of truth for all operational data.
+    // We only consider the app synced after the first snapshots arrive.
+    let ordersReady = false;
+    let motoboysReady = false;
+    let shiftReady = false;
+    const markCloudReady = () => {
+      if (ordersReady && motoboysReady && shiftReady) setCloudSynced(true);
+    };
 
-    // Reset local data cache to apply updated Blumenau coordinates & smart scenario #104/#105
-    if (!localStorage.getItem('rota_facil_cleared_v4')) {
-      clearAllDatabaseData().then(() => {
-        localStorage.setItem('rota_facil_cleared_v4', 'true');
-        saveShiftToCloud(INITIAL_STORE_SHIFT);
-        setOrders(INITIAL_ORDERS);
-        setMotoboys(INITIAL_MOTOBOYS);
-      });
-    }
+    seedInitialDataIfEmpty();
 
     const unsubOrders = subscribeToOrders((cloudOrders) => {
       setOrders(cloudOrders);
+      ordersReady = true;
+      markCloudReady();
     });
 
     const unsubMotoboys = subscribeToMotoboys((cloudMotoboys) => {
       setMotoboys(cloudMotoboys);
+      motoboysReady = true;
+      markCloudReady();
     });
 
     const unsubShift = subscribeToShift((cloudShift) => {
+      shiftReady = true;
+      markCloudReady();
       if (cloudShift) {
         // If stored shift has old default coords (e.g. Rua João Pessoa or old -26.9228), update to exact Rua dos Caçadores 653 (-26.92485, -49.09880)
         if (
@@ -170,48 +198,62 @@ export default function App() {
     };
   }, []);
 
-  // Continuously track real device GPS and update motoboy "Ruan" in real-time
+  // Only the authenticated motoboy device updates its own GPS position.
+  // The store/admin device must never overwrite a driver's location.
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-      const handleGpsUpdate = (pos: GeolocationPosition) => {
-        const lat = Number(pos.coords.latitude.toFixed(6));
-        const lng = Number(pos.coords.longitude.toFixed(6));
+    if (session?.role !== 'motoboy' || !session.motoboyId) return;
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
 
-        setMotoboys((prevMotoboys) => {
-          const ruanIndex = prevMotoboys.findIndex(
-            (m) =>
-              m.username?.toLowerCase() === 'ruan' ||
-              m.name.toLowerCase().includes('ruan')
-          );
-          if (ruanIndex !== -1) {
-            const ruan = prevMotoboys[ruanIndex];
-            const distChanged =
-              Math.abs((ruan.currentLat || 0) - lat) > 0.0001 ||
-              Math.abs((ruan.currentLng || 0) - lng) > 0.0001;
+    const motoboyId = session.motoboyId;
 
-            if (distChanged) {
-              const updatedRuan = { ...ruan, currentLat: lat, currentLng: lng };
-              saveMotoboyToCloud(updatedRuan);
-              const updatedList = [...prevMotoboys];
-              updatedList[ruanIndex] = updatedRuan;
-              return updatedList;
-            }
-          }
-          return prevMotoboys;
-        });
-      };
+    const handleGpsUpdate = (pos: GeolocationPosition) => {
+      const lat = Number(pos.coords.latitude.toFixed(6));
+      const lng = Number(pos.coords.longitude.toFixed(6));
 
-      navigator.geolocation.getCurrentPosition(handleGpsUpdate, () => {}, { enableHighAccuracy: true });
+      setMotoboys((prevMotoboys) => {
+        const index = prevMotoboys.findIndex((m) => m.id === motoboyId);
+        if (index === -1) return prevMotoboys;
 
-      const watchId = navigator.geolocation.watchPosition(
-        handleGpsUpdate,
-        (err) => console.warn('App GPS watch warning:', err.message),
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 3000 }
-      );
+        const current = prevMotoboys[index];
+        const distChanged =
+          Math.abs((current.currentLat || 0) - lat) > 0.0001 ||
+          Math.abs((current.currentLng || 0) - lng) > 0.0001;
 
-      return () => navigator.geolocation.clearWatch(watchId);
-    }
-  }, []);
+        if (!distChanged) return prevMotoboys;
+
+        const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() };
+        saveMotoboyToCloud(updatedMotoboy);
+        const updatedList = [...prevMotoboys];
+        updatedList[index] = updatedMotoboy;
+        return updatedList;
+      });
+    };
+
+    navigator.geolocation.getCurrentPosition(handleGpsUpdate, () => {}, { enableHighAccuracy: true });
+    const watchId = navigator.geolocation.watchPosition(
+      handleGpsUpdate,
+      (err) => console.warn('Motoboy GPS watch warning:', err.message),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 3000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [session?.role, session?.motoboyId]);
+
+  // Keep the displayed active-order counter consistent even after reassignment or multi-device edits.
+  useEffect(() => {
+    if (!cloudSynced) return;
+    motoboys.forEach((m) => {
+      const expectedCount = orders.filter(
+        (o) =>
+          o.assignedMotoboyId === m.id &&
+          o.status !== 'delivered' &&
+          o.status !== 'cancelled'
+      ).length;
+      if (m.activeOrdersCount !== expectedCount) {
+        saveMotoboyToCloud({ ...m, activeOrdersCount: expectedCount });
+      }
+    });
+  }, [cloudSynced, orders, motoboys]);
 
   // Real-time Clock for top header
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
@@ -394,16 +436,9 @@ export default function App() {
       const updated = prev.map((ord) => {
         const seqIdx = orderedOrderIds.indexOf(ord.id);
         if (seqIdx !== -1) {
-          // If first place in new sequence and not finished, mark as in_transit if active
-          const isFinished = ord.status === 'delivered' || ord.status === 'cancelled';
-          const newStatus =
-            seqIdx === 0 && !isFinished
-              ? 'in_transit'
-              : ord.status === 'in_transit'
-              ? 'picked_up'
-              : ord.status;
-
-          const updatedOrd: Order = { ...ord, routeSequence: seqIdx + 1, status: newStatus };
+          // Reordering must never start/alter a delivery by itself.
+          // Status changes only through explicit pickup/start/deliver actions.
+          const updatedOrd: Order = { ...ord, routeSequence: seqIdx + 1 };
           saveOrderToCloud(updatedOrd);
           return updatedOrd;
         }
@@ -411,12 +446,15 @@ export default function App() {
       });
       return updated;
     });
-    showToast('MAPA: Sequência de entregas atualizada! A 1ª parada agora está em deslocamento.');
+    showToast('MAPA: Sequência de entregas atualizada!');
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
     const targetOrder = orders.find((o) => o.id === orderId);
     if (!targetOrder) return;
+    // Idempotency guard: avoids double earnings / duplicate delivery actions on rapid taps.
+    if (targetOrder.status === status) return;
+    if (targetOrder.status === 'delivered' || targetOrder.status === 'cancelled') return;
 
     const updatedOrder: Order = {
       ...targetOrder,
@@ -549,7 +587,7 @@ export default function App() {
       assignedMotoboyId: null,
       assignedMotoboyName: null,
       createdAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      trackingCode: `RF-${Math.floor(1000 + Math.random() * 9000)}`,
+      trackingCode: `RF-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
     };
 
     setOrders((prev) => [newOrd, ...prev]);
@@ -605,7 +643,7 @@ export default function App() {
           o.trackingCode.toLowerCase() === urlTrackingCode.toLowerCase() ||
           o.id === urlTrackingCode ||
           o.codeNumber.toString() === urlTrackingCode
-      ) || orders[0];
+      );
 
     return (
       <div className="min-h-screen bg-slate-100">
@@ -625,7 +663,11 @@ export default function App() {
           <div className="max-w-md mx-auto p-8 text-center space-y-4 font-sans text-slate-800">
             <h2 className="text-xl font-bold">Rastreio de Pedido</h2>
             <p className="text-sm text-slate-600">
-              Carregando dados do pedido <strong>{urlTrackingCode}</strong>...
+              {cloudSynced ? (
+                <>Pedido <strong>{urlTrackingCode}</strong> não encontrado. Confira o link enviado pela loja.</>
+              ) : (
+                <>Carregando dados do pedido <strong>{urlTrackingCode}</strong>...</>
+              )}
             </p>
           </div>
         )}
@@ -655,6 +697,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col selection:bg-slate-700 selection:text-white">
+      {!isOnline && (
+        <div className="sticky top-0 z-[100] bg-rose-600 text-white text-center text-xs font-black px-3 py-2 shadow-lg">
+          ⚠️ SEM INTERNET — alterações podem não chegar aos outros dispositivos até a conexão voltar.
+        </div>
+      )}
       {/* Toast Notification - Clean, professional neutral badge (Store Admin only) */}
       {toastMessage && session?.role === 'store_admin' && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-800/95 border border-slate-700 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-2.5 animate-fadeIn">
@@ -754,6 +801,7 @@ export default function App() {
             <MotoboyApp
               motoboys={motoboys}
               orders={orders}
+              shift={shift}
               onUpdateOrderStatus={handleUpdateOrderStatus}
               onReorderMotoboyRoute={handleReorderMotoboyRoute}
               onConfirmArrivalAtStore={handleConfirmArrivalAtStore}
@@ -785,7 +833,7 @@ export default function App() {
         isOpen={isNewOrderModalOpen}
         onClose={() => setIsNewOrderModalOpen(false)}
         onAddOrder={handleAddOrder}
-        nextOrderCode={orders.length + 101}
+        nextOrderCode={orders.reduce((max, o) => Math.max(max, o.codeNumber || 0), 100) + 1}
       />
 
       <AddMotoboyModal

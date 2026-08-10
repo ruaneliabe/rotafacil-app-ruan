@@ -15,8 +15,6 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import { Order, Motoboy, StoreShift } from '../types';
 import {
   INITIAL_STORE_SHIFT,
-  INITIAL_MOTOBOYS,
-  INITIAL_ORDERS,
 } from '../data/initialData';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -193,11 +191,11 @@ export async function seedInitialDataIfEmpty() {
       const hopeShift: StoreShift = {
         ...INITIAL_STORE_SHIFT,
         storeName: 'Hope Burger',
-        storePhone: '(47) 99887-6655',
+        storePhone: '(47) 99153-9855',
         storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
-        storeLat: -26.9228,
-        storeLng: -49.1014,
-        adminPassword: '123',
+        storeLat: -26.92130,
+        storeLng: -49.09480,
+        adminPassword: 'hope2026',
       };
       await setDoc(doc(db, 'shifts', 'current_shift'), hopeShift);
     }

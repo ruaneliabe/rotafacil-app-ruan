@@ -196,8 +196,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const handleSimulateIncomingOrder = (channel: 'ifood' | 'cardapio_web' | 'pdv' | 'whatsapp') => {
     if (!onAddOrder) return;
 
-    const baseLat = shift.storeLat || -26.9228;
-    const baseLng = shift.storeLng || -49.1014;
+    const baseLat = shift.storeLat || -26.92130;
+    const baseLng = shift.storeLng || -49.09480;
 
     let clientName = 'Cliente iFood';
     let address = 'Rua XV de Novembro, 1200';
@@ -2285,7 +2285,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     </span>
                     <div className="flex items-center justify-between font-mono text-[11px] text-slate-200 font-semibold">
                       <span>Usuário: <strong className="text-white">{m.username || m.name.toLowerCase().split(' ')[0]}</strong></span>
-                      <span>Senha: <strong className="text-white">{m.password || '123'}</strong></span>
+                      <span>Senha: <strong className="text-white">{m.password || 'Não definida'}</strong></span>
                     </div>
                   </div>
 

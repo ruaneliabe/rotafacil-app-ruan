@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { Order, Motoboy, StoreShift } from '../types';
 import {
   Bike,
@@ -13,6 +13,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { RouteMap } from './RouteMap';
+import { calculateDistanceKm } from '../utils/geoUtils';
 
 interface CustomerTrackingViewProps {
   order: Order;
@@ -31,15 +32,23 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
   onBackToDashboard,
   isOperator = false,
 }) => {
-  const [estimatedETA, setEstimatedETA] = useState<number>(order.estimatedMinutes || 30);
+  const estimatedETA = useMemo(() => {
+    if (order.status === 'delivered') return 0;
+    const hasGps =
+      motoboy &&
+      typeof motoboy.currentLat === 'number' && motoboy.currentLat !== 0 &&
+      typeof motoboy.currentLng === 'number' && motoboy.currentLng !== 0;
 
-  useEffect(() => {
-    // Dynamic countdown for realism
-    const interval = setInterval(() => {
-      setEstimatedETA((prev) => (prev > 1 ? prev - 1 : 1));
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    if (order.status === 'in_transit' && hasGps) {
+      const distanceKm = calculateDistanceKm(
+        motoboy!.currentLat, motoboy!.currentLng, order.lat, order.lng
+      );
+      // Conservative urban motorcycle estimate + service buffer.
+      return Math.max(2, Math.round((distanceKm / 25) * 60 + 2));
+    }
+
+    return Math.max(1, order.estimatedMinutes || 30);
+  }, [order.status, order.estimatedMinutes, order.lat, order.lng, motoboy?.currentLat, motoboy?.currentLng]);
 
   const formattedCurrency = (val: number | undefined | null) => {
     const safeVal = typeof val === 'number' && !isNaN(val) ? val : 0;
@@ -117,7 +126,7 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span>Atualização ao Vivo</span>
+              <span>{motoboy?.currentLat && motoboy?.currentLng ? 'GPS ao Vivo' : 'Aguardando GPS do entregador'}</span>
             </div>
           </div>
 

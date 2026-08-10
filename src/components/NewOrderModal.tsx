@@ -67,6 +67,7 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
 
   const [searchProduct, setSearchProduct] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -420,10 +421,11 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
     if (!clientName || !fullFormattedAddress || isSubmitting) return;
 
     setIsSubmitting(true);
+    setSubmitError(null);
 
     try {
-      let lat = -26.9388;
-      let lng = -49.1082;
+      let lat: number | null = null;
+      let lng: number | null = null;
 
       try {
         const query = `${finalStreet}${finalNumber ? `, ${finalNumber}` : ''}, ${neighborhood || 'Centro'}, Blumenau - SC`;
@@ -433,7 +435,12 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
           lng = geoResult.lng;
         }
       } catch (err) {
-        console.warn('Geocoded fallback used:', err);
+        console.warn('Geocoding failed:', err);
+      }
+
+      if (lat === null || lng === null) {
+        setSubmitError('Não consegui localizar esse endereço no mapa. Confira rua, número e bairro antes de lançar o pedido.');
+        return;
       }
 
       let finalItems = [...selectedItems];
@@ -454,7 +461,7 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
 
       onAddOrder({
         clientName,
-        clientPhone: clientPhone || '(47) 99999-0000',
+        clientPhone: clientPhone.trim(),
         address: fullFormattedAddress,
         street: finalStreet,
         houseNumber: finalNumber,
@@ -1077,6 +1084,12 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
                   </span>
                 </div>
               </div>
+
+              {submitError && (
+                <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/50 text-rose-200 text-xs font-bold leading-relaxed">
+                  ⚠️ {submitError}
+                </div>
+              )}
 
               <button
                 type="button"

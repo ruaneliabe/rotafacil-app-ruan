@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Motoboy, Order } from '../types';
 import { DollarSign, CheckCircle2, Printer, X, Bike, AlertCircle, FileText, Download } from 'lucide-react';
 
-const logoImg = '/src/assets/images/hope_burger_logo_1786042748845.jpg';
+
+const logoImg = '/hope-burger-logo.jpg';
 
 interface MotoboySettlementModalProps {
   isOpen: boolean;

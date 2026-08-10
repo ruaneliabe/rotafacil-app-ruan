@@ -54,6 +54,7 @@ export interface Motoboy {
   activeOrdersCount: number;
   currentLat: number;
   currentLng: number;
+  locationUpdatedAt?: number; // Timestamp ms of last real device GPS update
   avatarUrl?: string;
   fixedFee: number; // R$ diária
   perDeliveryFee: number; // R$ por corrida

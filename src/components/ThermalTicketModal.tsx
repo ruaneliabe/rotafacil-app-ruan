@@ -2,7 +2,8 @@ import React from 'react';
 import { Order, StoreShift, Motoboy } from '../types';
 import { Printer, Share2, X, ExternalLink, CheckCircle2, DollarSign, MapPin, Bike, User } from 'lucide-react';
 
-const logoImg = '/src/assets/images/hope_burger_logo_1786042748845.jpg';
+
+const logoImg = '/hope-burger-logo.jpg';
 
 interface ThermalTicketModalProps {
   isOpen: boolean;

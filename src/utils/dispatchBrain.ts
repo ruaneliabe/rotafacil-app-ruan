@@ -48,8 +48,8 @@ export function analyzeOperationalBrain(
   motoboys: Motoboy[],
   shift: StoreShift
 ) {
-  const storeLat = shift.storeLat || -26.9228;
-  const storeLng = shift.storeLng || -49.1014;
+  const storeLat = shift.storeLat || -26.92130;
+  const storeLng = shift.storeLng || -49.09480;
 
   // Active pending/ready orders needing dispatch (unassigned only)
   const pendingOrders = orders.filter(
