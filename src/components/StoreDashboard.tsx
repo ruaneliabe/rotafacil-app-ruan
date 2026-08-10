@@ -88,6 +88,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const [orderSort, setOrderSort] = useState<'time' | 'value' | 'neighborhood'>('time');
   const [isCompactMode, setIsCompactMode] = useState<boolean>(false);
   const [isAlertsSectionInView, setIsAlertsSectionInView] = useState<boolean>(true);
+  const [isSavingsDismissed, setIsSavingsDismissed] = useState<boolean>(false);
 
   useEffect(() => {
     const el = document.getElementById('exceptions-alerts-section');
@@ -929,28 +930,54 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   </div>
                 )}
 
-                {/* ✨ INSIGHTS & EFICIÊNCIA DA OPERAÇÃO (MENSAGENS POSITIVAS SEPARADAS) */}
+                {/* ✨ INSIGHTS & EFICIÊNCIA DA OPERAÇÃO (MENSAGENS POSITIVAS DISPENSÁVEIS/MINIMIZÁVEIS) */}
                 {insightAlerts.length > 0 && (
-                  <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-3 px-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-emerald-200">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shrink-0 font-black text-sm">
-                        ✨
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-xs text-emerald-300 uppercase tracking-wider">
-                            {insightAlerts[0].title}
-                          </span>
-                          <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-black uppercase">
-                            Desempenho Positivo
-                          </span>
+                  !isSavingsDismissed ? (
+                    <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-3 px-4 shadow-sm flex flex-row items-center justify-between gap-3 text-emerald-200 transition-all">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shrink-0 font-black text-sm">
+                          ✨
                         </div>
-                        <p className="text-xs text-emerald-100/90 font-medium mt-0.5">
-                          {insightAlerts[0].description}
-                        </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-black text-xs text-emerald-300 uppercase tracking-wider">
+                              {insightAlerts[0].title}
+                            </span>
+                            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-black uppercase">
+                              Desempenho Positivo
+                            </span>
+                          </div>
+                          <p className="text-xs text-emerald-100/90 font-medium mt-0.5 truncate sm:whitespace-normal">
+                            {insightAlerts[0].description}
+                          </p>
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsSavingsDismissed(true)}
+                        className="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 hover:text-white border border-emerald-500/30 hover:border-emerald-500/60 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 active:scale-95 shadow-2xs"
+                        title="Dispensar/Minimizar aviso"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span className="text-[11px] hidden sm:inline font-bold">Dispensar</span>
+                      </button>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl px-3 py-1.5 flex items-center justify-between gap-2 text-emerald-300 text-xs transition-all">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <span className="shrink-0 text-xs">✨</span>
+                        <span className="font-bold truncate text-[11px]">{insightAlerts[0].title}:</span>
+                        <span className="text-slate-300 truncate text-[11px]">{insightAlerts[0].description}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsSavingsDismissed(false)}
+                        className="text-[10px] font-extrabold text-emerald-400 hover:text-emerald-200 underline cursor-pointer shrink-0 pl-2"
+                      >
+                        Ver banner
+                      </button>
+                    </div>
+                  )
                 )}
               </>
             );

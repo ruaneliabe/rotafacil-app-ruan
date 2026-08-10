@@ -1284,7 +1284,8 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               /* List of active delivery cards */
               <div className="space-y-3 pb-36">
                 {assignedOrders.map((order, index) => {
-                  const isInTransit = order.status === 'in_transit';
+                  const isDriverDelivering = activeMotoboy?.status === 'delivering' || assignedOrders.some((o) => o.status === 'in_transit');
+                  const isInTransit = order.status === 'in_transit' || (isDriverDelivering && order.status !== 'delivered' && order.status !== 'cancelled');
                   const isFirstOrder = index === 0;
                   const isExpanded = isFirstOrder || manualExpandedId === order.id;
                   const hasArrived = Boolean(arrivedOrderIds[order.id]);
@@ -1306,7 +1307,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                       <div
                         key={order.id}
                         onClick={() => setManualExpandedId(order.id)}
-                        className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-all cursor-pointer space-y-2"
+                        className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-all cursor-pointer space-y-2 opacity-90 hover:opacity-100"
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -1356,39 +1357,45 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                         <div className="flex items-center justify-between text-xs text-slate-600 font-medium pt-0.5">
                           <div className="flex items-center gap-1.5 truncate pr-2">
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-extrabold text-[10px] shrink-0 border border-emerald-200">
-                              📍 {order.neighborhood || 'Centro'}
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-extrabold text-[10px] shrink-0 border border-emerald-200 uppercase">
+                              📍 {order.neighborhood ? order.neighborhood.toUpperCase() : 'CENTRO'}
                             </span>
                             <span className="truncate font-semibold text-slate-800">{streetLine}</span>
                           </div>
-                          <span className="text-[11px] text-slate-400 shrink-0">Toque para ver</span>
+                          <span className="text-[11px] text-slate-400 shrink-0 font-bold">Toque para ver</span>
                         </div>
                       </div>
                     );
                   }
 
-                  // EXPANDED PRIMARY CARD (1ª PARADA)
+                  // EXPANDED PRIMARY CARD vs SECONDARY EXPANDED CARD
                   return (
                     <div
                       key={order.id}
-                      className={`rounded-2xl border transition-all overflow-hidden bg-white ${
-                        hasArrived
-                          ? 'border-amber-400 shadow-md ring-1 ring-amber-400/30'
-                          : isInTransit
-                          ? 'border-slate-800 shadow-md'
-                          : isFirstOrder
-                          ? 'border-slate-300 shadow-xs ring-1 ring-slate-200'
-                          : 'border-slate-200'
+                      className={`rounded-2xl border-2 transition-all overflow-hidden bg-white ${
+                        isFirstOrder
+                          ? 'border-amber-400 border-l-[10px] border-l-amber-400 shadow-xl ring-2 ring-amber-400/30'
+                          : hasArrived
+                          ? 'border-amber-400 shadow-md'
+                          : 'border-slate-300 border-l-[6px] border-l-slate-400 opacity-95'
                       }`}
                     >
                       {/* CARD HEADER */}
-                      <div className="bg-slate-900 px-3.5 py-2.5 text-white flex items-center justify-between">
+                      <div className={`px-3.5 py-2.5 text-white flex items-center justify-between ${
+                        isFirstOrder ? 'bg-slate-950' : 'bg-slate-800'
+                      }`}>
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 font-black text-xs uppercase flex items-center gap-1 shadow-2xs">
-                            {stopLabel}
+                          <span className={`px-2.5 py-1 rounded-lg font-black text-xs uppercase flex items-center gap-1 shadow-2xs ${
+                            isFirstOrder
+                              ? 'bg-amber-400 text-slate-950 animate-pulse'
+                              : 'bg-slate-700 text-amber-300 border border-slate-600'
+                          }`}>
+                            {isFirstOrder ? '⚡ ENTREGA ATUAL' : stopLabel}
                           </span>
                           <span className="font-extrabold text-xs text-slate-300">
-                            {isFirstOrder ? 'PRÓXIMA ENTREGA' : `Parada ${index + 1} de ${assignedOrders.length}`}
+                            {isFirstOrder
+                              ? (assignedOrders.length > 1 ? `1ª de ${assignedOrders.length} paradas (Sua vez!)` : 'Próxima entrega')
+                              : `Parada ${index + 1} de ${assignedOrders.length} (Aguardando)`}
                           </span>
                         </div>
 
@@ -1400,7 +1407,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             <button
                               type="button"
                               onClick={() => setManualExpandedId(null)}
-                              className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded border border-slate-700"
+                              className="text-[10px] bg-slate-900 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded-md border border-slate-700 font-bold"
                             >
                               Recolher
                             </button>
@@ -1410,16 +1417,15 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                       <div className="p-3.5 space-y-3">
                         {/* 1. ENDEREÇO DA ENTREGA (DOMINANTE - LEGÍVEL A 1M) */}
-                        <div className="bg-slate-950 p-4 rounded-2xl border-2 border-slate-800 space-y-1 text-white shadow-lg">
+                        <div className={`p-4 rounded-2xl border-2 space-y-1 text-white shadow-lg ${
+                          isFirstOrder ? 'bg-slate-950 border-slate-800' : 'bg-slate-900 border-slate-700/80'
+                        }`}>
                           <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider">
                             <span className="text-amber-400 flex items-center gap-1.5">
-                              <span className="px-2 py-0.5 bg-amber-400 text-slate-950 rounded font-black text-[10px]">
-                                {stopLabel}
-                              </span>
-                              <span>#{order.codeNumber}</span>
+                              <span>PEDIDO #{order.codeNumber}</span>
                             </span>
                             <span className="text-emerald-400 font-extrabold bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-xs">
-                              📍 {order.neighborhood || 'Centro'}
+                              📍 {order.neighborhood ? order.neighborhood.toUpperCase() : 'CENTRO'}
                             </span>
                           </div>
 
@@ -1441,6 +1447,14 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             )}
                           </div>
                         </div>
+
+                        {/* NOTICE IF EXPANDED BUT NOT FIRST ORDER */}
+                        {!isFirstOrder && (
+                          <div className="bg-amber-50 border border-amber-200 text-amber-900 p-2.5 rounded-xl font-bold text-xs flex items-center gap-2">
+                            <span>⏳</span>
+                            <span>Atenção: Conclua a 1ª parada primeiro antes de realizar esta entrega.</span>
+                          </div>
+                        )}
 
                         {/* ARRIVAL ALERT BANNER */}
                         {hasArrived && (
@@ -1498,10 +1512,14 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             <button
                               type="button"
                               onClick={() => handleOpenWaze(order.address, order.lat, order.lng)}
-                              className="py-3.5 bg-sky-600 hover:bg-sky-500 active:scale-98 text-white font-extrabold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer border border-sky-400/40"
+                              className={`py-3.5 font-extrabold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer border ${
+                                isFirstOrder
+                                  ? 'bg-sky-600 hover:bg-sky-500 text-white border-sky-400/40'
+                                  : 'bg-slate-700 hover:bg-slate-600 text-slate-100 border-slate-600'
+                              }`}
                             >
-                              <Navigation className="w-5 h-5 fill-current text-white animate-pulse" />
-                              <span>Navegar</span>
+                              <Navigation className="w-5 h-5 fill-current text-white" />
+                              <span>{isFirstOrder ? 'Navegar' : `Navegar (${index + 1}ª)`}</span>
                             </button>
 
                             {order.clientPhone ? (
@@ -1522,49 +1540,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                         {/* 4. AÇÃO PRINCIPAL (CTA GIGANTE ÚNICO) */}
                         <div className="pt-1 space-y-2">
-                          {isPendingInKitchen ? (
-                            <div className="w-full py-3 px-3 bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 text-center">
-                              <Clock className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
-                              <span>Cozinha preparando o pedido... 🍳</span>
-                            </div>
-                          ) : isReadyAtCounter ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onUpdateOrderStatus(order.id, 'picked_up');
-                                triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada!`);
-                              }}
-                              className="w-full py-4 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer animate-pulse"
-                            >
-                              <ShoppingBag className="w-5 h-5 text-slate-950 fill-current" />
-                              <span>Confirmar retirada</span>
-                            </button>
-                          ) : isPickedUp ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const firstOrder = assignedOrders[0];
-                                if (firstOrder) {
-                                  onUpdateOrderStatus(firstOrder.id, 'in_transit');
-                                }
-                                assignedOrders.slice(1).forEach((o) => {
-                                  if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
-                                    if (o.status !== 'picked_up') {
-                                      onUpdateOrderStatus(o.id, 'picked_up');
-                                    }
-                                  }
-                                });
-                                if (onUpdateMotoboyStatus && activeMotoboy) {
-                                  onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
-                                }
-                                triggerSystemActionToast(`🚀 Rota iniciada! 1ª parada: #${firstOrder?.codeNumber}`);
-                              }}
-                              className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
-                            >
-                              <Zap className="w-5 h-5 fill-current" />
-                              <span>Peguei tudo, bora! ({assignedOrders.length} {assignedOrders.length === 1 ? 'entrega' : 'entregas'})</span>
-                            </button>
-                          ) : isInTransit ? (
+                          {isInTransit ? (
                             <div className="space-y-2">
                               {!isFirstOrder ? (
                                 <div className="bg-slate-900 border-2 border-amber-500/60 p-3.5 rounded-2xl space-y-2 text-white shadow-md">
@@ -1609,6 +1585,48 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                 </button>
                               )}
                             </div>
+                          ) : isPendingInKitchen ? (
+                            <div className="w-full py-3 px-3 bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 text-center">
+                              <Clock className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+                              <span>Cozinha preparando o pedido... 🍳</span>
+                            </div>
+                          ) : isReadyAtCounter ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onUpdateOrderStatus(order.id, 'picked_up');
+                                triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada!`);
+                              }}
+                              className="w-full py-4 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer animate-pulse"
+                            >
+                              <ShoppingBag className="w-5 h-5 text-slate-950 fill-current" />
+                              <span>Confirmar retirada</span>
+                            </button>
+                          ) : isPickedUp ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const firstOrder = assignedOrders[0];
+                                if (firstOrder) {
+                                  onUpdateOrderStatus(firstOrder.id, 'in_transit');
+                                }
+                                assignedOrders.slice(1).forEach((o) => {
+                                  if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
+                                    if (o.status !== 'picked_up') {
+                                      onUpdateOrderStatus(o.id, 'picked_up');
+                                    }
+                                  }
+                                });
+                                if (onUpdateMotoboyStatus && activeMotoboy) {
+                                  onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
+                                }
+                                triggerSystemActionToast(`🚀 Rota iniciada! 1ª parada: #${firstOrder?.codeNumber}`);
+                              }}
+                              className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+                            >
+                              <Zap className="w-5 h-5 fill-current" />
+                              <span>Peguei tudo, bora! ({assignedOrders.length} {assignedOrders.length === 1 ? 'entrega' : 'entregas'})</span>
+                            </button>
                           ) : null}
                         </div>
 

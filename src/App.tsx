@@ -474,13 +474,13 @@ export default function App() {
 
         const isFinishedAll = remainingActiveOrders.length === 0;
 
-        // Next remaining order in sequence stays in 'picked_up' so the driver explicitly clicks 'Iniciar Rota' for stop 2
+        // Next remaining order in sequence automatically goes 'in_transit' as motoboy is already out delivering
         if (!isFinishedAll && remainingActiveOrders.length > 0) {
           const nextOrder = remainingActiveOrders[0];
-          if (nextOrder.status === 'preparing' || nextOrder.status === 'pending' || nextOrder.status === 'ready_at_counter') {
+          if (nextOrder.status !== 'in_transit') {
             const updatedNextOrder: Order = {
               ...nextOrder,
-              status: 'picked_up',
+              status: 'in_transit',
             };
             setOrders((prev) => prev.map((ord) => (ord.id === nextOrder.id ? updatedNextOrder : ord)));
             saveOrderToCloud(updatedNextOrder);
