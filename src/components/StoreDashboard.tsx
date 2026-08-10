@@ -289,9 +289,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     if (m.currentLat && m.currentLng && shift.storeLat && shift.storeLng) {
       distKm = calculateRoadDistanceKm(m.currentLat, m.currentLng, shift.storeLat, shift.storeLng);
     }
-    const isExplicitReturning = m.status === 'returning_to_store';
-    const isNearbyReturning = mActiveOrders.length === 0 && distKm > 0 && distKm <= 4.2 && m.status !== 'offline';
-    const isReturning = isExplicitReturning || isNearbyReturning;
+    const isReturning = m.status === 'returning_to_store';
     const estMin = Math.max(1, Math.round((distKm / 28) * 60) || 5);
 
     return {
