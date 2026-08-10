@@ -86,6 +86,36 @@ export function subscribeToMotoboys(callback: (motoboys: Motoboy[]) => void) {
       snapshot.forEach((docSnap) => {
         list.push({ id: docSnap.id, ...docSnap.data() } as Motoboy);
       });
+
+      // A deleted driver must lose access immediately on every device.
+      // The Firestore collection is authoritative; localStorage is only a local session cache.
+      if (typeof window !== 'undefined') {
+        try {
+          const savedSession = window.localStorage.getItem('rota_facil_session');
+          if (savedSession) {
+            const parsedSession = JSON.parse(savedSession) as {
+              role?: string;
+              motoboyId?: string;
+            };
+
+            if (parsedSession.role === 'motoboy' && parsedSession.motoboyId) {
+              const driverStillExists = list.some((m) => m.id === parsedSession.motoboyId);
+
+              if (!driverStillExists) {
+                window.localStorage.removeItem('rota_facil_session');
+                window.localStorage.removeItem('rota_facil_active_motoboy_id');
+
+                // Reload after clearing the stale session so App opens directly on login.
+                window.setTimeout(() => window.location.reload(), 0);
+                return;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Could not validate local motoboy session:', err);
+        }
+      }
+
       callback(list);
     },
     (err) => {
