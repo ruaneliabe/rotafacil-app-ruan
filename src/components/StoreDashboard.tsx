@@ -31,6 +31,7 @@ import {
   BarChart3,
   Webhook,
   X,
+  RotateCw,
 } from 'lucide-react';
 import { RouteMap } from './RouteMap';
 import { ThermalTicketModal } from './ThermalTicketModal';
@@ -1587,11 +1588,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             triggerActionToast('⚠️ Dispositivo sem suporte a geolocalização');
                           }
                         }}
-                        className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
-                        title="Atualizar e aplicar minha posição atual do celular/navegador no mapa"
+                        className="p-1.5 bg-slate-800 hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-400 border border-slate-700/80 hover:border-emerald-500/40 rounded-xl transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-2xs"
+                        title="Atualizar minha posição GPS no mapa"
                       >
-                        <Navigation className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Atualizar GPS</span>
+                        <RotateCw className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
@@ -1777,7 +1777,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           )
                           .sort((a, b) => (a.routeSequence || 0) - (b.routeSequence || 0));
 
-                        const allOrdersReady = mOrders.length > 0 && mOrders.every((o) => o.status === 'ready_at_counter' || o.status === 'picked_up');
+                        const isDriverInTransit = m.status === 'delivering' || mOrders.some((o) => o.status === 'in_transit');
+                        const allOrdersReady = mOrders.length > 0 && !isDriverInTransit && mOrders.every((o) => o.status === 'ready_at_counter' || o.status === 'picked_up');
                         const allOrdersInTransit = mOrders.length > 0 && mOrders.every((o) => o.status === 'in_transit');
 
                         const circleNumbers = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
@@ -1798,13 +1799,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                               <div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-extrabold text-sm text-white">{m.name}</span>
-                                  {m.status === 'available' ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                                      🟢 NA LOJA {queuePos ? `• ${queuePos}º DA FILA` : ''}
-                                    </span>
-                                  ) : m.status === 'delivering' ? (
+                                  {isDriverInTransit ? (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-blue-500/15 text-blue-400 border border-blue-500/30">
                                       🔵 EM ROTA
+                                    </span>
+                                  ) : m.status === 'available' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                      🟢 NA LOJA {queuePos ? `• ${queuePos}º DA FILA` : ''}
                                     </span>
                                   ) : m.status === 'returning_to_store' ? (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30">
@@ -1826,12 +1827,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     'Fora de turno (Offline)'
                                   ) : m.status === 'busy' ? (
                                     'Indisponível (Pausado)'
+                                  ) : isDriverInTransit ? (
+                                    `Em rota de entrega na rua • ${mOrders.length} ${mOrders.length === 1 ? 'parada restante' : 'paradas restantes'}`
                                   ) : m.status === 'returning_to_store' ? (
                                     mOrders.length === 0
                                       ? 'Finalizou rota anterior e está retornando à loja'
                                       : `Retornando à loja (Já possui ${mOrders.length} ${mOrders.length === 1 ? 'pedido' : 'pedidos'} vinculados para a próxima rota)`
-                                  ) : m.status === 'delivering' ? (
-                                    `Em rota de entrega na rua • ${mOrders.length} ${mOrders.length === 1 ? 'parada restante' : 'paradas restantes'}`
                                   ) : mOrders.length === 0 ? (
                                     queuePos
                                       ? `${queuePos}º lugar na fila de despacho • Na fila há ${
@@ -1922,12 +1923,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                               </div>
                             )}
 
-                            {/* Order Items List inside Driver Card */}
+                             {/* Order Items List inside Driver Card */}
                             {mOrders.length > 0 && (
                               <div className="space-y-1.5 pt-1 max-h-56 overflow-y-auto pr-1">
                                 {mOrders.map((ord, idx) => {
-                                  const isReady = ord.status === 'ready_at_counter' || ord.status === 'picked_up';
-                                  const isInTransit = ord.status === 'in_transit';
+                                  const isOrdInTransit = ord.status === 'in_transit' || isDriverInTransit;
+                                  const isOrdReady = (ord.status === 'ready_at_counter' || ord.status === 'picked_up') && !isDriverInTransit;
                                   const numSymbol = circleNumbers[idx] || `(${idx + 1})`;
 
                                   return (
@@ -1943,13 +1944,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                         </div>
 
                                         <div className="mt-0.5 flex items-center gap-2 text-[10px]">
-                                          {isReady ? (
-                                            <span className="text-emerald-400 font-bold">
-                                              🟢 Pronto
-                                            </span>
-                                          ) : isInTransit ? (
+                                          {isOrdInTransit ? (
                                             <span className="text-blue-400 font-bold">
                                               🔵 Em rota
+                                            </span>
+                                          ) : isOrdReady ? (
+                                            <span className="text-emerald-400 font-bold">
+                                              🟢 Pronto
                                             </span>
                                           ) : (
                                             <span className="text-amber-400 font-medium">
@@ -2050,9 +2051,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 </button>
                               ) : mOrders.length > 0 ? (
                                 <>
-                                  {m.status === 'delivering' || allOrdersInTransit ? (
-                                    <div className="flex-1 py-1.5 px-3 bg-blue-950/60 border border-blue-500/30 text-blue-300 text-center font-bold text-xs rounded-xl">
-                                      🛵 Em rota na rua ({mOrders.length} {mOrders.length === 1 ? 'parada restante' : 'paradas restantes'})
+                                  {isDriverInTransit ? (
+                                    <div className="flex-1 py-2 px-3 bg-blue-950/60 border border-blue-500/30 text-blue-300 text-center font-bold text-xs rounded-xl flex items-center justify-center gap-1.5">
+                                      <span>🛵</span>
+                                      <span>Em rota na rua ({mOrders.length} {mOrders.length === 1 ? 'parada restante' : 'paradas restantes'})</span>
                                     </div>
                                   ) : allOrdersReady ? (
                                     <button
