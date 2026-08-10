@@ -219,7 +219,8 @@ export default function App() {
           Math.abs((current.currentLat || 0) - lat) > 0.0001 ||
           Math.abs((current.currentLng || 0) - lng) > 0.0001;
 
-        if (!distChanged) return prevMotoboys;
+        const heartbeatDue = !current.locationUpdatedAt || Date.now() - current.locationUpdatedAt >= 10000;
+        if (!distChanged && !heartbeatDue) return prevMotoboys;
 
         const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() };
         saveMotoboyToCloud(updatedMotoboy);
@@ -288,12 +289,7 @@ export default function App() {
   };
 
   const handleAssignOrderToMotoboy = (orderId: string, motoboyId: string) => {
-    const targetMotoboy = motoboys.find(
-      (m) =>
-        m.id === motoboyId ||
-        (m.username && m.username.toLowerCase() === motoboyId.toLowerCase()) ||
-        m.name.toLowerCase() === motoboyId.toLowerCase()
-    );
+    const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
     if (!targetMotoboy) return;
 
     const orderObj = orders.find((o) => o.id === orderId);
@@ -314,7 +310,7 @@ export default function App() {
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
       activeOrdersCount: targetMotoboy.activeOrdersCount + 1,
-      status: targetMotoboy.status === 'delivering' ? 'delivering' : 'available',
+      status: targetMotoboy.status,
     };
 
     // Update local & cloud
@@ -328,12 +324,7 @@ export default function App() {
   };
 
   const handleAssignBatchToMotoboy = (orderIds: string[], motoboyId: string) => {
-    const targetMotoboy = motoboys.find(
-      (m) =>
-        m.id === motoboyId ||
-        (m.username && m.username.toLowerCase() === motoboyId.toLowerCase()) ||
-        m.name.toLowerCase() === motoboyId.toLowerCase()
-    );
+    const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
     if (!targetMotoboy || orderIds.length === 0) return;
 
     const updatedOrdersList = orders.map((o) => {
@@ -358,7 +349,7 @@ export default function App() {
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
       activeOrdersCount: targetMotoboy.activeOrdersCount + orderIds.length,
-      status: targetMotoboy.status === 'delivering' ? 'delivering' : 'available',
+      status: targetMotoboy.status,
     };
 
     setOrders(updatedOrdersList);
@@ -470,13 +461,7 @@ export default function App() {
 
     // If order goes in_transit, update motoboy status to delivering
     if (status === 'in_transit' && targetOrder.assignedMotoboyId) {
-      const targetMotoboy = motoboys.find(
-        (m) =>
-          m.id === targetOrder.assignedMotoboyId ||
-          (m.username && m.username.toLowerCase() === targetOrder.assignedMotoboyId?.toLowerCase()) ||
-          m.name.toLowerCase() === targetOrder.assignedMotoboyId?.toLowerCase() ||
-          (targetOrder.assignedMotoboyName && m.name.toLowerCase() === targetOrder.assignedMotoboyName.toLowerCase())
-      );
+      const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);
       if (targetMotoboy && targetMotoboy.status !== 'delivering') {
         const updatedMotoboy: Motoboy = {
           ...targetMotoboy,
@@ -490,21 +475,14 @@ export default function App() {
     // Update motoboy status & earnings if delivered
     if (status === 'delivered') {
       playDeliverySuccessSound();
-      const targetMotoboy = motoboys.find(
-        (m) =>
-          (targetOrder.assignedMotoboyId && m.id === targetOrder.assignedMotoboyId) ||
-          (m.username && targetOrder.assignedMotoboyId && m.username.toLowerCase() === targetOrder.assignedMotoboyId.toLowerCase()) ||
-          (m.name && targetOrder.assignedMotoboyId && m.name.toLowerCase() === targetOrder.assignedMotoboyId.toLowerCase()) ||
-          (m.name && targetOrder.assignedMotoboyName && m.name.toLowerCase() === targetOrder.assignedMotoboyName.toLowerCase())
-      );
+      const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);
 
       if (targetMotoboy) {
         const remainingActiveOrders = orders
           .filter(
             (o) =>
               o.id !== orderId &&
-              (o.assignedMotoboyId === targetMotoboy.id ||
-               (o.assignedMotoboyName && targetMotoboy.name && o.assignedMotoboyName.toLowerCase() === targetMotoboy.name.toLowerCase())) &&
+              o.assignedMotoboyId === targetMotoboy.id &&
               o.status !== 'delivered' &&
               o.status !== 'cancelled'
           )
@@ -602,9 +580,10 @@ export default function App() {
     const newM: Motoboy = {
       ...newMotoboyData,
       id: `m-${Date.now()}`,
-      status: 'available',
+      status: 'offline',
       activeOrdersCount: 0,
-      totalEarnedToday: newMotoboyData.fixedFee || 0,
+      totalEarnedToday: 0,
+      deliveriesCountToday: 0,
     };
 
     setMotoboys((prev) => [...prev, newM]);

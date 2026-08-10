@@ -93,7 +93,6 @@ export function subscribeToOrders(callback: (orders: Order[]) => void) {
         setDoc(docSnap.ref, { deliveredDate: today, deliveredTimestamp: order.deliveredTimestamp }, { merge: true }).catch(() => {});
       }
 
-      if (order.status === 'delivered' && order.deliveredDate !== today) return;
       list.push(order);
     });
     list.sort((a, b) => (b.codeNumber || 0) - (a.codeNumber || 0));
@@ -249,7 +248,6 @@ async function resetOperationalDataOnceForCleanTest() {
 
 export async function seedInitialDataIfEmpty() {
   try {
-    await resetOperationalDataOnceForCleanTest();
     const ref = doc(db, 'shifts', 'current_shift');
     if (!(await getDoc(ref)).exists()) {
       await setDoc(ref, { ...INITIAL_STORE_SHIFT, storeName: 'Hope Burger', storePhone: '(47) 99153-9855', storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313', storeLat: -26.91530418395996, storeLng: -49.1146354675293, adminPassword: 'hope2026' });

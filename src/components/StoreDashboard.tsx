@@ -144,9 +144,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     // Check orders currently assigned/linked to nextMotoboy
     const motoboyLinkedOrders = activeOrders.filter(
       (o) =>
-        (o.assignedMotoboyId === nextMotoboy.id ||
-          (nextMotoboy.username && o.assignedMotoboyId?.toLowerCase() === nextMotoboy.username.toLowerCase()) ||
-          (nextMotoboy.name && o.assignedMotoboyId?.toLowerCase() === nextMotoboy.name.toLowerCase())) &&
+        o.assignedMotoboyId === nextMotoboy.id &&
         o.status !== 'delivered' &&
         o.status !== 'cancelled'
     );
@@ -276,8 +274,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled');
   const readyAtCounter = orders.filter((o) => o.status === 'ready_at_counter');
   const unassignedOrders = activeOrders.filter((o) => !o.assignedMotoboyId);
-  const deliveredToday = orders.filter((o) => o.status === 'delivered');
-  const totalRevenue = orders.reduce((acc, o) => acc + o.total, 0);
+  const todayDateKey = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const deliveredToday = orders.filter((o) => o.status === 'delivered' && o.deliveredDate === todayDateKey);
+  const todayOrders = orders.filter((o) => o.createdDate === todayDateKey || o.deliveredDate === todayDateKey);
+  const totalRevenue = todayOrders.reduce((acc, o) => acc + o.total, 0);
   const getMotoboyLoad = (motoboyId: string) => activeOrders.filter((o) => o.assignedMotoboyId === motoboyId).length;
   const motoboysAvailable = motoboys
     .filter((m) => m.status === 'available')
@@ -1109,7 +1112,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">{formattedCurrency(totalRevenue)}</span>
-                <span className="text-[11px] text-slate-500 font-medium">{orders.length} pedidos</span>
+                <span className="text-[11px] text-slate-500 font-medium">{todayOrders.length} pedidos</span>
               </div>
             </div>
           </div>
@@ -1743,11 +1746,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                               .filter((ord) => {
                                 if (!selectedMotoboyId) return true;
                                 const focusedMb = motoboys.find((mb) => mb.id === selectedMotoboyId);
-                                return (
-                                  ord.assignedMotoboyId === selectedMotoboyId ||
-                                  (focusedMb && ord.assignedMotoboyName?.toLowerCase() === focusedMb.name.toLowerCase()) ||
-                                  (focusedMb?.username && ord.assignedMotoboyId?.toLowerCase() === focusedMb.username.toLowerCase())
-                                );
+                                return ord.assignedMotoboyId === selectedMotoboyId;
                               })
                               .map((ord, idx) => ({
                                 id: ord.id,
@@ -1806,10 +1805,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             (o) =>
                               o.status !== 'delivered' &&
                               o.status !== 'cancelled' &&
-                              (o.assignedMotoboyId === m.id ||
-                                o.assignedMotoboyName?.toLowerCase() === m.name.toLowerCase() ||
-                                (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||
-                                o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase())
+                              o.assignedMotoboyId === m.id
                           )
                           .sort((a, b) => (a.routeSequence || 0) - (b.routeSequence || 0));
 

@@ -113,10 +113,11 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     [orders, activeMotoboy?.id]
   );
 
-  const completedOrders = useMemo(
-    () => orders.filter((o) => o.status === 'delivered' && matchesDriver(o)),
-    [orders, activeMotoboy?.id]
-  );
+  const completedOrders = useMemo(() => {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return orders.filter((o) => o.status === 'delivered' && o.deliveredDate === today && matchesDriver(o));
+  }, [orders, activeMotoboy?.id]);
 
   const routeHasStarted = assignedOrders.some((o) => o.status === 'in_transit' || o.status === 'picked_up') || activeMotoboy?.status === 'delivering';
   const waitingForKitchen = assignedOrders.length > 0 && !routeHasStarted && assignedOrders.some((o) => o.status === 'pending' || o.status === 'preparing');

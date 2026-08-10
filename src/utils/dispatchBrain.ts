@@ -50,6 +50,13 @@ export function analyzeOperationalBrain(
 ) {
   const storeLat = shift.storeLat || -26.91530418395996;
   const storeLng = shift.storeLng || -49.1146354675293;
+  const nowDate = new Date();
+  const todayDateKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;
+  const getOrderCreatedTimestamp = (ord: Order) => {
+    const [year, month, day] = (ord.createdDate || todayDateKey).split('-').map(Number);
+    const [hour, minute] = (ord.createdAt || '00:00').split(':').map(Number);
+    return new Date(year, (month || 1) - 1, day || 1, hour || 0, minute || 0).getTime();
+  };
 
   // Active pending/ready orders needing dispatch (unassigned only)
   const pendingOrders = orders.filter(
@@ -61,9 +68,7 @@ export function analyzeOperationalBrain(
       (o) =>
         o.status !== 'delivered' &&
         o.status !== 'cancelled' &&
-        (o.assignedMotoboyId === m.id ||
-          (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||
-          (m.name && o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase()))
+        o.assignedMotoboyId === m.id
     );
   };
 
@@ -228,7 +233,7 @@ export function analyzeOperationalBrain(
   // Alert A: Delayed Orders or High Wait Time
   orders.forEach((ord) => {
     if (ord.status === 'pending' || ord.status === 'preparing' || ord.status === 'ready_at_counter') {
-      const createdTime = new Date(ord.createdAt).getTime();
+      const createdTime = getOrderCreatedTimestamp(ord);
       const elapsedMin = Math.round((now.getTime() - createdTime) / 60000);
 
       if (elapsedMin > 25) {
@@ -293,7 +298,7 @@ export function analyzeOperationalBrain(
   });
 
   // Alert D: Daily Savings
-  const deliveredToday = orders.filter((o) => o.status === 'delivered');
+  const deliveredToday = orders.filter((o) => o.status === 'delivered' && o.deliveredDate === todayDateKey);
   if (deliveredToday.length >= 3) {
     const estimatedKmSaved = (deliveredToday.length * 1.8).toFixed(1);
     alerts.push({
