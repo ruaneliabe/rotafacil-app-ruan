@@ -44,6 +44,41 @@ function cleanForFirestore(obj: any): any {
   return JSON.parse(JSON.stringify(obj, (key, value) => (value === undefined ? null : value)));
 }
 
+// A driver's operational identity is its immutable document ID, never the display name/username.
+// When a new account reuses an old name (e.g. "Ruan"), detach the old display-name fallback
+// from historical orders so the new account cannot inherit old deliveries or earnings.
+async function isolateHistoricalOrdersFromNewDriver(motoboy: Motoboy) {
+  const normalizedName = (motoboy.name || '').trim().toLowerCase();
+  if (!normalizedName) return;
+
+  const ordersSnapshot = await getDocs(collection(db, 'orders'));
+  const fixes = ordersSnapshot.docs
+    .filter((orderDoc) => {
+      const order = orderDoc.data() as Order;
+      const oldAssignedName = (order.assignedMotoboyName || '').trim().toLowerCase();
+      return Boolean(
+        oldAssignedName &&
+        oldAssignedName === normalizedName &&
+        order.assignedMotoboyId &&
+        order.assignedMotoboyId !== motoboy.id
+      );
+    })
+    .map((orderDoc) => {
+      const order = orderDoc.data() as Order;
+      return setDoc(
+        orderDoc.ref,
+        {
+          // Keep the old name for audits/history, but remove it from the live matching field.
+          historicalMotoboyName: order.assignedMotoboyName || null,
+          assignedMotoboyName: null,
+        },
+        { merge: true }
+      );
+    });
+
+  if (fixes.length > 0) await Promise.all(fixes);
+}
+
 export function subscribeToOrders(callback: (orders: Order[]) => void) {
   return onSnapshot(collection(db, 'orders'), (snapshot) => {
     const today = localDateKey();
@@ -132,9 +167,10 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
     const today = localDateKey();
     const ref = doc(db, 'motoboys', motoboy.id);
     const existing = await getDoc(ref);
+    const isNewDriver = !existing.exists();
     const existingData = existing.exists() ? ({ id: existing.id, ...existing.data() } as Motoboy) : null;
     const dailyBase = motoboy.statsDate === today ? motoboy : { ...motoboy, deliveriesCountToday: 0, totalEarnedToday: 0, statsDate: today };
-    let payload: Motoboy = !existing.exists()
+    let payload: Motoboy = isNewDriver
       ? { ...dailyBase, status: 'offline', activeOrdersCount: 0, totalEarnedToday: 0, deliveriesCountToday: 0, statsDate: today, joinedQueueAt: undefined, callingToCounterAt: undefined }
       : dailyBase;
 
@@ -160,6 +196,12 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
           callingToCounterAt: undefined,
         };
       }
+    }
+
+    // New account with a reused name must start from an isolated identity.
+    // Run before publishing it so the first realtime render already sees clean history.
+    if (isNewDriver) {
+      await isolateHistoricalOrdersFromNewDriver(payload);
     }
 
     await setDoc(ref, cleanForFirestore(payload), { merge: true });
