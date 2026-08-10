@@ -44,9 +44,6 @@ function cleanForFirestore(obj: any): any {
   return JSON.parse(JSON.stringify(obj, (key, value) => (value === undefined ? null : value)));
 }
 
-// A driver's operational identity is its immutable document ID, never the display name/username.
-// When a new account reuses an old name (e.g. "Ruan"), detach the old display-name fallback
-// from historical orders so the new account cannot inherit old deliveries or earnings.
 async function isolateHistoricalOrdersFromNewDriver(motoboy: Motoboy) {
   const normalizedName = (motoboy.name || '').trim().toLowerCase();
   if (!normalizedName) return;
@@ -68,7 +65,6 @@ async function isolateHistoricalOrdersFromNewDriver(motoboy: Motoboy) {
       return setDoc(
         orderDoc.ref,
         {
-          // Keep the old name for audits/history, but remove it from the live matching field.
           historicalMotoboyName: order.assignedMotoboyName || null,
           assignedMotoboyName: null,
         },
@@ -86,8 +82,6 @@ export function subscribeToOrders(callback: (orders: Order[]) => void) {
     snapshot.forEach((docSnap) => {
       let order = { id: docSnap.id, ...docSnap.data() } as Order;
 
-      // One-time migration for deliveries created before deliveredDate existed.
-      // They are considered delivered today now; from tomorrow on they leave "Hoje" automatically.
       if (order.status === 'delivered' && !order.deliveredDate) {
         order = { ...order, deliveredDate: today, deliveredTimestamp: order.deliveredTimestamp || Date.now() };
         setDoc(docSnap.ref, { deliveredDate: today, deliveredTimestamp: order.deliveredTimestamp }, { merge: true }).catch(() => {});
@@ -143,7 +137,6 @@ export async function saveOrderToCloud(order: Order) {
     };
     await setDoc(doc(db, 'orders', payload.id), cleanForFirestore(payload), { merge: true });
 
-    // Last delivery finished => driver returns to store, never directly to queue.
     if (payload.status === 'delivered' && payload.assignedMotoboyId) {
       const allOrders = await getDocs(collection(db, 'orders'));
       const hasRemaining = allOrders.docs.some((snap) => {
@@ -173,11 +166,6 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
       ? { ...dailyBase, status: 'offline', activeOrdersCount: 0, totalEarnedToday: 0, deliveriesCountToday: 0, statsDate: today, joinedQueueAt: undefined, callingToCounterAt: undefined }
       : dailyBase;
 
-    // returning_to_store is a protected operational state. Several realtime effects may still
-    // hold an older copy of the driver and try to write `available`/`delivering` after the
-    // last delivery. Those stale writes must never put the driver back in the queue.
-    // The only valid exit is an explicit "Cheguei à Loja", which creates a brand-new
-    // joinedQueueAt timestamp at the moment of confirmation.
     if (existingData?.status === 'returning_to_store' && payload.status !== 'returning_to_store') {
       const queueTimestamp = Number(payload.joinedQueueAt || 0);
       const isFreshArrivalConfirmation =
@@ -197,8 +185,6 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
       }
     }
 
-    // New account with a reused name must start from an isolated identity.
-    // Run before publishing it so the first realtime render already sees clean history.
     await setDoc(ref, cleanForFirestore(payload), { merge: true });
   } catch (err) { console.error('Error saving motoboy to cloud:', err); }
 }
@@ -230,20 +216,34 @@ export async function deleteAllOrdersFromCloud() {
 export async function clearAllDatabaseData() { await Promise.all([deleteAllOrdersFromCloud(), deleteAllMotoboysFromCloud()]); }
 export async function saveShiftToCloud(shift: StoreShift) { await setDoc(doc(db, 'shifts', 'current_shift'), shift, { merge: true }); }
 
-async function resetOperationalDataOnceForCleanTest() {
-  const markerRef = doc(db, 'system_flags', 'clean_test_reset_2026_08_10_v1');
+async function resetOperationalDataOnceForStorePilot() {
+  const markerRef = doc(db, 'system_flags', 'store_pilot_reset_2026_08_10_v2');
   if ((await getDoc(markerRef)).exists()) return;
+
   const shiftRef = doc(db, 'shifts', 'current_shift');
   const snap = await getDoc(shiftRef);
   const current = snap.exists() ? (snap.data() as StoreShift) : null;
   const preservedPassword = current?.adminPassword || INITIAL_STORE_SHIFT.adminPassword || 'hope2026';
+
   await clearAllDatabaseData();
-  await setDoc(shiftRef, { isOpen: false, openedAt: '', initialCash: 0, storeName: 'Hope Burger', storePhone: '(47) 99153-9855', storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313', storeLat: -26.91530418395996, storeLng: -49.1146354675293, adminPassword: preservedPassword });
+  await setDoc(shiftRef, {
+    isOpen: false,
+    openedAt: '',
+    initialCash: 0,
+    storeName: 'Hope Burger',
+    storePhone: '(47) 99153-9855',
+    storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
+    storeLat: -26.91530418395996,
+    storeLng: -49.1146354675293,
+    adminPassword: preservedPassword,
+  });
   await setDoc(markerRef, { completed: true, resetAt: Date.now(), preservedStoreAccess: true });
 }
 
 export async function seedInitialDataIfEmpty() {
   try {
+    await resetOperationalDataOnceForStorePilot();
+
     const ref = doc(db, 'shifts', 'current_shift');
     if (!(await getDoc(ref)).exists()) {
       await setDoc(ref, { ...INITIAL_STORE_SHIFT, storeName: 'Hope Burger', storePhone: '(47) 99153-9855', storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313', storeLat: -26.91530418395996, storeLng: -49.1146354675293, adminPassword: 'hope2026' });
