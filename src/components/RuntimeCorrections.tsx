@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { subscribeToMotoboys } from '../lib/firebase';
 
 /**
  * Small compatibility layer for the current production UI.
@@ -6,6 +7,53 @@ import { useEffect } from 'react';
  */
 export function RuntimeCorrections() {
   useEffect(() => {
+    let logoutInProgress = false;
+
+    const clearMotoboySessionAndReturnToLogin = () => {
+      if (logoutInProgress) return;
+      logoutInProgress = true;
+
+      try {
+        localStorage.removeItem('rota_facil_session');
+        localStorage.removeItem('rota_facil_active_motoboy_id');
+        sessionStorage.removeItem('rota_facil_session');
+        sessionStorage.removeItem('rota_facil_active_motoboy_id');
+      } catch {
+        // Storage may be unavailable in some private-browser modes.
+      }
+
+      window.location.replace(`${window.location.origin}${window.location.pathname}?login=1&t=${Date.now()}`);
+    };
+
+    // Global access guard. This runs independently from App/MotoboyApp rendering.
+    // If a logged-in driver is removed (individually or via "Remover todos"),
+    // Firestore is authoritative and the stale phone session is destroyed immediately.
+    const unsubscribeSessionGuard = subscribeToMotoboys((cloudMotoboys) => {
+      if (logoutInProgress) return;
+
+      try {
+        const rawSession = localStorage.getItem('rota_facil_session');
+        if (!rawSession) return;
+
+        const savedSession = JSON.parse(rawSession) as {
+          role?: string;
+          motoboyId?: string;
+        };
+
+        if (savedSession.role !== 'motoboy' || !savedSession.motoboyId) return;
+
+        const currentDriver = cloudMotoboys.find((m) => m.id === savedSession.motoboyId) as
+          | (typeof cloudMotoboys[number] & { accessRevokedAt?: number | null })
+          | undefined;
+
+        if (!currentDriver || Boolean(currentDriver.accessRevokedAt)) {
+          clearMotoboySessionAndReturnToLogin();
+        }
+      } catch (err) {
+        console.warn('Falha ao validar sessão global do motoboy:', err);
+      }
+    });
+
     const applyUiCorrections = () => {
       const buttons = Array.from(document.querySelectorAll('button'));
       const arrivalButtons = buttons.filter(
@@ -60,6 +108,7 @@ export function RuntimeCorrections() {
     const midnightTimer = window.setTimeout(() => window.location.reload(), nextDay.getTime() - now.getTime());
 
     return () => {
+      unsubscribeSessionGuard();
       observer.disconnect();
       window.clearTimeout(midnightTimer);
     };
