@@ -88,7 +88,7 @@ export function subscribeToMotoboys(callback: (motoboys: Motoboy[]) => void) {
       });
 
       // A deleted driver must lose access immediately on every device.
-      // The Firestore collection is authoritative; localStorage is only a local session cache.
+      // Firestore is authoritative; local browser storage is only a session cache.
       if (typeof window !== 'undefined') {
         try {
           const savedSession = window.localStorage.getItem('rota_facil_session');
@@ -104,9 +104,13 @@ export function subscribeToMotoboys(callback: (motoboys: Motoboy[]) => void) {
               if (!driverStillExists) {
                 window.localStorage.removeItem('rota_facil_session');
                 window.localStorage.removeItem('rota_facil_active_motoboy_id');
+                window.sessionStorage.removeItem('rota_facil_session');
+                window.sessionStorage.removeItem('rota_facil_active_motoboy_id');
 
-                // Reload after clearing the stale session so App opens directly on login.
-                window.setTimeout(() => window.location.reload(), 0);
+                // Force a clean navigation so React cannot keep rendering a stale in-memory session.
+                window.setTimeout(() => {
+                  window.location.replace(`${window.location.origin}${window.location.pathname}`);
+                }, 0);
                 return;
               }
             }
@@ -155,7 +159,24 @@ export async function saveOrderToCloud(order: Order) {
 export async function saveMotoboyToCloud(motoboy: Motoboy) {
   try {
     const docRef = doc(db, 'motoboys', motoboy.id);
-    await setDoc(docRef, cleanForFirestore(motoboy), { merge: true });
+    const existing = await getDoc(docRef);
+
+    // Registration and queue participation are separate actions.
+    // A brand-new driver always starts offline and with zero daily earnings.
+    // Only a later explicit action from the driver's app may set status='available'.
+    const payload: Motoboy = !existing.exists()
+      ? {
+          ...motoboy,
+          status: 'offline',
+          activeOrdersCount: 0,
+          totalEarnedToday: 0,
+          deliveriesCountToday: 0,
+          joinedQueueAt: undefined,
+          callingToCounterAt: undefined,
+        }
+      : motoboy;
+
+    await setDoc(docRef, cleanForFirestore(payload), { merge: true });
   } catch (err) {
     console.error('Error saving motoboy to cloud:', err);
   }
