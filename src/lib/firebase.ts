@@ -53,23 +53,11 @@ async function isolateHistoricalOrdersFromNewDriver(motoboy: Motoboy) {
     .filter((orderDoc) => {
       const order = orderDoc.data() as Order;
       const oldAssignedName = (order.assignedMotoboyName || '').trim().toLowerCase();
-      return Boolean(
-        oldAssignedName &&
-        oldAssignedName === normalizedName &&
-        order.assignedMotoboyId &&
-        order.assignedMotoboyId !== motoboy.id
-      );
+      return Boolean(oldAssignedName && oldAssignedName === normalizedName && order.assignedMotoboyId && order.assignedMotoboyId !== motoboy.id);
     })
     .map((orderDoc) => {
       const order = orderDoc.data() as Order;
-      return setDoc(
-        orderDoc.ref,
-        {
-          historicalMotoboyName: order.assignedMotoboyName || null,
-          assignedMotoboyName: null,
-        },
-        { merge: true }
-      );
+      return setDoc(orderDoc.ref, { historicalMotoboyName: order.assignedMotoboyName || null, assignedMotoboyName: null }, { merge: true });
     });
 
   if (fixes.length > 0) await Promise.all(fixes);
@@ -81,12 +69,10 @@ export function subscribeToOrders(callback: (orders: Order[]) => void) {
     const list: Order[] = [];
     snapshot.forEach((docSnap) => {
       let order = { id: docSnap.id, ...docSnap.data() } as Order;
-
       if (order.status === 'delivered' && !order.deliveredDate) {
         order = { ...order, deliveredDate: today, deliveredTimestamp: order.deliveredTimestamp || Date.now() };
         setDoc(docSnap.ref, { deliveredDate: today, deliveredTimestamp: order.deliveredTimestamp }, { merge: true }).catch(() => {});
       }
-
       list.push(order);
     });
     list.sort((a, b) => (b.codeNumber || 0) - (a.codeNumber || 0));
@@ -130,11 +116,7 @@ export function subscribeToShift(callback: (shift: StoreShift) => void) {
 export async function saveOrderToCloud(order: Order) {
   try {
     const today = localDateKey();
-    const payload: Order = {
-      ...order,
-      createdDate: order.createdDate || today,
-      ...(order.status === 'delivered' ? { deliveredDate: order.deliveredDate || today, deliveredTimestamp: order.deliveredTimestamp || Date.now() } : {}),
-    };
+    const payload: Order = { ...order, createdDate: order.createdDate || today, ...(order.status === 'delivered' ? { deliveredDate: order.deliveredDate || today, deliveredTimestamp: order.deliveredTimestamp || Date.now() } : {}) };
     await setDoc(doc(db, 'orders', payload.id), cleanForFirestore(payload), { merge: true });
 
     if (payload.status === 'delivered' && payload.assignedMotoboyId) {
@@ -146,9 +128,7 @@ export async function saveOrderToCloud(order: Order) {
       });
       if (!hasRemaining) {
         const driverRef = doc(db, 'motoboys', payload.assignedMotoboyId);
-        if ((await getDoc(driverRef)).exists()) {
-          await setDoc(driverRef, { status: 'returning_to_store', activeOrdersCount: 0, joinedQueueAt: null, callingToCounterAt: null, statsDate: today }, { merge: true });
-        }
+        if ((await getDoc(driverRef)).exists()) await setDoc(driverRef, { status: 'returning_to_store', activeOrdersCount: 0, joinedQueueAt: null, callingToCounterAt: null, statsDate: today }, { merge: true });
       }
     }
   } catch (err) { console.error('Error saving order to cloud:', err); }
@@ -168,21 +148,8 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
 
     if (existingData?.status === 'returning_to_store' && payload.status !== 'returning_to_store') {
       const queueTimestamp = Number(payload.joinedQueueAt || 0);
-      const isFreshArrivalConfirmation =
-        payload.status === 'available' &&
-        payload.activeOrdersCount === 0 &&
-        queueTimestamp > 0 &&
-        Math.abs(Date.now() - queueTimestamp) <= 15000;
-
-      if (!isFreshArrivalConfirmation) {
-        payload = {
-          ...payload,
-          status: 'returning_to_store',
-          activeOrdersCount: 0,
-          joinedQueueAt: undefined,
-          callingToCounterAt: undefined,
-        };
-      }
+      const isFreshArrivalConfirmation = payload.status === 'available' && payload.activeOrdersCount === 0 && queueTimestamp > 0 && Math.abs(Date.now() - queueTimestamp) <= 15000;
+      if (!isFreshArrivalConfirmation) payload = { ...payload, status: 'returning_to_store', activeOrdersCount: 0, joinedQueueAt: undefined, callingToCounterAt: undefined };
     }
 
     await setDoc(ref, cleanForFirestore(payload), { merge: true });
@@ -217,7 +184,8 @@ export async function clearAllDatabaseData() { await Promise.all([deleteAllOrder
 export async function saveShiftToCloud(shift: StoreShift) { await setDoc(doc(db, 'shifts', 'current_shift'), shift, { merge: true }); }
 
 async function resetOperationalDataOnceForStorePilot() {
-  const markerRef = doc(db, 'system_flags', 'store_pilot_reset_2026_08_10_v2');
+  // v3 intentionally uses a fresh marker: v2 could race with realtime listeners and old state.
+  const markerRef = doc(db, 'system_flags', 'store_pilot_reset_2026_08_10_v3');
   if ((await getDoc(markerRef)).exists()) return;
 
   const shiftRef = doc(db, 'shifts', 'current_shift');
@@ -243,10 +211,12 @@ async function resetOperationalDataOnceForStorePilot() {
 export async function seedInitialDataIfEmpty() {
   try {
     await resetOperationalDataOnceForStorePilot();
-
     const ref = doc(db, 'shifts', 'current_shift');
     if (!(await getDoc(ref)).exists()) {
       await setDoc(ref, { ...INITIAL_STORE_SHIFT, storeName: 'Hope Burger', storePhone: '(47) 99153-9855', storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313', storeLat: -26.91530418395996, storeLng: -49.1146354675293, adminPassword: 'hope2026' });
     }
-  } catch (err) { console.warn('Could not seed initial data:', err); }
+  } catch (err) {
+    console.warn('Could not seed/reset initial data:', err);
+    throw err;
+  }
 }
