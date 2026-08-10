@@ -58,7 +58,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Security/Operation Error: ', JSON.stringify(errInfo));
 }
 
-
 // Realtime listeners
 export function subscribeToOrders(callback: (orders: Order[]) => void) {
   const colRef = collection(db, 'orders');
@@ -69,7 +68,6 @@ export function subscribeToOrders(callback: (orders: Order[]) => void) {
       snapshot.forEach((docSnap) => {
         list.push({ id: docSnap.id, ...docSnap.data() } as Order);
       });
-      // Sort by codeNumber desc
       list.sort((a, b) => (b.codeNumber || 0) - (a.codeNumber || 0));
       callback(list);
     },
@@ -111,12 +109,10 @@ export function subscribeToShift(callback: (shift: StoreShift) => void) {
   );
 }
 
-// Clean undefined values to prevent Firestore error
 function cleanForFirestore(obj: any): any {
   return JSON.parse(JSON.stringify(obj, (key, value) => (value === undefined ? null : value)));
 }
 
-// Write functions
 export async function saveOrderToCloud(order: Order) {
   try {
     const docRef = doc(db, 'orders', order.id);
@@ -152,6 +148,7 @@ export async function deleteAllMotoboysFromCloud() {
     await Promise.all(deletePromises);
   } catch (err) {
     console.error('Error deleting all motoboys from cloud:', err);
+    throw err;
   }
 }
 
@@ -163,6 +160,7 @@ export async function deleteAllOrdersFromCloud() {
     await Promise.all(deletePromises);
   } catch (err) {
     console.error('Error deleting all orders from cloud:', err);
+    throw err;
   }
 }
 
@@ -171,6 +169,7 @@ export async function clearAllDatabaseData() {
     await Promise.all([deleteAllOrdersFromCloud(), deleteAllMotoboysFromCloud()]);
   } catch (err) {
     console.error('Error clearing all database data:', err);
+    throw err;
   }
 }
 
@@ -183,9 +182,46 @@ export async function saveShiftToCloud(shift: StoreShift) {
   }
 }
 
-// Ensure store shift configuration exists if database is new
+// One-time clean slate requested for the real store test.
+// This removes all operational data but preserves the store password.
+// The Firestore marker prevents a future device/browser from clearing test data again.
+async function resetOperationalDataOnceForCleanTest() {
+  const resetMarkerRef = doc(db, 'system_flags', 'clean_test_reset_2026_08_10_v1');
+  const marker = await getDoc(resetMarkerRef);
+  if (marker.exists()) return;
+
+  const shiftRef = doc(db, 'shifts', 'current_shift');
+  const currentShiftSnap = await getDoc(shiftRef);
+  const currentShift = currentShiftSnap.exists() ? (currentShiftSnap.data() as StoreShift) : null;
+  const preservedPassword = currentShift?.adminPassword || INITIAL_STORE_SHIFT.adminPassword || 'hope2026';
+
+  await clearAllDatabaseData();
+
+  const cleanShift: StoreShift = {
+    isOpen: false,
+    openedAt: '',
+    initialCash: 0,
+    storeName: 'Hope Burger',
+    storePhone: '(47) 99153-9855',
+    storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
+    storeLat: -26.91530418395996,
+    storeLng: -49.1146354675293,
+    adminPassword: preservedPassword,
+  };
+
+  await setDoc(shiftRef, cleanShift);
+  await setDoc(resetMarkerRef, {
+    completed: true,
+    resetAt: Date.now(),
+    preservedStoreAccess: true,
+  });
+}
+
+// Ensure store configuration exists and perform the requested one-time clean reset.
 export async function seedInitialDataIfEmpty() {
   try {
+    await resetOperationalDataOnceForCleanTest();
+
     const shiftDoc = await getDoc(doc(db, 'shifts', 'current_shift'));
     if (!shiftDoc.exists()) {
       const hopeShift: StoreShift = {
@@ -200,6 +236,6 @@ export async function seedInitialDataIfEmpty() {
       await setDoc(doc(db, 'shifts', 'current_shift'), hopeShift);
     }
   } catch (err) {
-    console.warn('Could not seed initial shift data:', err);
+    console.warn('Could not seed/reset initial shift data:', err);
   }
 }
