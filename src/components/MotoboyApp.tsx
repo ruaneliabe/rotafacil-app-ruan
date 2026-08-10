@@ -101,6 +101,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     return isLockedToMotoboy ? undefined : motoboys[0];
   }, [motoboys, activeMotoboyId, initialMotoboyId, isLockedToMotoboy]);
 
+  // A driver owns an order ONLY by immutable driver ID. Never by name/username.
   const matchesDriver = (order: Order) => Boolean(
     activeMotoboy?.id && order.assignedMotoboyId === activeMotoboy.id
   );
@@ -116,6 +117,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     () => orders.filter((o) => o.status === 'delivered' && matchesDriver(o)),
     [orders, activeMotoboy?.id]
   );
+
+  const routeHasStarted = assignedOrders.some((o) => o.status === 'in_transit' || o.status === 'picked_up') || activeMotoboy?.status === 'delivering';
+  const waitingForKitchen = assignedOrders.length > 0 && !routeHasStarted && assignedOrders.some((o) => o.status === 'pending' || o.status === 'preparing');
+  const readyForPickup = assignedOrders.length > 0 && !routeHasStarted && assignedOrders.every((o) => o.status === 'ready_at_counter' || o.status === 'picked_up');
 
   const arranqueAmount = activeMotoboy?.fixedFee && activeMotoboy.fixedFee > 0 ? activeMotoboy.fixedFee : 0;
   const deliveryFeesTotal = completedOrders.reduce(
@@ -231,9 +236,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           <div className="min-w-0">
             <h3 className="font-extrabold text-base text-white leading-tight truncate">{activeMotoboy?.name}</h3>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className={`w-2 h-2 rounded-full ${activeMotoboy?.status === 'offline' ? 'bg-rose-400' : activeMotoboy?.status === 'busy' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-              <span className="text-[11px] font-bold text-slate-300">
-                {activeMotoboy?.status === 'offline' ? 'Offline' : activeMotoboy?.status === 'busy' ? 'Pausado' : activeMotoboy?.status === 'returning_to_store' ? 'Voltando para a loja' : assignedOrders.length ? 'Em rota' : 'Na fila da loja'}
+              <span className={`w-2 h-2 rounded-full ${activeMotoboy?.status === 'offline' ? 'bg-rose-400' : waitingForKitchen ? 'bg-amber-400' : activeMotoboy?.status === 'busy' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+              <span className={`text-[11px] font-bold ${waitingForKitchen ? 'text-amber-300' : 'text-slate-300'}`}>
+                {activeMotoboy?.status === 'offline' ? 'Offline' : activeMotoboy?.status === 'busy' ? 'Pausado' : activeMotoboy?.status === 'returning_to_store' ? '🏢 Voltando p/ Loja' : waitingForKitchen ? '🍳 Aguardando cozinha' : readyForPickup ? '📦 Pedido pronto para retirada' : routeHasStarted ? '🛵 Em rota' : '🟢 Na fila da loja'}
               </span>
             </div>
           </div>
@@ -241,7 +246,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         <div className="flex gap-1.5">
           <button onClick={() => setIsDailyReportModalOpen(true)} className="p-2 rounded-xl bg-slate-800 text-amber-300 border border-slate-700"><FileText className="w-4 h-4" /></button>
           <button onClick={() => setShowDevGpsPanel(!showDevGpsPanel)} className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700"><Zap className="w-4 h-4" /></button>
-          <button onClick={handleLogoutAccount} className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 hover:text-rose-300"><LogOut className="w-4 h-4" /></button>
+          <button onClick={handleLogoutAccount} className="p-2 rounded-xl bg-rose-950 text-rose-300 border border-rose-800"><LogOut className="w-4 h-4" /></button>
         </div>
       </div>
 
@@ -252,9 +257,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       )}
 
       {notificationPermission !== 'granted' && (
-        <div className="bg-slate-800 text-white px-3.5 py-2 text-xs font-bold flex items-center justify-between border-b border-slate-700">
-          <span className="truncate text-slate-200">🔔 Ative alertas de novos pedidos</span>
-          <button onClick={requestNotificationPermission} className="px-2.5 py-1 bg-amber-400 text-slate-950 rounded-lg text-[10px] font-black">ATIVAR</button>
+        <div className="bg-amber-500 text-slate-950 px-3.5 py-2 text-xs font-bold flex items-center justify-between">
+          <span className="truncate">🔔 Ative alertas de novos pedidos</span>
+          <button onClick={requestNotificationPermission} className="px-2.5 py-1 bg-slate-950 text-amber-300 rounded-lg text-[10px] font-black">ATIVAR</button>
         </div>
       )}
 
@@ -268,24 +273,17 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       <div className="bg-slate-100 px-3.5 py-3 border-b border-slate-200">
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-white p-2.5 rounded-2xl border border-slate-200 text-center">
-            <span className="text-[10px] font-black text-slate-500 uppercase block">Na bag</span>
+            <span className="text-[10px] font-black text-slate-500 uppercase block">🎒 Na bag</span>
             <strong className="text-2xl font-black text-slate-950 block">{assignedOrders.length}</strong>
             <span className="text-[10px] text-slate-400 font-bold">pedidos ativos</span>
           </div>
           <div className="bg-white p-2.5 rounded-2xl border border-slate-200 text-center">
-            <span className="text-[10px] font-black text-slate-500 uppercase block">Entregas</span>
+            <span className="text-[10px] font-black text-slate-500 uppercase block">📦 Entregas</span>
             <strong className="text-2xl font-black text-slate-950 block">{completedOrders.length}</strong>
             <span className="text-[10px] text-slate-400 font-bold">concluídas hoje</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsEarningsModalOpen(true)}
-            className="bg-amber-400 hover:bg-amber-300 p-2.5 rounded-2xl border border-amber-500 text-left transition-all shadow-sm group overflow-hidden"
-          >
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[10px] font-black text-slate-900 uppercase tracking-wide">💰 Ganhos hoje</span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-700" />
-            </div>
+          <button type="button" onClick={() => setIsEarningsModalOpen(true)} className="bg-amber-400 hover:bg-amber-300 p-2.5 rounded-2xl border border-amber-500 text-left transition-all shadow-sm group overflow-hidden">
+            <div className="flex items-center justify-between gap-1"><span className="text-[10px] font-black text-slate-900 uppercase tracking-wide">💰 Ganhos hoje</span><ChevronRight className="w-3.5 h-3.5 text-slate-700" /></div>
             <strong className="text-lg font-black text-slate-950 block mt-1 leading-none whitespace-nowrap">{formattedCurrency(totalEarnedDisplay)}</strong>
             <span className="text-[9px] text-slate-700 font-bold block mt-1">toque para ver resumo</span>
           </button>
@@ -293,19 +291,19 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
         {assignedOrders.length > 0 && (
           <div className="mt-3 pt-2 border-t border-slate-200">
-            <div className="flex items-center justify-between text-[10px] font-bold mb-1.5 text-slate-500">
-              <span>Rota ativa</span>
-              <span>{assignedOrders.length} {assignedOrders.length === 1 ? 'parada restante' : 'paradas restantes'}</span>
+            <div className="flex items-center justify-between text-[10px] font-black mb-1">
+              <span className="text-slate-600">{routeHasStarted ? 'Rota ativa' : waitingForKitchen ? 'Pedido vinculado' : 'Retirada'}</span>
+              <span className={waitingForKitchen ? 'text-amber-700' : 'text-slate-600'}>{routeHasStarted ? `${assignedOrders.length} ${assignedOrders.length === 1 ? 'parada restante' : 'paradas restantes'}` : waitingForKitchen ? 'Aguardando cozinha' : 'Pronto para retirada'}</span>
             </div>
-            <div className="h-1 bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-slate-500 rounded-full" style={{ width: '70%' }} /></div>
+            <div className="h-1 bg-slate-200 rounded-full overflow-hidden"><div className={`h-full rounded-full ${waitingForKitchen ? 'bg-amber-400' : 'bg-slate-500'}`} style={{ width: routeHasStarted ? '70%' : waitingForKitchen ? '20%' : '40%' }} /></div>
           </div>
         )}
       </div>
 
       <div className="bg-slate-100 px-2 py-2 border-b border-slate-200 flex gap-1.5">
-        <button onClick={() => setActiveTab('active')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'active' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>{assignedOrders.length ? 'Minha Rota' : 'Fila'} <span className={`ml-1 px-1.5 py-0.5 rounded-full ${activeTab === 'active' ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 text-slate-700'}`}>{assignedOrders.length}</span></button>
-        <button onClick={() => setActiveTab('map')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'map' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>Mapa</button>
-        <button onClick={() => setActiveTab('completed')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'completed' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300 text-slate-700'}`}>Histórico <span className="ml-1 text-slate-400">{completedOrders.length}</span></button>
+        <button onClick={() => setActiveTab('active')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'active' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300'}`}>{assignedOrders.length ? (routeHasStarted ? 'Minha Rota' : 'Meus Pedidos') : 'Fila'} <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950">{assignedOrders.length}</span></button>
+        <button onClick={() => setActiveTab('map')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'map' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300'}`}>Mapa</button>
+        <button onClick={() => setActiveTab('completed')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'completed' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300'}`}>Histórico <span className="ml-1 text-slate-400">{completedOrders.length}</span></button>
       </div>
 
       <div className="p-3.5 flex-1 bg-slate-50 overflow-y-auto">
@@ -314,111 +312,55 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-4">
               {activeMotoboy?.status === 'returning_to_store' ? (
                 <>
-                  <div className="text-4xl">🏢</div>
-                  <h4 className="text-xl font-black">Voltando para a loja</h4>
-                  <p className="text-xs text-slate-500">Ao chegar, confirme abaixo para entrar no final da fila.</p>
-                  <button onClick={() => onConfirmArrivalAtStore?.(activeMotoboy.id)} className="w-full py-3 bg-slate-900 text-white font-black rounded-xl">📍 Cheguei à loja</button>
+                  <div className="text-4xl">🏢</div><h4 className="text-xl font-black">Voltando para a loja</h4><p className="text-xs text-slate-500">Ao chegar, confirme abaixo para entrar no final da fila.</p><button onClick={() => onConfirmArrivalAtStore?.(activeMotoboy.id)} className="w-full py-3 bg-slate-900 text-white font-black rounded-xl">📍 Cheguei à loja</button>
                 </>
               ) : activeMotoboy?.status === 'offline' ? (
-                <>
-                  <div className="text-4xl">⏱️</div>
-                  <h4 className="text-xl font-black">Expediente encerrado</h4>
-                  <p className="text-xs text-slate-500">Entre na fila somente quando estiver pronto para trabalhar.</p>
-                  <button onClick={() => { onUpdateMotoboyStatus?.(activeMotoboy.id, 'available'); setAvailableSince(Date.now()); setShiftStartedAt(Date.now()); setShiftEndedAt(null); }} className="w-full py-3.5 bg-slate-900 text-white font-black rounded-xl">Iniciar expediente / Entrar na fila</button>
-                </>
+                <><div className="text-4xl">⏱️</div><h4 className="text-xl font-black">Expediente encerrado</h4><p className="text-xs text-slate-500">Entre na fila somente quando estiver pronto para trabalhar.</p><button onClick={() => { onUpdateMotoboyStatus?.(activeMotoboy.id, 'available'); setAvailableSince(Date.now()); setShiftStartedAt(Date.now()); setShiftEndedAt(null); }} className="w-full py-3.5 bg-slate-900 text-white font-black rounded-xl">Iniciar expediente / Entrar na fila</button></>
               ) : activeMotoboy?.status === 'busy' ? (
-                <>
-                  <div className="text-4xl">⏸️</div>
-                  <h4 className="text-xl font-black">Disponibilidade pausada</h4>
-                  <button onClick={() => onUpdateMotoboyStatus?.(activeMotoboy.id, 'available')} className="w-full py-3 bg-slate-900 text-white font-black rounded-xl">Voltar para a fila</button>
-                </>
+                <><div className="text-4xl">⏸️</div><h4 className="text-xl font-black">Disponibilidade pausada</h4><button onClick={() => onUpdateMotoboyStatus?.(activeMotoboy.id, 'available')} className="w-full py-3 bg-slate-900 text-white font-black rounded-xl">Voltar para a fila</button></>
               ) : (
                 <>
-                  <div className="flex justify-center gap-2 flex-wrap">
-                    <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs font-black">● DISPONÍVEL NA LOJA</span>
-                    <button onClick={requestWakeLock} className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-xs font-black">📱 Tela ligada: {isWakeLockActive ? 'Ativada' : 'Ativar'}</button>
-                  </div>
-                  <div className="border border-slate-200 rounded-2xl p-4">
-                    <strong className="text-4xl font-black block">{queuePos || 1}º da fila</strong>
-                    <span className="text-slate-600 font-black text-sm">{queuePos <= 1 ? 'Próximo a receber um pedido' : `${queuePos - 1} à sua frente`}</span>
-                    <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100">
-                      <div className="bg-slate-50 rounded-xl p-2"><span className="text-[10px] text-slate-500 font-bold block">Estimativa</span><strong>~{Math.max(2, (queuePos || 1) * 2)} min</strong></div>
-                      <div className="bg-slate-50 rounded-xl p-2"><span className="text-[10px] text-slate-500 font-bold block">Na fila</span><strong>{Math.max(0, Math.floor((Date.now() - (activeMotoboy.joinedQueueAt || availableSince)) / 60000))} min</strong></div>
-                    </div>
-                  </div>
-                  <button onClick={() => onUpdateMotoboyStatus?.(activeMotoboy.id, 'busy')} className="w-full py-3 border border-slate-300 rounded-xl font-black text-slate-700">Pausar disponibilidade</button>
-                  <button onClick={handleFinishShift} className="w-full py-3 bg-slate-900 text-slate-300 border border-slate-700 rounded-xl font-black">Encerrar expediente</button>
-                  <div className="pt-4 border-t border-slate-200 text-left">
-                    <h6 className="text-xs font-black uppercase text-slate-700">Outros na fila ({Math.max(0, availableDrivers.length - 1)})</h6>
-                    <div className="mt-2 space-y-1.5">
-                      {availableDrivers.filter((m) => m.id !== activeMotoboy.id).map((m) => <div key={m.id} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">{m.name}</div>)}
-                    </div>
-                  </div>
+                  <div className="flex justify-center gap-2 flex-wrap"><span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs font-black">● DISPONÍVEL NA LOJA</span><button onClick={requestWakeLock} className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs font-black">📱 Tela ligada: {isWakeLockActive ? 'Ativada' : 'Ativar'}</button></div>
+                  <div className="border border-slate-200 rounded-2xl p-4"><strong className="text-4xl font-black block">{queuePos || 1}º da fila</strong><span className="text-slate-600 font-black text-sm">{queuePos <= 1 ? 'Próximo a receber um pedido' : `${queuePos - 1} à sua frente`}</span><div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100"><div className="bg-slate-50 rounded-xl p-2"><span className="text-[10px] text-slate-500 font-bold block">Estimativa</span><strong>~{Math.max(2, (queuePos || 1) * 2)} min</strong></div><div className="bg-slate-50 rounded-xl p-2"><span className="text-[10px] text-slate-500 font-bold block">Na fila</span><strong>{Math.max(0, Math.floor((Date.now() - (activeMotoboy.joinedQueueAt || availableSince)) / 60000))} min</strong></div></div></div>
+                  <button onClick={() => onUpdateMotoboyStatus?.(activeMotoboy.id, 'busy')} className="w-full py-3 border border-slate-300 rounded-xl font-black">Pausar disponibilidade</button>
+                  <button onClick={handleFinishShift} className="w-full py-3 bg-slate-900 text-rose-300 border border-rose-500/40 rounded-xl font-black">Encerrar expediente</button>
+                  <div className="pt-4 border-t border-slate-200 text-left"><h6 className="text-xs font-black uppercase">Outros na fila ({Math.max(0, availableDrivers.length - 1)})</h6><div className="mt-2 space-y-1.5">{availableDrivers.filter((m) => m.id !== activeMotoboy.id).map((m) => <div key={m.id} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">{m.name}</div>)}</div></div>
                 </>
               )}
             </div>
           ) : (
             <div className="space-y-3 pb-4">
-              <div className="w-full py-3 px-4 bg-slate-900 border border-slate-700 rounded-2xl flex items-center justify-between text-xs font-bold text-slate-300">
-                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Em rota</span><span>{assignedOrders.length} {assignedOrders.length === 1 ? 'entrega' : 'entregas'}</span>
-              </div>
+              <div className={`w-full py-3 px-4 border rounded-2xl flex items-center justify-between text-xs font-black ${waitingForKitchen ? 'bg-slate-900 border-amber-400/40 text-amber-300' : 'bg-slate-900 border-slate-700 text-slate-300'}`}><span>{waitingForKitchen ? '🍳 Aguardando cozinha' : readyForPickup ? '📦 Pronto para retirada' : '● Em rota'}</span><span className="text-slate-400">{assignedOrders.length} {assignedOrders.length === 1 ? 'pedido' : 'pedidos'}</span></div>
               {assignedOrders.map((order, index) => {
                 const isFirstOrder = index === 0;
                 const isExpanded = isFirstOrder || manualExpandedId === order.id;
                 const hasArrived = Boolean(arrivedOrderIds[order.id]);
                 const isInTransit = order.status === 'in_transit' || (activeMotoboy?.status === 'delivering' && isFirstOrder);
+                const isKitchenWaiting = order.status === 'pending' || order.status === 'preparing';
                 const streetLine = order.street || order.address;
                 const distance = calculateDistanceKm(deviceGps?.lat || activeMotoboy?.currentLat || shift.storeLat, deviceGps?.lng || activeMotoboy?.currentLng || shift.storeLng, order.lat, order.lng);
 
-                if (!isExpanded) {
-                  return <button key={order.id} onClick={() => setManualExpandedId(order.id)} className="w-full bg-white p-3 rounded-2xl border border-slate-200 text-left flex justify-between"><span><strong>#{order.codeNumber}</strong> • {order.neighborhood}</span><span className="text-slate-400 text-xs">Toque para ver</span></button>;
-                }
+                if (!isExpanded) return <button key={order.id} onClick={() => setManualExpandedId(order.id)} className="w-full bg-white p-3 rounded-2xl border border-slate-200 text-left flex justify-between"><span><strong>#{order.codeNumber}</strong> • {order.neighborhood}</span><span className="text-slate-400 text-xs">Toque para ver</span></button>;
 
                 return (
-                  <div key={order.id} className={`rounded-2xl border overflow-hidden bg-white ${isFirstOrder ? 'border-slate-300 shadow-md' : 'border-slate-200'}`}>
+                  <div key={order.id} className="rounded-2xl border border-slate-300 overflow-hidden bg-white shadow-sm">
                     <div className="bg-slate-900 text-white px-4 py-3 flex justify-between items-center"><span className="font-black text-xs text-slate-300">{isFirstOrder ? 'ENTREGA ATUAL' : `${index + 1}ª PARADA`}</span><strong className="text-amber-300">#{order.codeNumber}</strong></div>
                     <div className="p-4 space-y-3">
-                      <div className="bg-slate-950 text-white p-4 rounded-2xl">
-                        <div className="flex justify-between text-xs font-black"><span className="text-slate-400">PEDIDO #{order.codeNumber}</span><span className="text-slate-300">📍 {(order.neighborhood || 'Centro').toUpperCase()}</span></div>
-                        <h2 className="text-2xl font-black mt-2">{streetLine}</h2>
-                        <div className="flex gap-2 mt-3"><span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-slate-300 text-xs font-black">~{Math.max(2, Math.round((order.estimatedMinutes || 8) * 0.5))} min</span><span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-slate-300 text-xs font-black">~{distance.toFixed(1)} km</span></div>
-                      </div>
+                      <div className="bg-slate-950 text-white p-4 rounded-2xl"><div className="flex justify-between text-xs font-black"><span className="text-slate-400">PEDIDO #{order.codeNumber}</span><span className="text-slate-300">📍 {(order.neighborhood || 'Centro').toUpperCase()}</span></div><h2 className="text-2xl font-black mt-2">{streetLine}</h2><div className="flex gap-2 mt-3"><span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-slate-300 text-xs font-black">~{Math.max(2, Math.round((order.estimatedMinutes || 8) * 0.5))} min</span><span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-slate-300 text-xs font-black">~{distance.toFixed(1)} km</span></div></div>
 
-                      {(order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web') ? (
-                        <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center justify-between gap-2"><span className="text-slate-700 font-black text-sm">✓ Pago • <span className="text-slate-500">Não cobrar</span></span><span className="bg-amber-100 text-amber-900 border border-amber-200 px-2.5 py-1 rounded-xl font-black text-xs">+ {formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}</span></div>
-                      ) : (
-                        <div className="bg-white border border-rose-300 p-3 rounded-2xl text-slate-900 flex justify-between items-center"><span className="font-black flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-rose-500" /> Cobrar no local</span><strong className="text-slate-950">{formattedCurrency(order.total)}</strong></div>
-                      )}
+                      {isKitchenWaiting && <div className="bg-amber-50 border border-amber-200 rounded-2xl px-3.5 py-3 flex items-center justify-between gap-3"><div><strong className="text-amber-900 text-sm block">🍳 Aguardando cozinha</strong><span className="text-[11px] text-amber-700 font-semibold">Você já está vinculado a este pedido. Aguarde a loja avisar quando estiver pronto.</span></div><Clock className="w-5 h-5 text-amber-600 shrink-0" /></div>}
 
-                      {(isInTransit || order.status === 'picked_up') && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <button onClick={() => handleOpenWaze(order.address, order.lat, order.lng)} className="py-3.5 bg-sky-600 text-white rounded-2xl font-black flex items-center justify-center gap-2"><Navigation className="w-5 h-5" /> Navegar</button>
-                          {order.clientPhone ? <a href={`tel:${order.clientPhone.replace(/\D/g, '')}`} className="py-3.5 bg-slate-800 text-white rounded-2xl font-black flex items-center justify-center gap-2"><Phone className="w-5 h-5 text-slate-300" /> Ligar</a> : <div className="py-3.5 bg-slate-200 rounded-2xl text-center text-slate-500 font-black">Sem telefone</div>}
-                        </div>
-                      )}
+                      {(order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web') ? <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center justify-between"><span className="text-slate-700 font-black text-sm">✓ Pago • Não cobrar</span><span className="bg-amber-50 border border-amber-200 text-amber-900 px-2.5 py-1 rounded-xl font-black text-xs">Ganho: + {formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}</span></div> : <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-slate-800 flex justify-between"><span className="font-black flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-rose-500" /> Cobrar no local</span><strong>{formattedCurrency(order.total)}</strong></div>}
 
-                      {isFirstOrder && isInTransit && !hasArrived && (
-                        <button onClick={() => { setArrivedOrderIds((prev) => ({ ...prev, [order.id]: true })); onSimulateArrival(order); }} className="w-full py-4 bg-slate-900 text-white font-black text-base rounded-2xl border border-slate-700 flex items-center justify-center gap-2"><MapPin className="w-5 h-5 text-emerald-400" /> Cheguei ao local</button>
-                      )}
-                      {isFirstOrder && isInTransit && hasArrived && (
-                        <button onClick={() => { onUpdateOrderStatus(order.id, 'delivered'); setArrivedOrderIds((prev) => { const next = { ...prev }; delete next[order.id]; return next; }); setManualExpandedId(null); }} className="w-full py-4 bg-emerald-600 text-white font-black text-base rounded-2xl border border-emerald-500 flex items-center justify-center gap-2"><CheckCircle2 className="w-5 h-5" /> Concluir entrega #{order.codeNumber}</button>
-                      )}
-                      {order.status === 'ready_at_counter' && (
-                        <button onClick={() => onUpdateOrderStatus(order.id, 'picked_up')} className="w-full py-4 bg-amber-400 text-slate-950 font-black rounded-2xl">Confirmar retirada</button>
-                      )}
-                      {order.status === 'picked_up' && isFirstOrder && (
-                        <button onClick={() => { onUpdateOrderStatus(order.id, 'in_transit'); onUpdateMotoboyStatus?.(activeMotoboy.id, 'delivering'); }} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl">Iniciar rota</button>
-                      )}
+                      {(isInTransit || order.status === 'picked_up') && <div className="grid grid-cols-2 gap-2"><button onClick={() => handleOpenWaze(order.address, order.lat, order.lng)} className="py-3.5 bg-sky-600 text-white rounded-2xl font-black flex items-center justify-center gap-2"><Navigation className="w-5 h-5" /> Navegar</button>{order.clientPhone ? <a href={`tel:${order.clientPhone.replace(/\D/g, '')}`} className="py-3.5 bg-slate-800 text-white rounded-2xl font-black flex items-center justify-center gap-2"><Phone className="w-5 h-5 text-slate-300" /> Ligar</a> : <div className="py-3.5 bg-slate-200 rounded-2xl text-center text-slate-500 font-black">Sem telefone</div>}</div>}
+
+                      {isFirstOrder && isInTransit && !hasArrived && <button onClick={() => { setArrivedOrderIds((prev) => ({ ...prev, [order.id]: true })); onSimulateArrival(order); }} className="w-full py-4 bg-slate-900 text-white font-black text-base rounded-2xl border border-slate-700 flex items-center justify-center gap-2"><MapPin className="w-5 h-5 text-emerald-400" /> Cheguei ao local</button>}
+                      {isFirstOrder && isInTransit && hasArrived && <button onClick={() => { onUpdateOrderStatus(order.id, 'delivered'); setArrivedOrderIds((prev) => { const next = { ...prev }; delete next[order.id]; return next; }); setManualExpandedId(null); }} className="w-full py-4 bg-emerald-600 text-white font-black text-base rounded-2xl flex items-center justify-center gap-2"><CheckCircle2 className="w-5 h-5" /> Concluir entrega #{order.codeNumber}</button>}
+                      {order.status === 'ready_at_counter' && <button onClick={() => onUpdateOrderStatus(order.id, 'picked_up')} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl">Confirmar retirada</button>}
+                      {order.status === 'picked_up' && isFirstOrder && <button onClick={() => { onUpdateOrderStatus(order.id, 'in_transit'); onUpdateMotoboyStatus?.(activeMotoboy.id, 'delivering'); }} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl">Iniciar rota</button>}
 
                       <button onClick={() => setExpandedExtraOrderIds((prev) => ({ ...prev, [order.id]: !prev[order.id] }))} className="w-full py-2.5 bg-slate-100 border border-slate-300 rounded-xl text-slate-700 font-black text-xs">{expandedExtraOrderIds[order.id] ? 'Ocultar detalhes' : 'Ver detalhes (Itens, Rastreio, Maps)'}</button>
-                      {expandedExtraOrderIds[order.id] && (
-                        <div className="bg-slate-900 text-white rounded-2xl p-3.5 space-y-3 text-xs">
-                          <strong className="text-slate-200">👤 {order.clientName}</strong>
-                          {order.items?.length ? <div className="bg-slate-950 rounded-xl p-2 space-y-1">{order.items.map((item, i) => <div key={i} className="flex justify-between"><span>{item.quantity}x {item.name}</span><span>{formattedCurrency(item.price * item.quantity)}</span></div>)}</div> : null}
-                          {order.notes && <div className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-slate-200">📝 {order.notes}</div>}
-                          <div className="grid grid-cols-2 gap-2"><button onClick={() => handleOpenGoogleMaps(order.address, order.lat, order.lng)} className="py-2 bg-slate-800 rounded-lg font-black">Google Maps</button><button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/?rastreio=${order.trackingCode || order.id}`)} className="py-2 bg-slate-800 rounded-lg font-black text-amber-300 flex justify-center gap-1"><Copy className="w-3.5 h-3.5" /> Rastreio</button></div>
-                        </div>
-                      )}
+                      {expandedExtraOrderIds[order.id] && <div className="bg-slate-900 text-white rounded-2xl p-3.5 space-y-3 text-xs"><strong className="text-amber-300">👤 {order.clientName}</strong>{order.items?.length ? <div className="bg-slate-950 rounded-xl p-2 space-y-1">{order.items.map((item, i) => <div key={i} className="flex justify-between"><span>{item.quantity}x {item.name}</span><span>{formattedCurrency(item.price * item.quantity)}</span></div>)}</div> : null}{order.notes && <div className="bg-amber-950 border border-amber-600/40 rounded-xl p-2.5 text-amber-200">📝 {order.notes}</div>}<div className="grid grid-cols-2 gap-2"><button onClick={() => handleOpenGoogleMaps(order.address, order.lat, order.lng)} className="py-2 bg-slate-800 rounded-lg font-black">Google Maps</button><button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/?rastreio=${order.trackingCode || order.id}`)} className="py-2 bg-slate-800 rounded-lg font-black text-amber-300 flex justify-center gap-1"><Copy className="w-3.5 h-3.5" /> Rastreio</button></div></div>}
                     </div>
                   </div>
                 );
@@ -426,45 +368,17 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             </div>
           )
         ) : activeTab === 'map' ? (
-          <div className="space-y-3">
-            <div className="bg-slate-900 text-white p-3.5 rounded-2xl"><h4 className="font-black">Mapa da minha rota</h4><p className="text-xs text-slate-400 mt-1">GPS do seu celular + suas paradas</p></div>
-            <div className="h-[400px] rounded-2xl overflow-hidden border border-slate-300">
-              <RouteMap origin={{ name: shift.storeName || 'Loja', address: shift.storeAddress, lat: shift.storeLat, lng: shift.storeLng }} motoboyName={activeMotoboy?.name} showMotoboyMarker motoboyLat={deviceGps?.lat || activeMotoboy?.currentLat} motoboyLng={deviceGps?.lng || activeMotoboy?.currentLng} stops={assignedOrders.map((o, idx) => ({ id: o.id, orderIndex: idx + 1, title: `#${o.codeNumber} - ${o.clientName}`, address: o.address, neighborhood: o.neighborhood, lat: o.lat, lng: o.lng, status: o.status === 'in_transit' ? 'in_transit' : 'pending', priority: 'high', recipientName: o.clientName }))} />
-            </div>
-          </div>
+          <div className="space-y-3"><div className="bg-slate-900 text-white p-3.5 rounded-2xl"><h4 className="font-black">Mapa da minha rota</h4><p className="text-xs text-slate-400 mt-1">GPS do seu celular + suas paradas</p></div><div className="h-[400px] rounded-2xl overflow-hidden border border-slate-300"><RouteMap origin={{ name: shift.storeName || 'Loja', address: shift.storeAddress, lat: shift.storeLat, lng: shift.storeLng }} motoboyName={activeMotoboy?.name} showMotoboyMarker motoboyLat={deviceGps?.lat || activeMotoboy?.currentLat} motoboyLng={deviceGps?.lng || activeMotoboy?.currentLng} stops={assignedOrders.map((o, idx) => ({ id: o.id, orderIndex: idx + 1, title: `#${o.codeNumber} - ${o.clientName}`, address: o.address, neighborhood: o.neighborhood, lat: o.lat, lng: o.lng, status: o.status === 'in_transit' ? 'in_transit' : 'pending', priority: 'high', recipientName: o.clientName }))} /></div></div>
         ) : (
-          <div className="space-y-3">
-            <div className="bg-slate-900 text-white p-4 rounded-2xl grid grid-cols-2 gap-2 text-center"><div><span className="text-[10px] text-slate-400 uppercase font-black">Entregas hoje</span><strong className="text-2xl block">{completedOrders.length}</strong></div><div><span className="text-[10px] text-slate-400 uppercase font-black">Ganhos hoje</span><strong className="text-2xl text-amber-300 block">{formattedCurrency(totalEarnedDisplay)}</strong></div></div>
-            {completedOrders.length ? completedOrders.map((o) => <div key={o.id} className="bg-white border border-slate-200 rounded-2xl p-3 flex justify-between"><div><strong>Pedido #{o.codeNumber}</strong><p className="text-xs text-slate-500">{o.clientName} • {o.neighborhood}</p></div><span className="text-slate-700 font-black">+{formattedCurrency(o.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}</span></div>) : <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">Nenhuma entrega concluída hoje.</div>}
-          </div>
+          <div className="space-y-3"><div className="bg-slate-900 text-white p-4 rounded-2xl grid grid-cols-2 gap-2 text-center"><div><span className="text-[10px] text-slate-400 uppercase font-black">Entregas hoje</span><strong className="text-2xl block">{completedOrders.length}</strong></div><div><span className="text-[10px] text-slate-400 uppercase font-black">Ganhos hoje</span><strong className="text-2xl text-amber-300 block">{formattedCurrency(totalEarnedDisplay)}</strong></div></div>{completedOrders.length ? completedOrders.map((o) => <div key={o.id} className="bg-white border border-slate-200 rounded-2xl p-3 flex justify-between"><div><strong>Pedido #{o.codeNumber}</strong><p className="text-xs text-slate-500">{o.clientName} • {o.neighborhood}</p></div><span className="text-slate-700 font-black">+{formattedCurrency(o.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}</span></div>) : <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">Nenhuma entrega concluída hoje.</div>}</div>
         )}
       </div>
 
       <div className="bg-white px-4 py-3 border-t border-slate-200 flex items-center justify-between text-[11px] font-bold text-slate-500"><span>📍 Blumenau - SC</span><button onClick={() => setIsDailyReportModalOpen(true)} className="text-slate-900 font-black">{completedOrders.length} {completedOrders.length === 1 ? 'entrega finalizada' : 'entregas finalizadas'} ›</button></div>
 
-      {isEarningsModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3"><div><h4 className="font-black text-lg">Ganhos de hoje</h4><p className="text-xs text-slate-500">{new Date().toLocaleDateString('pt-BR')}</p></div><button onClick={() => setIsEarningsModalOpen(false)}><X className="w-5 h-5" /></button></div>
-            <div className="bg-amber-400 text-slate-950 rounded-2xl p-4 text-center"><span className="text-[10px] uppercase text-slate-700 font-black">Total a receber</span><strong className="text-4xl block mt-1">{formattedCurrency(totalEarnedDisplay)}</strong></div>
-            <div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 border border-slate-200 rounded-xl p-3"><span className="text-[10px] text-slate-500 font-black uppercase">Fixo</span><strong className="block text-lg">{formattedCurrency(arranqueAmount)}</strong></div><div className="bg-slate-50 border border-slate-200 rounded-xl p-3"><span className="text-[10px] text-slate-500 font-black uppercase">Taxas</span><strong className="block text-lg text-slate-900">{formattedCurrency(deliveryFeesTotal)}</strong></div></div>
-            <div className="text-xs text-slate-600 font-bold">📦 {completedOrders.length} entregas concluídas hoje</div>
-            <button onClick={() => setIsEarningsModalOpen(false)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Fechar</button>
-          </div>
-        </div>
-      )}
+      {isEarningsModalOpen && <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4"><div className="flex justify-between items-center border-b border-slate-200 pb-3"><div><h4 className="font-black text-lg">Ganhos de hoje</h4><p className="text-xs text-slate-500">{new Date().toLocaleDateString('pt-BR')}</p></div><button onClick={() => setIsEarningsModalOpen(false)}><X className="w-5 h-5" /></button></div><div className="bg-slate-950 text-white rounded-2xl p-4 text-center"><span className="text-[10px] uppercase text-slate-400 font-black">Total a receber</span><strong className="text-4xl text-amber-300 block mt-1">{formattedCurrency(totalEarnedDisplay)}</strong></div><div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 border border-slate-200 rounded-xl p-3"><span className="text-[10px] text-slate-500 font-black uppercase">Fixo</span><strong className="block text-lg">{formattedCurrency(arranqueAmount)}</strong></div><div className="bg-slate-50 border border-slate-200 rounded-xl p-3"><span className="text-[10px] text-slate-500 font-black uppercase">Taxas</span><strong className="block text-lg">{formattedCurrency(deliveryFeesTotal)}</strong></div></div><div className="text-xs text-slate-600 font-bold">📦 {completedOrders.length} entregas concluídas hoje</div><button onClick={() => setIsEarningsModalOpen(false)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Fechar</button></div></div>}
 
-      {isDailyReportModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center"><div><h4 className="font-black text-lg">Relatório do dia</h4><p className="text-xs text-slate-500">{activeMotoboy?.name} • {new Date().toLocaleDateString('pt-BR')}</p></div><button onClick={() => setIsDailyReportModalOpen(false)}><X className="w-5 h-5" /></button></div>
-            <div className="bg-slate-950 text-white rounded-2xl p-4 text-center"><span className="text-[10px] text-amber-300 uppercase font-black">Saldo total</span><strong className="text-4xl text-white block">{formattedCurrency(totalEarnedDisplay)}</strong></div>
-            <div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 border rounded-xl p-3"><span className="text-xs text-slate-500">Entregas</span><strong className="text-2xl block">{completedOrders.length}</strong></div><div className="bg-slate-50 border rounded-xl p-3"><span className="text-xs text-slate-500">Taxas</span><strong className="text-2xl block text-slate-900">{formattedCurrency(deliveryFeesTotal)}</strong></div></div>
-            <div className="text-xs text-slate-500">Expediente iniciado: {new Date(shiftStartedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}{shiftEndedAt ? ` • encerrado ${shiftEndedAt}` : ''}</div>
-            <button onClick={() => setIsDailyReportModalOpen(false)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Fechar</button>
-          </div>
-        </div>
-      )}
+      {isDailyReportModalOpen && <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto"><div className="flex justify-between items-center"><div><h4 className="font-black text-lg">Relatório do dia</h4><p className="text-xs text-slate-500">{activeMotoboy?.name} • {new Date().toLocaleDateString('pt-BR')}</p></div><button onClick={() => setIsDailyReportModalOpen(false)}><X className="w-5 h-5" /></button></div><div className="bg-slate-950 text-white rounded-2xl p-4 text-center"><span className="text-[10px] text-amber-300 uppercase font-black">Saldo total</span><strong className="text-4xl text-amber-300 block">{formattedCurrency(totalEarnedDisplay)}</strong></div><div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 border rounded-xl p-3"><span className="text-xs text-slate-500">Entregas</span><strong className="text-2xl block">{completedOrders.length}</strong></div><div className="bg-slate-50 border rounded-xl p-3"><span className="text-xs text-slate-500">Taxas</span><strong className="text-2xl block">{formattedCurrency(deliveryFeesTotal)}</strong></div></div><div className="text-xs text-slate-500">Expediente iniciado: {new Date(shiftStartedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}{shiftEndedAt ? ` • encerrado ${shiftEndedAt}` : ''}</div><button onClick={() => setIsDailyReportModalOpen(false)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Fechar</button></div></div>}
     </div>
   );
 };
