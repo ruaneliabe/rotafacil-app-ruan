@@ -14,78 +14,100 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-      - name: Apply final operational hardening
+      - name: Apply final pilot hardening
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
-          def load(p): return Path(p).read_text(encoding='utf-8')
-          def save(p,s): Path(p).write_text(s,encoding='utf-8')
-          def subn(label, s, pattern, repl, flags=0):
-              ns,n=re.subn(pattern,repl,s,flags=flags)
-              print(label, n)
-              return ns
+          # --- firebase.ts: safe partial GPS, revoked filtering and atomic order numbering ---
+          p=Path('src/lib/firebase.ts'); s=p.read_text(encoding='utf-8')
+          if 'runTransaction,' not in s:
+              s=s.replace('  deleteDoc,\n', '  deleteDoc,\n  runTransaction,\n')
+          if 'export async function updateMotoboyLocation' not in s:
+              block="""export async function updateMotoboyLocation(motoboyId: string, lat: number, lng: number) {
+  try {
+    const ref = doc(db, 'motoboys', motoboyId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const current = snap.data() as Motoboy;
+    if (current.accessRevokedAt) return;
+    await setDoc(ref, { currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() }, { merge: true });
+  } catch (err) {
+    console.warn('Could not update motoboy location:', err);
+  }
+}
 
-          # ---- App.tsx ----
-          p='src/App.tsx'; s=load(p)
-          # Assignment functions: lookup strictly by immutable id.
-          s=subn('assign lookups',s,r"const targetMotoboy = motoboys\.find\(\n\s*\(m\) =>\n\s*m\.id === motoboyId \|\|\n\s*\(m\.username[\s\S]*?m\.name\.toLowerCase\(\) === motoboyId\.toLowerCase\(\)\n\s*\)\;", "const targetMotoboy = motoboys.find((m) => m.id === motoboyId);", flags=re.M)
-          # In-transit motoboy lookup strict id.
-          s=subn('transit lookup',s,r"const targetMotoboy = motoboys\.find\(\n\s*\(m\) =>\n\s*m\.id === targetOrder\.assignedMotoboyId \|\|[\s\S]*?targetOrder\.assignedMotoboyName\.toLowerCase\(\)\)\n\s*\)\;", "const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);", flags=re.M)
-          # Delivered lookup strict id (separate shape).
-          s=subn('delivered lookup',s,r"const targetMotoboy = motoboys\.find\(\n\s*\(m\) =>\n\s*\(targetOrder\.assignedMotoboyId && m\.id === targetOrder\.assignedMotoboyId\)[\s\S]*?targetOrder\.assignedMotoboyName\.toLowerCase\(\)\)\n\s*\)\;", "const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);", flags=re.M)
-          # Remaining active route strict id.
-          s=s.replace("(o.assignedMotoboyId === targetMotoboy.id ||\n               (o.assignedMotoboyName && targetMotoboy.name && o.assignedMotoboyName.toLowerCase() === targetMotoboy.name.toLowerCase())) &&", "o.assignedMotoboyId === targetMotoboy.id &&")
-          # Linking an order must not alter returning/offline/busy state.
-          s=s.replace("status: targetMotoboy.status === 'delivering' ? 'delivering' : 'available',", "status: targetMotoboy.status,")
-          # New driver starts logged-out/out of queue with zero counters.
-          s=s.replace("id: `m-${Date.now()}`,\n      status: 'available',\n      activeOrdersCount: 0,\n      totalEarnedToday: newMotoboyData.fixedFee || 0,", "id: `m-${Date.now()}`,\n      status: 'offline',\n      activeOrdersCount: 0,\n      totalEarnedToday: 0,\n      deliveriesCountToday: 0,")
-          # Stationary GPS heartbeat to keep location freshness alive.
-          s=s.replace("if (!distChanged) return prevMotoboys;\n\n        const updatedMotoboy", "const heartbeatDue = !current.locationUpdatedAt || Date.now() - current.locationUpdatedAt >= 10000;\n        if (!distChanged && !heartbeatDue) return prevMotoboys;\n\n        const updatedMotoboy")
-          save(p,s)
+"""
+              s=s.replace('export async function saveMotoboyToCloud(motoboy: Motoboy) {', block+'export async function saveMotoboyToCloud(motoboy: Motoboy) {')
+          if 'export async function reserveNextOrderCode' not in s:
+              block="""export async function reserveNextOrderCode(fallbackNext: number) {
+  try {
+    const shiftRef = doc(db, 'shifts', 'current_shift');
+    return await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(shiftRef);
+      const stored = snap.exists() ? Number(snap.data().lastOrderCode || 100) : 100;
+      const next = Math.max(stored + 1, fallbackNext);
+      transaction.set(shiftRef, { lastOrderCode: next }, { merge: true });
+      return next;
+    });
+  } catch (err) {
+    console.warn('Could not reserve atomic order code; using local fallback:', err);
+    return fallbackNext;
+  }
+}
 
-          # ---- firebase.ts ----
-          p='src/lib/firebase.ts'; s=load(p)
-          s=s.replace("      if (order.status === 'delivered' && order.deliveredDate !== today) return;\n", "")
-          s=s.replace("    await resetOperationalDataOnceForCleanTest();\n", "")
-          # Once IDs are strict everywhere, do not mutate historical order display names on new driver creation.
-          s=s.replace("    if (isNewDriver) {\n      await isolateHistoricalOrdersFromNewDriver(payload);\n    }\n\n", "")
-          save(p,s)
+"""
+              s=s.replace('export async function saveOrderToCloud(order: Order) {', block+'export async function saveOrderToCloud(order: Order) {')
+          s=s.replace("      const raw = { id: docSnap.id, ...docSnap.data() } as Motoboy;\n      if (raw.statsDate !== today) {", "      const raw = { id: docSnap.id, ...docSnap.data() } as Motoboy;\n      if (raw.accessRevokedAt) return;\n      if (raw.statsDate !== today) {")
+          p.write_text(s,encoding='utf-8')
 
-          # ---- StoreDashboard.tsx ----
-          p='src/components/StoreDashboard.tsx'; s=load(p)
-          s=s.replace("  const deliveredToday = orders.filter((o) => o.status === 'delivered');\n  const totalRevenue = orders.reduce((acc, o) => acc + o.total, 0);", "  const todayDateKey = (() => {\n    const d = new Date();\n    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;\n  })();\n  const deliveredToday = orders.filter((o) => o.status === 'delivered' && o.deliveredDate === todayDateKey);\n  const todayOrders = orders.filter((o) => o.createdDate === todayDateKey || o.deliveredDate === todayDateKey);\n  const totalRevenue = todayOrders.reduce((acc, o) => acc + o.total, 0);")
-          s=s.replace("{orders.length} pedidos</span>", "{todayOrders.length} pedidos</span>", 1)
-          s=s.replace("(o.assignedMotoboyId === nextMotoboy.id ||\n          (nextMotoboy.username && o.assignedMotoboyId?.toLowerCase() === nextMotoboy.username.toLowerCase()) ||\n          (nextMotoboy.name && o.assignedMotoboyId?.toLowerCase() === nextMotoboy.name.toLowerCase())) &&", "o.assignedMotoboyId === nextMotoboy.id &&")
-          s=s.replace("(o.assignedMotoboyId === m.id ||\n                                o.assignedMotoboyName?.toLowerCase() === m.name.toLowerCase() ||\n                                (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||\n                                o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase())", "o.assignedMotoboyId === m.id")
-          s=re.sub(r"return \(\n\s*ord\.assignedMotoboyId === selectedMotoboyId \|\|[\s\S]*?\n\s*\);", "return ord.assignedMotoboyId === selectedMotoboyId;", s, count=1)
-          save(p,s)
+          # --- App.tsx: one GPS cloud writer, delivery debounce, atomic code reservation ---
+          p=Path('src/App.tsx'); s=p.read_text(encoding='utf-8')
+          s=s.replace("import React, { useState, useEffect } from 'react';", "import React, { useState, useEffect, useRef } from 'react';")
+          if 'updateMotoboyLocation,' not in s:
+              s=s.replace('  saveMotoboyToCloud,\n', '  saveMotoboyToCloud,\n  updateMotoboyLocation,\n  reserveNextOrderCode,\n', 1)
+          elif 'reserveNextOrderCode,' not in s:
+              s=s.replace('  updateMotoboyLocation,\n', '  updateMotoboyLocation,\n  reserveNextOrderCode,\n', 1)
+          gps_old="""        const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() };
+        saveMotoboyToCloud(updatedMotoboy);"""
+          gps_new="""        const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() };
+        updateMotoboyLocation(motoboyId, lat, lng);"""
+          s=s.replace(gps_old,gps_new,1)
+          if 'deliveryActionsInFlightRef' not in s:
+              s=s.replace("  const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);", "  const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);\n  const deliveryActionsInFlightRef = useRef<Set<string>>(new Set());")
+              s=s.replace("    if (targetOrder.status === 'delivered' || targetOrder.status === 'cancelled') return;", "    if (targetOrder.status === 'delivered' || targetOrder.status === 'cancelled') return;\n    if (status === 'delivered') {\n      if (deliveryActionsInFlightRef.current.has(orderId)) return;\n      deliveryActionsInFlightRef.current.add(orderId);\n      window.setTimeout(() => deliveryActionsInFlightRef.current.delete(orderId), 5000);\n    }")
+          s=s.replace("  const handleAddOrder = (\n", "  const handleAddOrder = async (\n", 1)
+          s=s.replace("    const maxCode = orders.reduce((max, o) => Math.max(max, o.codeNumber || 0), 100);\n    const nextCode = maxCode + 1;", "    const maxCode = orders.reduce((max, o) => Math.max(max, o.codeNumber || 0), 100);\n    const nextCode = await reserveNextOrderCode(maxCode + 1);")
+          p.write_text(s,encoding='utf-8')
 
-          # ---- MotoboyApp.tsx ----
-          p='src/components/MotoboyApp.tsx'; s=load(p)
-          old="""  const completedOrders = useMemo(\n    () => orders.filter((o) => o.status === 'delivered' && matchesDriver(o)),\n    [orders, activeMotoboy?.id]\n  );"""
-          new="""  const completedOrders = useMemo(() => {\n    const d = new Date();\n    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;\n    return orders.filter((o) => o.status === 'delivered' && o.deliveredDate === today && matchesDriver(o));\n  }, [orders, activeMotoboy?.id]);"""
-          s=s.replace(old,new)
-          save(p,s)
+          # --- MotoboyApp: its GPS watcher is UI-only; App owns cloud GPS writes ---
+          p=Path('src/components/MotoboyApp.tsx'); s=p.read_text(encoding='utf-8')
+          s=s.replace("import { saveMotoboyToCloud } from '../lib/firebase';\n", "")
+          old="""      if (activeMotoboy && (Math.abs((activeMotoboy.currentLat || 0) - lat) > 0.0001 || Math.abs((activeMotoboy.currentLng || 0) - lng) > 0.0001)) {
+        saveMotoboyToCloud({ ...activeMotoboy, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() });
+      }"""
+          s=s.replace(old,'')
+          p.write_text(s,encoding='utf-8')
 
-          # ---- CustomerTrackingView.tsx ----
-          p='src/components/CustomerTrackingView.tsx'; s=load(p)
-          old="""  const hasLiveGps = Boolean(\n    motoboy &&\n    typeof motoboy.currentLat === 'number' && motoboy.currentLat !== 0 &&\n    typeof motoboy.currentLng === 'number' && motoboy.currentLng !== 0\n  );"""
-          new="""  const hasLiveGps = Boolean(\n    motoboy &&\n    typeof motoboy.currentLat === 'number' && motoboy.currentLat !== 0 &&\n    typeof motoboy.currentLng === 'number' && motoboy.currentLng !== 0 &&\n    typeof motoboy.locationUpdatedAt === 'number' &&\n    Date.now() - motoboy.locationUpdatedAt <= 30000\n  );"""
-          s=s.replace(old,new)
-          s=s.replace("(o.assignedMotoboyId && motoboy?.id && o.assignedMotoboyId === motoboy.id) ||\n        (o.assignedMotoboyName && motoboy?.name && o.assignedMotoboyName.toLowerCase() === motoboy.name.toLowerCase())", "o.assignedMotoboyId && motoboy?.id && o.assignedMotoboyId === motoboy.id")
-          save(p,s)
+          # --- Customer tracking: GPS becomes stale automatically after 30s without heartbeat ---
+          p=Path('src/components/CustomerTrackingView.tsx'); s=p.read_text(encoding='utf-8')
+          if 'const [nowMs, setNowMs]' not in s:
+              s=s.replace("  isOperator = false,\n}) => {", "  isOperator = false,\n}) => {\n  const [nowMs, setNowMs] = React.useState(() => Date.now());\n  React.useEffect(() => {\n    const timer = window.setInterval(() => setNowMs(Date.now()), 5000);\n    return () => window.clearInterval(timer);\n  }, []);")
+          s=s.replace('Date.now() - motoboy.locationUpdatedAt <= 30000', 'nowMs - motoboy.locationUpdatedAt <= 30000')
+          p.write_text(s,encoding='utf-8')
 
-          # ---- dispatchBrain.ts ----
-          p='src/utils/dispatchBrain.ts'; s=load(p)
-          s=s.replace("(o.assignedMotoboyId === m.id ||\n          (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||\n          (m.name && o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase()))", "o.assignedMotoboyId === m.id")
-          marker="""  const storeLat = shift.storeLat || -26.91530418395996;\n  const storeLng = shift.storeLng || -49.1146354675293;"""
-          helper="""  const storeLat = shift.storeLat || -26.91530418395996;\n  const storeLng = shift.storeLng || -49.1146354675293;\n  const nowDate = new Date();\n  const todayDateKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;\n  const getOrderCreatedTimestamp = (ord: Order) => {\n    const [year, month, day] = (ord.createdDate || todayDateKey).split('-').map(Number);\n    const [hour, minute] = (ord.createdAt || '00:00').split(':').map(Number);\n    return new Date(year, (month || 1) - 1, day || 1, hour || 0, minute || 0).getTime();\n  };"""
-          if 'getOrderCreatedTimestamp' not in s: s=s.replace(marker,helper)
-          s=s.replace("const createdTime = new Date(ord.createdAt).getTime();", "const createdTime = getOrderCreatedTimestamp(ord);")
-          s=s.replace("const deliveredToday = orders.filter((o) => o.status === 'delivered');", "const deliveredToday = orders.filter((o) => o.status === 'delivered' && o.deliveredDate === todayDateKey);")
-          save(p,s)
+          # --- Store dashboard: PC refresh button must never impersonate a driver's GPS ---
+          p=Path('src/components/StoreDashboard.tsx'); s=p.read_text(encoding='utf-8')
+          start=s.find("onClick={() => {\n                          if (typeof window !== 'undefined' && 'geolocation' in navigator) {")
+          if start >= 0:
+              cls=s.find('className="p-1.5 bg-slate-800 hover:bg-emerald-500/20', start)
+              if cls >= 0:
+                  safe="""onClick={() => {
+                          triggerActionToast('📡 Mapa sincronizado automaticamente pelos celulares dos motoboys.');
+                        }}
+                        """
+                  s=s[:start]+safe+s[cls:]
+          p.write_text(s,encoding='utf-8')
           PY
       - name: Install dependencies
         run: npm ci
@@ -93,10 +115,10 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
-      - name: Commit verified changes
+      - name: Commit verified final hardening
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/App.tsx src/lib/firebase.ts src/components/StoreDashboard.tsx src/components/MotoboyApp.tsx src/components/CustomerTrackingView.tsx src/utils/dispatchBrain.ts
-          git diff --cached --quiet || git commit -m 'Hotfix tecnico final verificado para operacao'
+          git add src/App.tsx src/lib/firebase.ts src/components/MotoboyApp.tsx src/components/CustomerTrackingView.tsx src/components/StoreDashboard.tsx
+          git diff --cached --quiet || git commit -m 'Fecha preflight operacional com GPS e concorrencia seguros'
           git push
