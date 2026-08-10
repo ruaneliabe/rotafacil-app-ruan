@@ -1,0 +1,52 @@
+name: Patch dispatch priority
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-dispatch-priority.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Ajustar prioridade e aviso de carga
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/StoreDashboard.tsx')
+          s = p.read_text(encoding='utf-8')
+
+          old = "  const motoboysAvailable = motoboys.filter((m) => m.status === 'available');"
+          new = """  const getMotoboyLoad = (motoboyId: string) => activeOrders.filter((o) => o.assignedMotoboyId === motoboyId).length;\n  const motoboysAvailable = motoboys\n    .filter((m) => m.status === 'available')\n    .sort((a, b) => {\n      const loadDiff = getMotoboyLoad(a.id) - getMotoboyLoad(b.id);\n      if (loadDiff !== 0) return loadDiff;\n      return (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0);\n    });\n\n  const assignOrderRespectingLoad = (orderId: string, motoboyId: string) => {\n    const target = motoboys.find((m) => m.id === motoboyId);\n    if (!target) return;\n    const currentLoad = getMotoboyLoad(target.id);\n    const nextFree = motoboysAvailable.find((m) => getMotoboyLoad(m.id) === 0 && m.id !== target.id);\n    if (currentLoad > 0) {\n      const suggestion = nextFree ? ` O próximo livre da fila é ${nextFree.name.split(' ')[0]}.` : '';\n      const ok = window.confirm(`${target.name.split(' ')[0]} já possui ${currentLoad} ${currentLoad === 1 ? 'pedido vinculado' : 'pedidos vinculados'}.${suggestion} Deseja adicionar mais este pedido mesmo assim?`);\n      if (!ok) return;\n    }\n    onAssignOrderToMotoboy(orderId, motoboyId);\n  };"""
+          if old not in s:
+              raise SystemExit('motoboysAvailable anchor not found')
+          s = s.replace(old, new, 1)
+
+          s = s.replace("onAssignOrderToMotoboy(ord.id, e.target.value);", "assignOrderRespectingLoad(ord.id, e.target.value);")
+          s = s.replace("onAssignOrderToMotoboy(ord.id, firstAvailable.id);", "assignOrderRespectingLoad(ord.id, firstAvailable.id);")
+          s = s.replace("onAssignOrderToMotoboy(ord.id, firstAvail.id)", "assignOrderRespectingLoad(ord.id, firstAvail.id)")
+
+          old_label = "{m.name.split(' ')[0]} ({m.status === 'available' ? '🟢 Livre' : '🛵 Rota'})"
+          new_label = "{m.name.split(' ')[0]} ({getMotoboyLoad(m.id) > 0 ? `⚠️ ${getMotoboyLoad(m.id)} pedido${getMotoboyLoad(m.id) > 1 ? 's' : ''}` : m.status === 'available' ? '🟢 Livre' : '🛵 Rota'})"
+          s = s.replace(old_label, new_label)
+
+          old_status = """const statusLabel = isAvail\n                                        ? '🟢 Fila'\n                                        : m.status === 'on_delivery'\n                                        ? '🛵 Rota'\n                                        : m.status === 'break'\n                                        ? '☕ Pausa'\n                                        : '🔴 Off';"""
+          new_status = """const currentLoad = getMotoboyLoad(m.id);\n                                      const statusLabel = currentLoad > 0\n                                        ? `⚠️ ${currentLoad} pedido${currentLoad > 1 ? 's' : ''}`\n                                        : isAvail\n                                        ? '🟢 Livre'\n                                        : m.status === 'on_delivery'\n                                        ? '🛵 Rota'\n                                        : m.status === 'break'\n                                        ? '☕ Pausa'\n                                        : '🔴 Off';"""
+          s = s.replace(old_status, new_status)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name "Rota Facil Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/StoreDashboard.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Prioriza motoboy livre e avisa sobre carga existente"
+          git push origin main
