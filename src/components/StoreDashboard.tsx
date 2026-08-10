@@ -650,14 +650,14 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       )}
 
       {/* 2. SUB NAVIGATION TABS */}
-      <div className="bg-slate-900/60 p-1 rounded-xl border border-slate-800/40 flex items-center justify-between overflow-x-auto text-xs font-medium text-slate-400">
+      <div className="bg-slate-950/35 p-1.5 rounded-2xl border border-slate-800/70 flex items-center justify-between overflow-x-auto text-xs font-medium text-slate-500 shadow-sm">
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setActiveTab('operacao')}
             className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'operacao'
-                ? 'bg-slate-800 text-white font-semibold shadow-2xs'
+                ? 'bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/70'
                 : 'hover:text-slate-200'
             }`}
           >
@@ -677,7 +677,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             onClick={() => setActiveTab('equipe')}
             className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'equipe'
-                ? 'bg-slate-800 text-white font-semibold shadow-2xs'
+                ? 'bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/70'
                 : 'hover:text-slate-200'
             }`}
           >
@@ -689,7 +689,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             onClick={() => setActiveTab('financeiro')}
             className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'financeiro'
-                ? 'bg-slate-800 text-white font-semibold shadow-2xs'
+                ? 'bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/70'
                 : 'hover:text-slate-200'
             }`}
           >
@@ -701,7 +701,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             onClick={() => setActiveTab('historico')}
             className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'historico'
-                ? 'bg-slate-800 text-white font-semibold shadow-2xs'
+                ? 'bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/70'
                 : 'hover:text-slate-200'
             }`}
           >
@@ -804,7 +804,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             </div>
 
                             {/* Rationale Text */}
-                            <p className="text-xs text-slate-300 font-medium bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
+                            <p className="text-[11px] text-slate-500 font-medium bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
                               💡 {rec.rationale}
                             </p>
 
@@ -939,21 +939,21 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 {/* ✨ INSIGHTS & EFICIÊNCIA DA OPERAÇÃO (MENSAGENS POSITIVAS DISPENSÁVEIS/MINIMIZÁVEIS) */}
                 {insightAlerts.length > 0 && (
                   !isSavingsDismissed ? (
-                    <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-3 px-4 shadow-sm flex flex-row items-center justify-between gap-3 text-emerald-200 transition-all">
+                    <div className="bg-slate-900/45 border border-slate-800/70 rounded-xl px-3 py-2 shadow-sm flex flex-row items-center justify-between gap-3 text-slate-300 transition-all">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shrink-0 font-black text-sm">
+                        <div className="w-7 h-7 rounded-lg bg-slate-800/80 border border-slate-700 flex items-center justify-center text-emerald-400 shrink-0 font-black text-xs">
                           ✨
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-black text-xs text-emerald-300 uppercase tracking-wider">
+                            <span className="font-bold text-[11px] text-slate-300 uppercase tracking-wider">
                               {insightAlerts[0].title}
                             </span>
-                            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-black uppercase">
+                            <span className="text-[9px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full font-bold uppercase">
                               Desempenho Positivo
                             </span>
                           </div>
-                          <p className="text-xs text-emerald-100/90 font-medium mt-0.5 truncate sm:whitespace-normal">
+                          <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate sm:whitespace-normal">
                             {insightAlerts[0].description}
                           </p>
                         </div>
@@ -961,7 +961,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsSavingsDismissed(true)}
-                        className="px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 hover:text-white border border-emerald-500/30 hover:border-emerald-500/60 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 active:scale-95 shadow-2xs"
+                        className="px-2.5 py-1 bg-transparent hover:bg-slate-800 text-slate-500 hover:text-slate-200 border border-slate-800 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 active:scale-95"
                         title="Dispensar/Minimizar aviso"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -1042,43 +1042,43 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           )}
 
           {/* 4. STRIPE-STYLE OPERATIONAL METRICS CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
             {/* CARD 1: Espera Médio na Fila */}
-            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between space-y-2">
+            <div className="bg-slate-900/55 px-3.5 py-3 rounded-xl border border-slate-800/80 shadow-sm flex flex-col justify-between space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-amber-400 shrink-0" /> Espera Médio Fila
                 </span>
-                <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/70">
                   ⚡ Otimizado
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-amber-400 tracking-tight">~7.5 min</span>
-                <span className="text-xs text-slate-300 font-medium">aguardando despacho</span>
+                <span className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">~7.5 min</span>
+                <span className="text-[11px] text-slate-500 font-medium">aguardando despacho</span>
               </div>
             </div>
 
             {/* CARD 2: Tempo até Retirada */}
-            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between space-y-2">
+            <div className="bg-slate-900/55 px-3.5 py-3 rounded-xl border border-slate-800/80 shadow-sm flex flex-col justify-between space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <Zap className="w-4 h-4 text-emerald-400 shrink-0" /> Tempo até Retirada
                 </span>
-                <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/70">
                   Balcão
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight">~2.2 min</span>
-                <span className="text-xs text-slate-300 font-medium">chamada → saída</span>
+                <span className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">~2.2 min</span>
+                <span className="text-[11px] text-slate-500 font-medium">chamada → saída</span>
               </div>
             </div>
 
             {/* CARD 3: Motoboys Disponíveis / Parados */}
-            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between space-y-2">
+            <div className="bg-slate-900/55 px-3.5 py-3 rounded-xl border border-slate-800/80 shadow-sm flex flex-col justify-between space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <Bike className="w-4 h-4 text-blue-400 shrink-0" /> Motoboys Fila Agora
                 </span>
                 <span className={`px-2 py-0.5 rounded text-[11px] font-extrabold ${
@@ -1088,19 +1088,19 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                <span className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">
                   {motoboysAvailable.length}/{motoboys.length}
                 </span>
-                <span className="text-xs text-slate-300 font-medium truncate">
+                <span className="text-[11px] text-slate-500 font-medium truncate">
                   {motoboysAvailable.length > 0 ? `1º: ${motoboysAvailable[0].name.split(' ')[0]}` : 'todos em rota'}
                 </span>
               </div>
             </div>
 
             {/* CARD 4: Faturamento & Entregas Hoje */}
-            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between space-y-2">
+            <div className="bg-slate-900/55 px-3.5 py-3 rounded-xl border border-slate-800/80 shadow-sm flex flex-col justify-between space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" /> Entregas Hoje
                 </span>
                 <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
@@ -1108,14 +1108,14 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">{formattedCurrency(totalRevenue)}</span>
-                <span className="text-xs text-slate-300 font-medium">{orders.length} pedidos</span>
+                <span className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">{formattedCurrency(totalRevenue)}</span>
+                <span className="text-[11px] text-slate-500 font-medium">{orders.length} pedidos</span>
               </div>
             </div>
           </div>
 
           {/* 5. DESPACHO VISUAL SECTION */}
-          <div className="bg-slate-900/60 rounded-xl border border-slate-800/60 shadow-2xs p-3.5 space-y-3">
+          <div className="bg-slate-950/25 rounded-2xl border border-slate-800/70 shadow-sm p-3.5 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h3 className="text-sm font-bold text-slate-200 tracking-tight">Próximo despacho</h3>
@@ -1136,19 +1136,19 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
             {/* Banner when 0 unassigned orders */}
             {unassignedOrders.length === 0 && (
-              <div className="py-2.5 px-3.5 bg-slate-900/80 rounded-xl border border-emerald-500/30 flex items-center gap-2 shadow-2xs text-xs">
+              <div className="py-2 px-3 bg-slate-900/45 rounded-lg border border-slate-800 flex items-center gap-2 text-xs">
                 <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-xs font-black shrink-0">
                   ✓
                 </div>
-                <span className="font-extrabold text-emerald-300">Tudo despachado!</span>
-                <span className="text-slate-300 font-medium">Zerou a fila de entregas 💨 Todos os pedidos já foram atribuídos.</span>
+                <span className="font-semibold text-slate-300">Tudo despachado</span>
+                <span className="text-slate-500 font-medium">Nenhum pedido aguardando motoboy.</span>
               </div>
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
               {/* Left Column: Pedidos sem motoboy - ONLY rendered when unassigned orders exist */}
               {unassignedOrders.length > 0 && (
-                <div className="lg:col-span-5 bg-slate-900/60 rounded-xl p-3 border border-slate-700/70 space-y-2.5">
+                <div className="lg:col-span-5 bg-slate-900/40 rounded-xl p-3 border border-slate-800/80 space-y-2.5">
                   <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-slate-800">
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wide">
@@ -1458,7 +1458,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 {ord.itemsSummary.split('+')[0]}
                               </span>
                             </div>
-                            <p className="text-xs text-slate-300 font-medium line-clamp-1">🏠 {ord.address}</p>
+                            <p className="text-[11px] text-slate-500 font-medium line-clamp-1">🏠 {ord.address}</p>
 
                             <div className="pt-2 border-t border-slate-700/80 space-y-2">
                               {/* Row 1: Quick Action Links */}
