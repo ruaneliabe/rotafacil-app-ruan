@@ -66,6 +66,7 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
 
   const currentStep = getStatusStep();
   const routeStartsAtDriver = order.status === 'in_transit' && hasLiveGps && motoboy;
+  const waitingForDriverGps = order.status === 'in_transit' && Boolean(motoboy) && !hasLiveGps;
 
   return (
     <div className="max-w-xl mx-auto bg-slate-50 min-h-screen border-x border-slate-200 font-sans pb-12">
@@ -89,8 +90,8 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
               <Clock className="w-4 h-4 text-emerald-600" />
               {order.status === 'delivered' ? 'Pedido Entregue!' : `Previsão de entrega: ~${estimatedETA} min`}
             </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-800 border border-emerald-200 text-[11px] font-extrabold">
-              <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-extrabold ${hasLiveGps ? 'bg-emerald-500/10 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>
+              <span className="relative flex h-2 w-2"><span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${hasLiveGps ? 'bg-emerald-400' : 'bg-amber-400'}`}></span><span className={`relative inline-flex rounded-full h-2 w-2 ${hasLiveGps ? 'bg-emerald-500' : 'bg-amber-500'}`}></span></span>
               <span>{hasLiveGps ? 'GPS ao Vivo' : 'Aguardando GPS do entregador'}</span>
             </div>
           </div>
@@ -100,6 +101,12 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
               {order.status === 'delivered' ? 'Seu pedido foi entregue! Bom apetite! 😋' : order.status === 'in_transit' ? 'O entregador está a caminho do seu endereço! 🛵💨' : stopsAhead > 0 ? 'O entregador já está com seu pedido na bag! 🎒' : order.status === 'picked_up' ? 'O entregador já retirou seu pedido na loja e iniciará a rota em instantes! 🎒' : order.status === 'ready_at_counter' ? 'Seu pedido está pronto e preparado para a saída do entregador! 📦' : 'Seu pedido está sendo preparado na cozinha! 🔥'}
             </h1>
             <p className="text-xs text-slate-500 mt-1 font-mono">Código de Rastreio: {order.trackingCode}</p>
+            {waitingForDriverGps && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-left">
+                <p className="text-xs font-extrabold text-amber-950">📍 Localização temporariamente indisponível</p>
+                <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">O pedido está em trânsito, mas o celular do entregador ainda não enviou uma posição GPS. A localização aparecerá automaticamente assim que o sinal estiver disponível.</p>
+              </div>
+            )}
             {stopsAhead > 0 && order.status !== 'delivered' && order.status !== 'in_transit' && (
               <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-xs text-left space-y-1 font-medium">
                 <span className="font-extrabold text-amber-950">📍 Entrega antecedente em andamento</span>
@@ -128,17 +135,26 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
         )}
 
         <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs space-y-2 p-3">
-          <div className="flex items-center justify-between px-1"><span className="text-xs font-extrabold text-slate-800">Mapa de Acompanhamento Ao Vivo</span><span className="text-[10px] text-slate-500 font-medium">🗺️ {routeStartsAtDriver ? 'Rota a partir do GPS atual' : 'Rota estimada ao seu endereço'}</span></div>
-          <div className="h-[280px] rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-1"><span className="text-xs font-extrabold text-slate-800">Mapa de Acompanhamento Ao Vivo</span><span className="text-[10px] text-slate-500 font-medium">🗺️ {routeStartsAtDriver ? 'Rota a partir do GPS atual' : waitingForDriverGps ? 'Aguardando localização do entregador' : 'Rota estimada ao seu endereço'}</span></div>
+          <div className="h-[280px] rounded-2xl overflow-hidden relative">
             <RouteMap
               origin={routeStartsAtDriver ? { name: motoboy!.name, address: 'Posição atual do entregador', lat: motoboy!.currentLat, lng: motoboy!.currentLng } : { name: shift.storeName, address: shift.storeAddress, lat: shift.storeLat, lng: shift.storeLng }}
               motoboyName={motoboy?.name}
               motoboyVehicle={motoboy ? `${motoboy.vehicleModel} (${motoboy.plate})` : undefined}
-              motoboyLat={motoboy?.currentLat}
-              motoboyLng={motoboy?.currentLng}
-              showMotoboyMarker={Boolean(motoboy && (order.status === 'in_transit' || order.status === 'picked_up'))}
-              stops={[{ id: order.id, orderIndex: 1, title: `Seu Endereço (${order.clientName})`, address: order.address, lat: order.lat, lng: order.lng, status: order.status === 'delivered' ? 'delivered' : 'in_transit', priority: 'high', recipientName: order.clientName }]}
+              motoboyLat={hasLiveGps ? motoboy?.currentLat : undefined}
+              motoboyLng={hasLiveGps ? motoboy?.currentLng : undefined}
+              showMotoboyMarker={Boolean(motoboy && hasLiveGps && (order.status === 'in_transit' || order.status === 'picked_up'))}
+              stops={[{ id: order.id, orderIndex: 1, title: `Seu Endereço (${order.clientName})`, address: order.address, lat: order.lat, lng: order.lng, status: order.status === 'delivered' ? 'delivered' : (order.status === 'in_transit' && hasLiveGps ? 'in_transit' : 'pending'), priority: 'high', recipientName: order.clientName }]}
             />
+            {waitingForDriverGps && (
+              <div className="absolute bottom-3 left-3 right-3 z-30 bg-slate-950/90 backdrop-blur-md border border-amber-400/50 rounded-xl px-3 py-2.5 shadow-xl flex items-start gap-2 pointer-events-none">
+                <span className="text-amber-400 text-base">📍</span>
+                <div>
+                  <p className="text-[11px] font-extrabold text-white">Aguardando localização do entregador</p>
+                  <p className="text-[10px] text-slate-300 mt-0.5">A rota ao vivo será exibida assim que o celular do entregador enviar o GPS.</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
