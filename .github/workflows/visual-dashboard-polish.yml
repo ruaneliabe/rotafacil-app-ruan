@@ -1,0 +1,54 @@
+name: Visual Dashboard Polish
+on:
+  push:
+    paths:
+      - '.github/workflows/visual-dashboard-polish.yml'
+permissions:
+  contents: write
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refine store dashboard visual hierarchy
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/components/StoreDashboard.tsx')
+          s=p.read_text()
+          reps={
+          'bg-slate-900/60 p-1 rounded-xl border border-slate-800/40 flex items-center justify-between overflow-x-auto text-xs font-medium text-slate-400':'bg-slate-950/35 p-1.5 rounded-2xl border border-slate-800/70 flex items-center justify-between overflow-x-auto text-xs font-medium text-slate-500 shadow-sm',
+          "? 'bg-slate-800 text-white font-semibold shadow-2xs'":"? 'bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/70'",
+          'bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-3 px-4 shadow-sm flex flex-row items-center justify-between gap-3 text-emerald-200 transition-all':'bg-slate-900/45 border border-slate-800/70 rounded-xl px-3 py-2 shadow-sm flex flex-row items-center justify-between gap-3 text-slate-300 transition-all',
+          'w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shrink-0 font-black text-sm':'w-7 h-7 rounded-lg bg-slate-800/80 border border-slate-700 flex items-center justify-center text-emerald-400 shrink-0 font-black text-xs',
+          'font-black text-xs text-emerald-300 uppercase tracking-wider':'font-bold text-[11px] text-slate-300 uppercase tracking-wider',
+          'text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-black uppercase':'text-[9px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full font-bold uppercase',
+          'text-xs text-emerald-100/90 font-medium mt-0.5 truncate sm:whitespace-normal':'text-[11px] text-slate-400 font-medium mt-0.5 truncate sm:whitespace-normal',
+          'px-2.5 py-1 bg-emerald-950/80 hover:bg-emerald-900/90 text-emerald-300 hover:text-white border border-emerald-500/30 hover:border-emerald-500/60 rounded-xl text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 active:scale-95 shadow-2xs':'px-2.5 py-1 bg-transparent hover:bg-slate-800 text-slate-500 hover:text-slate-200 border border-slate-800 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 active:scale-95',
+          'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3':'grid grid-cols-2 lg:grid-cols-4 gap-2.5',
+          'bg-slate-900/90 p-4 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between space-y-2':'bg-slate-900/55 px-3.5 py-3 rounded-xl border border-slate-800/80 shadow-sm flex flex-col justify-between space-y-1.5',
+          'text-xs font-bold text-slate-300 flex items-center gap-1.5':'text-[11px] font-semibold text-slate-400 flex items-center gap-1.5',
+          'px-2 py-0.5 rounded text-[11px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30':'px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/70',
+          'px-2 py-0.5 rounded text-[11px] font-extrabold bg-blue-500/15 text-blue-300 border border-blue-500/30':'px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/70',
+          'text-2xl sm:text-3xl font-black text-amber-400 tracking-tight':'text-xl sm:text-2xl font-black text-slate-100 tracking-tight',
+          'text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight':'text-xl sm:text-2xl font-black text-slate-100 tracking-tight',
+          'text-2xl sm:text-3xl font-black text-white tracking-tight':'text-xl sm:text-2xl font-black text-slate-100 tracking-tight',
+          'text-xl sm:text-2xl font-black text-emerald-400 tracking-tight':'text-xl sm:text-2xl font-black text-slate-100 tracking-tight',
+          'text-xs text-slate-300 font-medium':'text-[11px] text-slate-500 font-medium',
+          'bg-slate-900/60 rounded-xl border border-slate-800/60 shadow-2xs p-3.5 space-y-3':'bg-slate-950/25 rounded-2xl border border-slate-800/70 shadow-sm p-3.5 space-y-3',
+          'py-2.5 px-3.5 bg-slate-900/80 rounded-xl border border-emerald-500/30 flex items-center gap-2 shadow-2xs text-xs':'py-2 px-3 bg-slate-900/45 rounded-lg border border-slate-800 flex items-center gap-2 text-xs',
+          'font-extrabold text-emerald-300">Tudo despachado!':'font-semibold text-slate-300">Tudo despachado',
+          'text-slate-300 font-medium">Zerou a fila de entregas 💨 Todos os pedidos já foram atribuídos.':'text-slate-500 font-medium">Nenhum pedido aguardando motoboy.',
+          'bg-slate-900/60 rounded-xl p-3 border border-slate-700/70 space-y-2.5':'bg-slate-900/40 rounded-xl p-3 border border-slate-800/80 space-y-2.5',
+          }
+          for a,b in reps.items():
+              if a in s: s=s.replace(a,b)
+          p.write_text(s)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/StoreDashboard.tsx
+          git diff --cached --quiet || git commit -m 'Refina hierarquia visual do painel da loja'
+          git push
