@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { LocationPoint, Stop, Motoboy } from '../types';
+import { calculateDistanceKm } from '../utils/geoUtils';
 
 interface RouteMapProps {
   origin: LocationPoint;
@@ -211,9 +212,17 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     // 3. Draw Motoboy Markers on Map (Sleek Scalable Cluster + Focus System)
     if (motoboysList && motoboysList.length > 0) {
-      // Split motoboys into "At Store" and "On Road"
-      const atStore = motoboysList.filter((m) => m.status === 'available' || m.status === 'offline');
-      const onRoad = motoboysList.filter((m) => m.status !== 'available' && m.status !== 'offline');
+      // Split motoboys into "At Store" (available & near store) and "On Road / Outside"
+      const atStore = motoboysList.filter((m) => {
+        if (m.status === 'delivering' || m.status === 'returning_to_store') return false;
+        if (m.currentLat && m.currentLng && origin.lat && origin.lng) {
+          const dist = calculateDistanceKm(m.currentLat, m.currentLng, origin.lat, origin.lng);
+          if (dist > 0.3) return false; // Motoboy is outside store (e.g. at home or in street)
+        }
+        return true;
+      });
+
+      const onRoad = motoboysList.filter((m) => !atStore.includes(m));
 
       // A) RENDER AT-STORE MOTOBOYS (Clustered or Individual based on count & selection)
       const isAStoreMotoboySelected = selectedMotoboyId && atStore.some((m) => m.id === selectedMotoboyId);
@@ -361,7 +370,19 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           ? 'border-blue-400 bg-blue-500/20 text-blue-300'
           : 'border-emerald-400 bg-emerald-500/20 text-emerald-300';
 
-        const statusBadgeText = isReturning ? 'Voltando' : isDelivering ? 'Em Rota' : 'Na Loja';
+        const distFromStore =
+          mb.currentLat && mb.currentLng && origin.lat && origin.lng
+            ? calculateDistanceKm(mb.currentLat, mb.currentLng, origin.lat, origin.lng)
+            : 0;
+
+        const statusBadgeText = isReturning
+          ? 'Voltando'
+          : isDelivering
+          ? 'Em Rota'
+          : distFromStore > 0.3
+          ? `Disponível (${distFromStore.toFixed(1)}km)`
+          : 'Na Loja';
+
         const badgeBg = isReturning
           ? 'bg-amber-500 text-slate-950 border-amber-300 font-black'
           : isDelivering
@@ -381,8 +402,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
               </div>
             </div>
           `,
-          iconSize: [80, 50],
-          iconAnchor: [40, 25],
+          iconSize: [90, 50],
+          iconAnchor: [45, 25],
         });
 
         const mbMarker = L.marker([mbLat, mbLng], { icon: motoboyIcon }).bindPopup(`
@@ -390,8 +411,12 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             <div class="flex items-center justify-between gap-2 mb-1">
               <span class="font-extrabold text-xs text-white">${mb.name}</span>
               <span class="text-[10px] px-1.5 py-0.5 rounded font-black uppercase ${
-                isReturning ? 'bg-amber-950 text-amber-300 border border-amber-700' : isDelivering ? 'bg-blue-950 text-blue-300 border border-blue-700' : 'bg-emerald-950 text-emerald-300 border border-emerald-700'
-              }">${isReturning ? 'Voltando à Loja' : isDelivering ? 'Em Rota' : 'Na Loja'}</span>
+                isReturning
+                  ? 'bg-amber-950 text-amber-300 border border-amber-700'
+                  : isDelivering
+                  ? 'bg-blue-950 text-blue-300 border border-blue-700'
+                  : 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+              }">${isReturning ? 'Voltando à Loja' : isDelivering ? 'Em Rota' : statusBadgeText}</span>
             </div>
             <p class="text-xs text-slate-300">${mb.vehicleModel || 'Moto'} • ${mb.plate || ''}</p>
           </div>
@@ -497,15 +522,26 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   }, [origin, stops, selectedStopId, motoboysList, showMotoboyMarker, motoboyLat, motoboyLng, selectedMotoboyId]);
 
   // Counts for top status chip bar
-  const availableCount = motoboysList?.filter((m) => m.status === 'available' || m.status === 'offline').length || 0;
+  const atStoreCount =
+    motoboysList?.filter((m) => {
+      if (m.status === 'delivering' || m.status === 'returning_to_store') return false;
+      if (m.currentLat && m.currentLng && origin.lat && origin.lng) {
+        return calculateDistanceKm(m.currentLat, m.currentLng, origin.lat, origin.lng) <= 0.3;
+      }
+      return true;
+    }).length || 0;
+
+  const outsideAvailableCount =
+    (motoboysList?.filter((m) => m.status === 'available' || m.status === 'offline').length || 0) - atStoreCount;
   const deliveringCount = motoboysList?.filter((m) => m.status === 'delivering').length || 0;
-  const returningCount = motoboysList?.filter((m) => m.status === 'returning_to_store' || (m as any).isReturning).length || 0;
+  const returningCount =
+    motoboysList?.filter((m) => m.status === 'returning_to_store' || (m as any).isReturning).length || 0;
 
   const isStoreAddressConfigured = Boolean(
     origin.address &&
-    origin.address.trim() !== '' &&
-    origin.address !== 'Endereço não cadastrado' &&
-    origin.address !== 'Aguardando cadastro em Configurar Loja'
+      origin.address.trim() !== '' &&
+      origin.address !== 'Endereço não cadastrado' &&
+      origin.address !== 'Aguardando cadastro em Configurar Loja'
   );
 
   return (
@@ -518,7 +554,9 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           <span className="p-1 rounded-lg bg-amber-500/20 text-amber-400 text-base shrink-0">📍</span>
           <div>
             <p className="font-extrabold text-white text-xs">Endereço da loja não cadastrado!</p>
-            <p className="text-[11px] text-slate-300 font-medium">Cadastre o endereço da sua loja em <strong>Configurar Loja (⚙️)</strong> para que ela apareça no mapa.</p>
+            <p className="text-[11px] text-slate-300 font-medium">
+              Cadastre o endereço da sua loja em <strong>Configurar Loja (⚙️)</strong> para que ela apareça no mapa.
+            </p>
           </div>
         </div>
       )}
@@ -527,8 +565,14 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       <div className="absolute top-3 left-3 z-20 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-[11px] text-slate-300 flex items-center gap-3 font-extrabold shadow-lg">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full inline-block ring-2 ring-emerald-500/30"></span>
-          <span>Na loja ({availableCount})</span>
+          <span>Na loja ({atStoreCount})</span>
         </div>
+        {outsideAvailableCount > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 bg-teal-400 rounded-full inline-block ring-2 ring-teal-400/30"></span>
+            <span>Disponível fora ({outsideAvailableCount})</span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 bg-blue-500 rounded-full inline-block ring-2 ring-blue-500/30"></span>
           <span>Em rota ({deliveringCount})</span>

@@ -96,6 +96,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   const [shiftEndedAt, setShiftEndedAt] = useState<string | null>(null);
   const [isWakeLockActive, setIsWakeLockActive] = useState<boolean>(false);
   const wakeLockRef = useRef<any>(null);
+  const [expandedExtraOrderIds, setExpandedExtraOrderIds] = useState<Record<string, boolean>>({});
 
   const requestWakeLock = async () => {
     if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
@@ -1408,26 +1409,36 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                       </div>
 
                       <div className="p-3.5 space-y-3">
-                        {/* 1. ENDEREÇO DA ENTREGA (DOMINANTE) */}
-                        <div className="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-1.5 text-white shadow-xs">
-                          <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                            <span>PRÓXIMA ENTREGA · #{order.codeNumber}</span>
-                            <span className="text-emerald-400 font-bold bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700">
+                        {/* 1. ENDEREÇO DA ENTREGA (DOMINANTE - LEGÍVEL A 1M) */}
+                        <div className="bg-slate-950 p-4 rounded-2xl border-2 border-slate-800 space-y-1 text-white shadow-lg">
+                          <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider">
+                            <span className="text-amber-400 flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 bg-amber-400 text-slate-950 rounded font-black text-[10px]">
+                                {stopLabel}
+                              </span>
+                              <span>#{order.codeNumber}</span>
+                            </span>
+                            <span className="text-emerald-400 font-extrabold bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-xs">
                               📍 {order.neighborhood || 'Centro'}
                             </span>
                           </div>
 
-                          <p className="text-lg font-black text-white leading-snug tracking-tight">
+                          <h2 className="text-xl sm:text-2xl font-black text-white leading-tight tracking-tight pt-1">
                             {streetLine}
-                          </p>
+                          </h2>
 
-                          <div className="flex items-center gap-2 pt-1 text-xs font-bold text-slate-300">
-                            <span className="bg-slate-800/90 text-amber-300 px-2.5 py-1 rounded-lg border border-slate-700">
+                          <div className="flex items-center gap-2 pt-1.5 text-xs font-bold text-slate-300 flex-wrap">
+                            <span className="bg-slate-900 text-amber-300 px-2.5 py-1 rounded-lg border border-slate-800 font-black">
                               {hasArrived ? '⏱️ No local (0 min)' : `⏱️ ~${Math.max(2, Math.round((order.estimatedMinutes || 8) * 0.5))} min`}
                             </span>
-                            <span className="bg-slate-800/90 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700">
+                            <span className="bg-slate-900 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-800 font-extrabold">
                               {hasArrived ? '📍 ~0.1 km (No destino)' : `🗺️ ~${(order.distanceKm || 2.4).toFixed(1)} km`}
                             </span>
+                            {order.deliveryWindow && (
+                              <span className="bg-slate-900 text-amber-400 px-2.5 py-1 rounded-lg border border-slate-800 font-extrabold">
+                                🕒 {order.deliveryWindow}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -1435,7 +1446,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                         {hasArrived && (
                           <div className="bg-amber-400 text-slate-950 p-2.5 rounded-xl font-extrabold text-xs border border-amber-300 flex items-center justify-between gap-2 shadow-xs animate-pulse">
                             <span className="flex items-center gap-1.5 font-black text-sm">
-                              📍 Você está chegando!
+                              📍 Você está no local!
                             </span>
                             <span className="text-[10px] font-bold bg-slate-900 text-amber-300 px-2 py-0.5 rounded-md">
                               Cliente {order.clientName} avisado
@@ -1443,154 +1454,79 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                           </div>
                         )}
 
-                        {/* 2. PAGAMENTO (DESTACADO E SEM AMBIGUIDADE) */}
+                        {/* 2. PAGAMENTO (1 LINHA ESSENCIAL - SEM AMBIGUIDADE) */}
                         {order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web' ? (
-                          <div className="bg-emerald-950/90 border border-emerald-500/50 p-3 rounded-xl flex items-center justify-between text-emerald-200 text-xs shadow-2xs">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                              <div className="min-w-0">
-                                <span className="block text-[10px] font-black uppercase text-emerald-400 tracking-wider">
-                                  ✓ JÁ PAGO PELO CLIENTE (NÃO COBRAR)
-                                </span>
-                                <span className="text-xs text-emerald-200 font-extrabold truncate block">
-                                  Forma: {order.paymentMethod === 'pix' ? 'PIX' : order.originChannel === 'ifood' ? 'iFood' : 'Cartão Online'}
-                                </span>
-                              </div>
+                          <div className="bg-emerald-950/90 border-2 border-emerald-500/60 p-3 rounded-2xl flex items-center justify-between text-emerald-100 shadow-sm">
+                            <div className="flex items-center gap-2 font-black text-xs sm:text-sm">
+                              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                              <span>✓ Pago via {order.paymentMethod === 'pix' ? 'PIX' : order.originChannel === 'ifood' ? 'iFood' : 'Online'} • <span className="text-emerald-300 font-extrabold">Não cobrar</span></span>
                             </div>
-                            <div className="text-right shrink-0">
-                              <span className="text-[9px] font-bold text-emerald-400 uppercase block">Valor do Pedido</span>
-                              <span className="font-black text-emerald-300 text-sm">{formattedCurrency(order.total)}</span>
-                              <span className="text-[9px] font-extrabold text-amber-300 block">Sua taxa: +{formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 8.50)}</span>
-                            </div>
+                            <span className="font-black text-amber-300 text-xs bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800 shrink-0">
+                              + {formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 8.50)}
+                            </span>
                           </div>
                         ) : (
-                          <div className="bg-amber-950 border-2 border-amber-500 p-3 rounded-xl text-white flex items-center justify-between shadow-md">
+                          <div className="bg-amber-950 border-2 border-amber-500 p-3 rounded-2xl text-white flex items-center justify-between shadow-md">
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-black">
-                                {order.paymentMethod === 'dinheiro' ? <DollarSign className="w-6 h-6 stroke-[2.5]" /> : <CreditCard className="w-6 h-6 stroke-[2.5]" />}
+                                {order.paymentMethod === 'dinheiro' ? <DollarSign className="w-6 h-6 stroke-[3]" /> : <CreditCard className="w-6 h-6 stroke-[3]" />}
                               </div>
                               <div className="min-w-0">
                                 <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider block">
-                                  🚨 COBRAR CLIENTE NO LOCAL
+                                  🚨 Cobrar no local ({order.paymentMethod === 'dinheiro' ? 'Dinheiro' : 'Maquininha'})
                                 </span>
-                                <span className="font-black text-xs text-amber-100 uppercase block truncate">
-                                  {order.paymentMethod === 'dinheiro' ? '💵 DINHEIRO NA ENTREGA' : '💳 CARTÃO (MAQUININHA)'}
+                                <span className="font-bold text-xs text-amber-100 block truncate">
+                                  {order.paymentMethod === 'dinheiro' ? '💵 Dinheiro na entrega' : '💳 Maquininha na entrega'}
                                 </span>
-                                <span className="text-[10px] font-bold text-slate-300 block">
-                                  Sua taxa: +{formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 8.50)}
-                                </span>
+                                {order.changeFor && order.paymentMethod === 'dinheiro' && (
+                                  <span className="text-[11px] font-extrabold text-amber-200 block">
+                                    ⚠️ Levar troco para: {formattedCurrency(order.changeFor)}
+                                  </span>
+                                )}
                               </div>
                             </div>
-
                             <div className="text-right shrink-0">
-                              <span className="text-[10px] font-extrabold text-amber-200 uppercase block">Cobrar Pedido</span>
+                              <span className="text-[10px] font-black text-amber-200 uppercase block">Cobrar</span>
                               <span className="font-black text-2xl text-amber-300 leading-none block">{formattedCurrency(order.total)}</span>
                             </div>
                           </div>
                         )}
 
-                        {/* Troco Info */}
-                        {order.changeFor && order.paymentMethod === 'dinheiro' && (
-                          <div className="bg-amber-50 border border-amber-300 p-2 rounded-lg flex items-center justify-between text-xs font-bold text-amber-900">
-                            <span>⚠️ LEVAR TROCO PARA:</span>
-                            <span className="font-extrabold bg-amber-200 px-2 py-0.5 rounded border border-amber-400">
-                              {formattedCurrency(order.changeFor)}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* CLIENTE & CONTATO (LIGAR + WHATSAPP) */}
+                        {/* 3. NAVEGAR + LIGAR (2 BOTÕES LADO A LADO) */}
                         {(isInTransit || isPickedUp) && (
-                          <div className="flex items-center justify-between bg-slate-100 px-3 py-2 rounded-xl border border-slate-200 text-xs">
-                            <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                              <User className="w-3.5 h-3.5 text-slate-500" />
-                              <span className="truncate max-w-[120px] sm:max-w-[160px]">{order.clientName}</span>
-                            </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenWaze(order.address, order.lat, order.lng)}
+                              className="py-3.5 bg-sky-600 hover:bg-sky-500 active:scale-98 text-white font-extrabold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer border border-sky-400/40"
+                            >
+                              <Navigation className="w-5 h-5 fill-current text-white animate-pulse" />
+                              <span>Navegar</span>
+                            </button>
 
-                            {order.clientPhone && (
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <a
-                                  href={`tel:${order.clientPhone.replace(/\D/g, '')}`}
-                                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 flex items-center gap-1 text-[11px] font-extrabold transition-all shadow-2xs"
-                                >
-                                  <Phone className="w-3.5 h-3.5 text-blue-600" />
-                                  <span>Ligar</span>
-                                </a>
-                                <a
-                                  href={`https://wa.me/55${order.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                    `Olá ${order.clientName}, sou o entregador da Hope Burger com seu pedido #${order.codeNumber}. Estou na sua rua/portão!`
-                                  )}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1 text-[11px] font-extrabold transition-all shadow-2xs"
-                                >
-                                  <MessageCircle className="w-3.5 h-3.5 fill-current" />
-                                  <span>WhatsApp</span>
-                                </a>
+                            {order.clientPhone ? (
+                              <a
+                                href={`tel:${order.clientPhone.replace(/\D/g, '')}`}
+                                className="py-3.5 bg-slate-800 hover:bg-slate-700 active:scale-98 text-white font-extrabold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer border border-slate-700"
+                              >
+                                <Phone className="w-5 h-5 text-emerald-400 shrink-0" />
+                                <span>Ligar</span>
+                              </a>
+                            ) : (
+                              <div className="py-3.5 bg-slate-800/60 text-slate-400 font-extrabold text-xs rounded-2xl flex items-center justify-center gap-1 border border-slate-700">
+                                <span>Sem telefone</span>
                               </div>
                             )}
                           </div>
                         )}
 
-                        {/* STATUS MESSAGE & MAIN ACTION BUTTON */}
+                        {/* 4. AÇÃO PRINCIPAL (CTA GIGANTE ÚNICO) */}
                         <div className="pt-1 space-y-2">
-                          {/* STATUS TAG */}
                           {isPendingInKitchen ? (
-                            <div className="w-full py-2.5 px-3 bg-amber-50 border border-amber-200 text-amber-900 font-bold text-xs rounded-xl flex items-center justify-center gap-2 text-center">
+                            <div className="w-full py-3 px-3 bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 text-center">
                               <Clock className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
-                              <span>⏳ Aguardando a loja finalizar o pedido</span>
+                              <span>Cozinha preparando o pedido... 🍳</span>
                             </div>
-                          ) : isReadyAtCounter ? (
-                            <div className="w-full py-2.5 px-3 bg-emerald-50 border border-emerald-300 text-emerald-950 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 text-center">
-                              <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-                              <span>✅ PEDIDO PRONTO PARA RETIRADA NO BALCÃO</span>
-                            </div>
-                          ) : isPickedUp ? (
-                            <div className="w-full py-2.5 px-3 bg-slate-900 text-amber-300 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 text-center">
-                              <ShoppingBag className="w-4 h-4 text-amber-400 shrink-0" />
-                              <span>🎒 RETIRADO (NA BAG) — PRONTO PARA SAÍDA</span>
-                            </div>
-                          ) : null}
-
-                          {/* ACTION BUTTONS (STRICTLY LOCKED FOR NON-FIRST STOPS) */}
-                          {!isFirstOrder ? (
-                            <div className="bg-slate-900 border-2 border-amber-500/60 p-3.5 rounded-2xl space-y-2 text-white shadow-md">
-                              <div className="flex items-center gap-2 font-black text-amber-300 text-xs uppercase tracking-wide">
-                                <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-                                <span>🔒 PARADA #{index + 1} BLOQUEADA (AGUARDANDO A 1ª PARADA)</span>
-                              </div>
-                              <p className="text-xs text-slate-300 font-medium leading-relaxed">
-                                Você deve entregar o <strong>Pedido #{assignedOrders[0]?.codeNumber} (1ª Parada)</strong> primeiro. Assim que concluir a entrega anterior, esta rota será liberada automaticamente.
-                              </p>
-                              {onReorderMotoboyRoute && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const reordered = [...assignedOrders];
-                                    const [moved] = reordered.splice(index, 1);
-                                    reordered.unshift(moved);
-                                    onReorderMotoboyRoute(reordered.map((o) => o.id));
-                                    setManualExpandedId(null);
-                                    triggerSystemActionToast(`▲ Pedido #${order.codeNumber} priorizado para a 1ª parada!`);
-                                  }}
-                                  className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer mt-1"
-                                >
-                                  <span>▲ PRIORIZAR ESTA ENTREGA (ENTREGAR EM 1º LUGAR)</span>
-                                </button>
-                              )}
-                            </div>
-                          ) : isPendingInKitchen ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onUpdateOrderStatus(order.id, 'picked_up');
-                                triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada!`);
-                              }}
-                              className="w-full py-3 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer"
-                            >
-                              <ShoppingBag className="w-4 h-4 text-amber-400" />
-                              <span>Confirmar Retirada Agora</span>
-                            </button>
                           ) : isReadyAtCounter ? (
                             <button
                               type="button"
@@ -1598,10 +1534,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                 onUpdateOrderStatus(order.id, 'picked_up');
                                 triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada!`);
                               }}
-                              className="w-full py-3.5 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer animate-pulse"
+                              className="w-full py-4 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer animate-pulse"
                             >
                               <ShoppingBag className="w-5 h-5 text-slate-950 fill-current" />
-                              <span>Confirmar Retirada</span>
+                              <span>Confirmar retirada</span>
                             </button>
                           ) : isPickedUp ? (
                             <button
@@ -1621,52 +1557,26 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                 if (onUpdateMotoboyStatus && activeMotoboy) {
                                   onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
                                 }
-                                triggerSystemActionToast(`🚀 Rota iniciada! 1ª parada: #${firstOrder?.codeNumber} (${firstOrder?.neighborhood || 'Centro'})`);
+                                triggerSystemActionToast(`🚀 Rota iniciada! 1ª parada: #${firstOrder?.codeNumber}`);
                               }}
-                              className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer"
+                              className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
                             >
                               <Zap className="w-5 h-5 fill-current" />
-                              <span>Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'parada' : 'paradas'})</span>
+                              <span>Peguei tudo, bora! ({assignedOrders.length} {assignedOrders.length === 1 ? 'entrega' : 'entregas'})</span>
                             </button>
                           ) : isInTransit ? (
-                            <div className="space-y-2.5 pt-1">
-                              {/* MODO ROTA: NAVEGAÇÃO DESTACADA */}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenWaze(order.address, order.lat, order.lng)}
-                                className="w-full py-4 bg-sky-600 hover:bg-sky-500 active:scale-98 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer uppercase tracking-wide border border-sky-400/40"
-                              >
-                                <Navigation className="w-5 h-5 fill-current text-white animate-bounce" />
-                                <span>🧭 ABRIR NAVEGAÇÃO (WAZE)</span>
-                              </button>
-
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenGoogleMaps(order.address, order.lat, order.lng)}
-                                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-700"
-                                >
-                                  <MapPin className="w-3.5 h-3.5 text-sky-400" />
-                                  <span>Google Maps</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const url = `${window.location.origin}/?rastreio=${order.trackingCode || order.id}`;
-                                    navigator.clipboard.writeText(url);
-                                    triggerSystemActionToast("🔗 Link de rastreio copiado!");
-                                  }}
-                                  className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-amber-300 font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-700"
-                                  title="Copiar link de rastreio em tempo real"
-                                >
-                                  <Copy className="w-3.5 h-3.5 text-amber-400" />
-                                  <span>Link de Rastreio</span>
-                                </button>
-                              </div>
-
-                              {/* FINAL STEP BUTTON: CHEGUEI OR ENTREGUE */}
-                              {!hasArrived ? (
+                            <div className="space-y-2">
+                              {!isFirstOrder ? (
+                                <div className="bg-slate-900 border-2 border-amber-500/60 p-3.5 rounded-2xl space-y-2 text-white shadow-md">
+                                  <div className="flex items-center gap-2 font-black text-amber-300 text-xs tracking-wide">
+                                    <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                                    <span>🔒 Entregar pedido #{assignedOrders[0]?.codeNumber} primeiro</span>
+                                  </div>
+                                  <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                                    Esta é a {index + 1}ª parada da sua rota. Complete a 1ª parada para liberar.
+                                  </p>
+                                </div>
+                              ) : !hasArrived ? (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1674,10 +1584,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                     onSimulateArrival(order);
                                     triggerSystemActionToast("📍 Cheguei ao local! Cliente notificado.");
                                   }}
-                                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/25 transition-all uppercase cursor-pointer border-2 border-emerald-300 animate-pulse"
+                                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/25 transition-all cursor-pointer border-2 border-emerald-300 animate-pulse tracking-wide"
                                 >
                                   <MapPin className="w-5 h-5 text-slate-950 fill-emerald-200 shrink-0" />
-                                  <span>📍 CHEGUEI AO LOCAL DA ENTREGA</span>
+                                  <span>Cheguei ao local</span>
                                 </button>
                               ) : (
                                 <button
@@ -1692,14 +1602,95 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                     setManualExpandedId(null);
                                     triggerSystemActionToast("✓ Entrega concluída!");
                                   }}
-                                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-xl transition-all uppercase cursor-pointer border-2 border-emerald-300"
+                                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer border-2 border-emerald-300 tracking-wide"
                                 >
                                   <CheckCircle2 className="w-5 h-5 text-slate-950 shrink-0" />
-                                  <span>✓ CONCLUIR ENTREGA #{order.codeNumber}</span>
+                                  <span>✓ Concluir entrega #{order.codeNumber}</span>
                                 </button>
                               )}
                             </div>
                           ) : null}
+                        </div>
+
+                        {/* 5. EXPANDABLE DETAILS ACCORDION (DETALHES COMPLEMENTARES) */}
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedExtraOrderIds((prev) => ({
+                                ...prev,
+                                [order.id]: !prev[order.id],
+                              }))
+                            }
+                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-700 font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-300"
+                          >
+                            <span>{expandedExtraOrderIds[order.id] ? '🔼 Ocultar Detalhes' : '🔽 Ver Detalhes (Itens, Rastreio, Maps)'}</span>
+                          </button>
+
+                          {expandedExtraOrderIds[order.id] && (
+                            <div className="mt-2.5 p-3.5 bg-slate-900 text-slate-100 rounded-2xl border border-slate-800 space-y-3 text-xs">
+                              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                                <span className="font-extrabold text-amber-300 uppercase text-[11px]">👤 Cliente: {order.clientName}</span>
+                                {order.clientPhone && (
+                                  <a
+                                    href={`https://wa.me/55${order.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                                      `Olá ${order.clientName}, sou o entregador com seu pedido #${order.codeNumber}.`
+                                    )}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] bg-emerald-600 text-white font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1"
+                                  >
+                                    <MessageCircle className="w-3 h-3 fill-current" />
+                                    <span>WhatsApp</span>
+                                  </a>
+                                )}
+                              </div>
+
+                              {order.items && order.items.length > 0 && (
+                                <div>
+                                  <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">📦 Itens do Pedido:</span>
+                                  <ul className="space-y-1 font-medium bg-slate-950 p-2 rounded-xl border border-slate-800">
+                                    {order.items.map((it, i) => (
+                                      <li key={i} className="flex justify-between text-slate-200 text-xs">
+                                        <span>{it.quantity}x {it.name}</span>
+                                        <span className="font-bold text-slate-400">{formattedCurrency((it.price || 0) * it.quantity)}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {order.notes && (
+                                <div className="bg-amber-950/60 p-2.5 rounded-xl border border-amber-600/40 text-amber-200">
+                                  <span className="font-black text-[10px] uppercase block">📝 Observação:</span>
+                                  <p className="font-bold text-xs">{order.notes}</p>
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenGoogleMaps(order.address, order.lat, order.lng)}
+                                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold rounded-lg text-center flex items-center justify-center gap-1 border border-slate-700 cursor-pointer"
+                                >
+                                  <MapPin className="w-3.5 h-3.5 text-sky-400" />
+                                  <span>Google Maps</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const url = `${window.location.origin}/?rastreio=${order.trackingCode || order.id}`;
+                                    navigator.clipboard.writeText(url);
+                                    triggerSystemActionToast("🔗 Link de rastreio copiado!");
+                                  }}
+                                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-extrabold rounded-lg text-center flex items-center justify-center gap-1 border border-slate-700 cursor-pointer"
+                                >
+                                  <Copy className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>Copiar Link Rastreio</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

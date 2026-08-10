@@ -236,9 +236,9 @@ export function analyzeOperationalBrain(
           id: `alert-delay-${ord.id}`,
           type: 'delay_risk',
           severity: 'high',
-          title: `🔴 Risco de Atraso: Pedido #${ord.codeNumber}`,
-          description: `Aguardando despacho há ${elapsedMin} min (${ord.clientName} - ${ord.neighborhood}). Priorize a saída!`,
-          actionText: 'Despachar Agora',
+          title: `🔴 Pedido #${ord.codeNumber} demorando`,
+          description: `Esperando saída há ${elapsedMin} min (${ord.clientName} - ${ord.neighborhood}). Que tal priorizar?`,
+          actionText: 'Despachar agora',
           orderId: ord.id,
           timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         });
@@ -250,15 +250,15 @@ export function analyzeOperationalBrain(
   const readyOrders = orders.filter((o) => o.status === 'ready_at_counter' || o.status === 'pending');
   if (readyOrders.length >= 2 && availableMotoboys.length === 0) {
     const nextReturning = returningMotoboys[0];
-    const nextEtaText = nextReturning ? `Próximo retorno: ${nextReturning.name}` : 'Nenhum motoboy retornando no momento';
+    const nextEtaText = nextReturning ? `Próximo a voltar: ${nextReturning.name}` : 'Ninguém voltando agora';
 
     alerts.push({
       id: 'alert-fleet-bottleneck',
       type: 'fleet_bottleneck',
       severity: 'medium',
-      title: `🟠 Gargalo na Entrega: ${readyOrders.length} Pedidos Prontos`,
-      description: `Todos os entregadores estão em rota. ${nextEtaText}.`,
-      actionText: 'Ver Fila de Entregas',
+      title: `🟠 ${readyOrders.length} pedidos prontos esperando motoboy`,
+      description: `Todos os entregadores estão na rua. ${nextEtaText}.`,
+      actionText: 'Ver fila de entregas',
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     });
   }
@@ -283,9 +283,9 @@ export function analyzeOperationalBrain(
         id: `alert-sync-${mb.id}`,
         type: 'kitchen_sync',
         severity: 'info',
-        title: `🔵 Sincronia Perfeita: ${mb.name} x Cozinha`,
-        description: `${mb.name} chega em ~${returnEtaMin} min. ${syncingOrders.length} ${syncingOrders.length === 1 ? 'pedido estará pronto' : 'pedidos estarão prontos'} para a próxima saída!`,
-        actionText: 'Agrupar Pedidos',
+        title: `⚡ ${mb.name} chega junto com o pedido`,
+        description: `${mb.name} chega em ~${returnEtaMin} min. ${syncingOrders.length} ${syncingOrders.length === 1 ? 'pedido estará pronto' : 'pedidos estarão prontos'} para a próxima rota.`,
+        actionText: 'Agrupar pedidos',
         motoboyId: mb.id,
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       });
@@ -300,8 +300,8 @@ export function analyzeOperationalBrain(
       id: 'alert-savings-info',
       type: 'savings',
       severity: 'info',
-      title: `🟢 Eficiência da Frota Hoje`,
-      description: `Com o agrupamento inteligente por bairro, sua loja economizou ~${estimatedKmSaved} km em trajetos de entrega hoje.`,
+      title: `Economia de hoje 🎉`,
+      description: `Hoje vocês economizaram ~${estimatedKmSaved} km com rotas inteligentes por bairro.`,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     });
   }

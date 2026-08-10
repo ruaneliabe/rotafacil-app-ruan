@@ -30,6 +30,7 @@ import {
   VolumeX,
   BarChart3,
   Webhook,
+  X,
 } from 'lucide-react';
 import { RouteMap } from './RouteMap';
 import { ThermalTicketModal } from './ThermalTicketModal';
@@ -885,43 +886,74 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
           )}
 
-          {/* 🚨 CENTRAL DE EXCEÇÕES E ALERTAS DA OPERAÇÃO */}
-          {brainAnalysis.alerts.length > 0 && (
-            <div id="exceptions-alerts-section" className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2 shadow-sm">
-              <div className="flex items-center justify-between gap-2 px-1">
-                <span className="text-xs font-black text-slate-300 uppercase tracking-wide flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  <span>Central de Exceções e Alertas da Operação</span>
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-800 px-2 py-0.5 rounded-full">
-                  {brainAnalysis.alerts.length} {brainAnalysis.alerts.length === 1 ? 'alerta ativo' : 'alertas ativos'}
-                </span>
-              </div>
+          {/* 🚨 CENTRAL DE EXCEÇÕES E ALERTAS DA OPERAÇÃO (APENAS PROBLEMAS/EXCEÇÕES) */}
+          {(() => {
+            const problemAlerts = brainAnalysis.alerts.filter((a) => a.type !== 'savings' && a.severity !== 'info');
+            const insightAlerts = brainAnalysis.alerts.filter((a) => a.type === 'savings' || a.severity === 'info');
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {brainAnalysis.alerts.map((alt) => (
-                  <div
-                    key={alt.id}
-                    className={`p-2.5 rounded-xl border text-xs space-y-1 transition-all ${
-                      alt.severity === 'high'
-                        ? 'bg-red-950/40 border-red-500/50 text-red-100'
-                        : alt.severity === 'medium'
-                        ? 'bg-amber-950/40 border-amber-500/50 text-amber-100'
-                        : 'bg-slate-950/60 border-slate-700/80 text-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between font-extrabold gap-1">
-                      <span>{alt.title}</span>
-                      <span className="text-[10px] text-slate-400 font-medium">{alt.timestamp}</span>
+            return (
+              <>
+                {problemAlerts.length > 0 && (
+                  <div id="exceptions-alerts-section" className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2 shadow-sm">
+                    <div className="flex items-center justify-between gap-2 px-1">
+                      <span className="text-xs font-black text-amber-300 tracking-wide flex items-center gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                        <span>Atenção na Operação</span>
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-300 uppercase bg-amber-950/80 border border-amber-800/60 px-2.5 py-0.5 rounded-full">
+                        {problemAlerts.length} {problemAlerts.length === 1 ? 'alerta ativo' : 'alertas ativos'}
+                      </span>
                     </div>
-                    <p className="text-[11px] text-slate-300 font-medium leading-tight">
-                      {alt.description}
-                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {problemAlerts.map((alt) => (
+                        <div
+                          key={alt.id}
+                          className={`p-2.5 rounded-xl border text-xs space-y-1 transition-all ${
+                            alt.severity === 'high'
+                              ? 'bg-red-950/40 border-red-500/50 text-red-100'
+                              : 'bg-amber-950/40 border-amber-500/50 text-amber-100'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-extrabold gap-1">
+                            <span>{alt.title}</span>
+                            <span className="text-[10px] text-slate-400 font-medium">{alt.timestamp}</span>
+                          </div>
+                          <p className="text-[11px] text-slate-300 font-medium leading-tight">
+                            {alt.description}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                )}
+
+                {/* ✨ INSIGHTS & EFICIÊNCIA DA OPERAÇÃO (MENSAGENS POSITIVAS SEPARADAS) */}
+                {insightAlerts.length > 0 && (
+                  <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-3 px-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-emerald-200">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 shrink-0 font-black text-sm">
+                        ✨
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-xs text-emerald-300 uppercase tracking-wider">
+                            {insightAlerts[0].title}
+                          </span>
+                          <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-black uppercase">
+                            Desempenho Positivo
+                          </span>
+                        </div>
+                        <p className="text-xs text-emerald-100/90 font-medium mt-0.5">
+                          {insightAlerts[0].description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* 🛵 UNIFIED CLEAN RETURNING MOTOBOY ALERT BANNER */}
           {returningMotoboysWithDistance.length > 0 && (
@@ -1074,8 +1106,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-xs font-black shrink-0">
                   ✓
                 </div>
-                <span className="font-extrabold text-white">Fila de despacho limpa:</span>
-                <span className="text-slate-300 font-medium">Todos os pedidos foram atribuídos e estão em rota no momento.</span>
+                <span className="font-extrabold text-emerald-300">Tudo despachado!</span>
+                <span className="text-slate-300 font-medium">Zerou a fila de entregas 💨 Todos os pedidos já foram atribuídos.</span>
               </div>
             )}
 
@@ -1518,21 +1550,23 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </div>
               )}
 
-              {/* Middle & Right Column: Map + Rotas Disponíveis (Dynamic Full Span when empty) */}
-              <div className={`${unassignedOrders.length > 0 ? 'lg:col-span-7' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-12 gap-3`}>
-                {/* Map Panel with Clean Filter Controls */}
-                <div id="dashboard-map-section" className="md:col-span-7 h-[380px] md:h-auto min-h-[320px] flex flex-col bg-slate-900/80 rounded-2xl border border-slate-700/80 p-2 space-y-2">
-                  <div className="flex items-center justify-between gap-1.5 px-1 pt-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-black text-slate-300 uppercase tracking-wide flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                {/* Middle & Right Column: Map + Rotas Disponíveis (Dynamic Full Span when empty) */}
+                <div className={`${unassignedOrders.length > 0 ? 'lg:col-span-7' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-12 gap-3`}>
+                  {/* Map Panel with Sleek Filter Controls */}
+                  <div id="dashboard-map-section" className="md:col-span-7 h-[380px] md:h-auto min-h-[320px] flex flex-col bg-slate-900/90 rounded-2xl border border-slate-800 p-2.5 space-y-2.5 shadow-sm">
+                  {/* Clean Toolbar Header */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1 pt-0.5">
+                    {/* Left: Title & GPS Sync Button */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-slate-200 tracking-wide flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4 text-emerald-400" />
                         Visão do Mapa
                       </span>
                       <button
                         type="button"
                         onClick={() => {
                           if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-                            triggerActionToast('📍 Buscando localização exata do seu dispositivo...');
+                            triggerActionToast('📍 Buscando sua localização atual pelo GPS...');
                             navigator.geolocation.getCurrentPosition(
                               (pos) => {
                                 const lat = Number(pos.coords.latitude.toFixed(6));
@@ -1541,9 +1575,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 if (ruan) {
                                   const updatedRuan = { ...ruan, currentLat: lat, currentLng: lng };
                                   saveMotoboyToCloud(updatedRuan);
-                                  triggerActionToast(`🎯 Localização do Ruan sincronizada: ${lat}, ${lng}`);
+                                  triggerActionToast(`📍 Posição do Ruan atualizada: ${lat}, ${lng}`);
                                 } else {
-                                  triggerActionToast(`🎯 Posição GPS capturada: ${lat}, ${lng}`);
+                                  triggerActionToast(`📍 Posição GPS capturada: ${lat}, ${lng}`);
                                 }
                               },
                               (err) => triggerActionToast(`⚠️ Permissão de GPS pendente: ${err.message}`),
@@ -1553,47 +1587,71 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             triggerActionToast('⚠️ Dispositivo sem suporte a geolocalização');
                           }
                         }}
-                        className="px-2 py-0.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-                        title="Capturar e aplicar minha localização atual do celular/navegador ao mapa"
+                        className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                        title="Atualizar e aplicar minha posição atual do celular/navegador no mapa"
                       >
-                        🎯 Sincronizar GPS Real
+                        <Navigation className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Atualizar GPS</span>
                       </button>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
+
+                    {/* Right: Motoboy Dropdown & Segmented Filter Tabs */}
+                    <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
                       {/* Motoboy Filter Selector */}
-                      <select
-                        value={selectedMotoboyId || ''}
-                        onChange={(e) => setSelectedMotoboyId(e.target.value || null)}
-                        className="bg-slate-800 text-slate-100 border border-slate-700 text-[10px] font-black rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs"
-                        title="Filtrar o mapa para focar em apenas 1 motoboy"
-                      >
-                        <option value="">🌐 Frota Inteira ({motoboys.filter((m) => m.status !== 'offline').length} motoboys)</option>
-                        {motoboys
-                          .filter((m) => m.status !== 'offline')
-                          .map((m) => (
-                            <option key={m.id} value={m.id}>
-                              🛵 {m.name} ({m.status === 'delivering' ? 'Em Rota' : m.status === 'returning_to_store' ? 'Voltando' : 'Na Loja'})
-                            </option>
-                          ))}
-                      </select>
-
-                      {selectedMotoboyId && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedMotoboyId(null)}
-                          className="px-2 py-0.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-500/40 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={selectedMotoboyId || ''}
+                          onChange={(e) => setSelectedMotoboyId(e.target.value || null)}
+                          className="bg-slate-800/90 text-slate-100 border border-slate-700/80 text-xs font-semibold rounded-xl px-2.5 py-1 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs transition-all"
+                          title="Filtrar o mapa para focar em apenas 1 motoboy"
                         >
-                          ✕ Ver Frota Toda
-                        </button>
-                      )}
+                          <option value="">
+                            🌐 Frota: {motoboys.filter((m) => m.status !== 'offline').length}{' '}
+                            {motoboys.filter((m) => m.status !== 'offline').length === 1 ? 'motoboy ativo' : 'motoboys ativos'}
+                          </option>
+                          {motoboys
+                            .filter((m) => m.status !== 'offline')
+                            .map((m) => {
+                              let locLabel = 'Na loja';
+                              if (m.status === 'delivering') {
+                                locLabel = 'Em rota';
+                              } else if (m.status === 'returning_to_store') {
+                                locLabel = 'Voltando';
+                              } else if (m.currentLat && m.currentLng && shift.storeLat && shift.storeLng) {
+                                const dist = calculateDistanceKm(m.currentLat, m.currentLng, shift.storeLat, shift.storeLng);
+                                if (dist > 0.3) {
+                                  locLabel = `Disponível (${dist.toFixed(1)} km)`;
+                                }
+                              }
+                              return (
+                                <option key={m.id} value={m.id}>
+                                  🛵 {m.name} • {locLabel}
+                                </option>
+                              );
+                            })}
+                        </select>
 
-                      <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-xl border border-slate-700">
+                        {selectedMotoboyId && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedMotoboyId(null)}
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-xl text-xs font-medium transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
+                            title="Voltar a ver a frota inteira no mapa"
+                          >
+                            <X className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Ver todos</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Map Layer Filter Tabs */}
+                      <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800/80">
                         <button
                           type="button"
                           onClick={() => setMapFilter('all')}
-                          className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             mapFilter === 'all'
-                              ? 'bg-emerald-500 text-slate-950 shadow-2xs'
+                              ? 'bg-emerald-500 text-slate-950 shadow-2xs font-extrabold'
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
@@ -1602,9 +1660,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => setMapFilter('returning')}
-                          className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             mapFilter === 'returning'
-                              ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                              ? 'bg-amber-500 text-slate-950 shadow-2xs font-extrabold'
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
@@ -1613,9 +1671,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => setMapFilter('orders')}
-                          className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             mapFilter === 'orders'
-                              ? 'bg-blue-500 text-white shadow-2xs'
+                              ? 'bg-blue-500 text-white shadow-2xs font-extrabold'
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
@@ -1866,7 +1924,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                             {/* Order Items List inside Driver Card */}
                             {mOrders.length > 0 && (
-                              <div className="space-y-1.5 pt-1">
+                              <div className="space-y-1.5 pt-1 max-h-56 overflow-y-auto pr-1">
                                 {mOrders.map((ord, idx) => {
                                   const isReady = ord.status === 'ready_at_counter' || ord.status === 'picked_up';
                                   const isInTransit = ord.status === 'in_transit';
@@ -1907,10 +1965,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                         <button
                                           type="button"
                                           onClick={() => onSelectOrderForTracking(ord)}
-                                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-md border border-slate-700 transition-colors cursor-pointer"
-                                          title="Abrir mapa de rastreio em tempo real"
+                                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-md border border-slate-700 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-extrabold"
+                                          title="Abrir mapa de rastreio em tempo real do pedido"
                                         >
-                                          <MapPin className="w-3.5 h-3.5" />
+                                          <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                                          <span className="hidden sm:inline">Rastreio</span>
                                         </button>
 
                                         <button
@@ -1920,10 +1979,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                             navigator.clipboard.writeText(url);
                                             triggerActionToast(`🔗 Link do pedido #${ord.codeNumber} copiado!`);
                                           }}
-                                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-md border border-slate-700 transition-colors cursor-pointer"
+                                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-md border border-slate-700 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-extrabold"
                                           title="Copiar Link de Rastreio do Cliente"
                                         >
-                                          <Copy className="w-3.5 h-3.5" />
+                                          <Copy className="w-3.5 h-3.5 text-amber-400" />
+                                          <span className="hidden sm:inline">Link</span>
                                         </button>
 
                                         {/* Up/Down reorder arrows if >1 orders */}
