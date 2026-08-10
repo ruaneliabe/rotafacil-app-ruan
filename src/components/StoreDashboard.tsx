@@ -278,7 +278,27 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const unassignedOrders = activeOrders.filter((o) => !o.assignedMotoboyId);
   const deliveredToday = orders.filter((o) => o.status === 'delivered');
   const totalRevenue = orders.reduce((acc, o) => acc + o.total, 0);
-  const motoboysAvailable = motoboys.filter((m) => m.status === 'available');
+  const getMotoboyLoad = (motoboyId: string) => activeOrders.filter((o) => o.assignedMotoboyId === motoboyId).length;
+  const motoboysAvailable = motoboys
+    .filter((m) => m.status === 'available')
+    .sort((a, b) => {
+      const loadDiff = getMotoboyLoad(a.id) - getMotoboyLoad(b.id);
+      if (loadDiff !== 0) return loadDiff;
+      return (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0);
+    });
+
+  const assignOrderRespectingLoad = (orderId: string, motoboyId: string) => {
+    const target = motoboys.find((m) => m.id === motoboyId);
+    if (!target) return;
+    const currentLoad = getMotoboyLoad(target.id);
+    const nextFree = motoboysAvailable.find((m) => getMotoboyLoad(m.id) === 0 && m.id !== target.id);
+    if (currentLoad > 0) {
+      const suggestion = nextFree ? ` O próximo livre da fila é ${nextFree.name.split(' ')[0]}.` : '';
+      const ok = window.confirm(`${target.name.split(' ')[0]} já possui ${currentLoad} ${currentLoad === 1 ? 'pedido vinculado' : 'pedidos vinculados'}.${suggestion} Deseja adicionar mais este pedido mesmo assim?`);
+      if (!ok) return;
+    }
+    onAssignOrderToMotoboy(orderId, motoboyId);
+  };
 
   // Calculate Motoboys returning to store (~5 min / <= 4.2 km road distance away without active orders, or explicitly 'returning_to_store')
   const returningMotoboysWithDistance = motoboys.map((m) => {
@@ -1351,7 +1371,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     return (
                                       <button
                                         type="button"
-                                        onClick={() => onAssignOrderToMotoboy(ord.id, firstAvail.id)}
+                                        onClick={() => assignOrderRespectingLoad(ord.id, firstAvail.id)}
                                         className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1"
                                         title={`Despachar para 1º da fila: ${firstAvail.name}`}
                                       >
@@ -1366,7 +1386,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 <select
                                   onChange={(e) => {
                                     if (e.target.value) {
-                                      onAssignOrderToMotoboy(ord.id, e.target.value);
+                                      assignOrderRespectingLoad(ord.id, e.target.value);
                                     }
                                   }}
                                   defaultValue=""
@@ -1384,7 +1404,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     })
                                     .map((m) => (
                                       <option key={m.id} value={m.id} className="text-white bg-slate-900">
-                                        {m.name.split(' ')[0]} ({m.status === 'available' ? '🟢 Livre' : '🛵 Rota'})
+                                        {m.name.split(' ')[0]} ({getMotoboyLoad(m.id) > 0 ? `⚠️ ${getMotoboyLoad(m.id)} pedido${getMotoboyLoad(m.id) > 1 ? 's' : ''}` : m.status === 'available' ? '🟢 Livre' : '🛵 Rota'})
                                       </option>
                                     ))}
                                 </select>
@@ -1494,7 +1514,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          onAssignOrderToMotoboy(ord.id, firstAvailable.id);
+                                          assignOrderRespectingLoad(ord.id, firstAvailable.id);
                                         }}
                                         className="flex-1 min-w-0 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center justify-center gap-1 transition-all cursor-pointer truncate"
                                         title={`Despachar imediatamente para 1º da fila: ${firstAvailable.name}`}
@@ -1523,7 +1543,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 <select
                                   onChange={(e) => {
                                     if (e.target.value) {
-                                      onAssignOrderToMotoboy(ord.id, e.target.value);
+                                      assignOrderRespectingLoad(ord.id, e.target.value);
                                     }
                                   }}
                                   defaultValue=""
@@ -1541,8 +1561,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     })
                                     .map((m) => {
                                       const isAvail = m.status === 'available';
-                                      const statusLabel = isAvail
-                                        ? '🟢 Fila'
+                                      const currentLoad = getMotoboyLoad(m.id);
+                                      const statusLabel = currentLoad > 0
+                                        ? `⚠️ ${currentLoad} pedido${currentLoad > 1 ? 's' : ''}`
+                                        : isAvail
+                                        ? '🟢 Livre'
                                         : m.status === 'on_delivery'
                                         ? '🛵 Rota'
                                         : m.status === 'break'
