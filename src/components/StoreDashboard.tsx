@@ -137,39 +137,57 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       return;
     }
     const nextMotoboy = motoboysAvailable[0];
-    playNewOrderSound();
 
-    let assignedCount = 0;
-    if (unassignedOrders.length > 0) {
-      const ordersToAssign = selectedOrderIds.length > 0
-        ? selectedOrderIds
-        : unassignedOrders.map((o) => o.id);
+    // Check orders currently assigned/linked to nextMotoboy
+    const motoboyLinkedOrders = activeOrders.filter(
+      (o) =>
+        (o.assignedMotoboyId === nextMotoboy.id ||
+          (nextMotoboy.username && o.assignedMotoboyId?.toLowerCase() === nextMotoboy.username.toLowerCase()) ||
+          (nextMotoboy.name && o.assignedMotoboyId?.toLowerCase() === nextMotoboy.name.toLowerCase())) &&
+        o.status !== 'delivered' &&
+        o.status !== 'cancelled'
+    );
 
+    // Scenario A: User manually selected checkboxes in the order list
+    if (selectedOrderIds.length > 0) {
       if (onAssignBatchToMotoboy) {
-        onAssignBatchToMotoboy(ordersToAssign, nextMotoboy.id);
+        onAssignBatchToMotoboy(selectedOrderIds, nextMotoboy.id);
       } else {
-        ordersToAssign.forEach((id) => onAssignOrderToMotoboy(id, nextMotoboy.id));
+        selectedOrderIds.forEach((id) => onAssignOrderToMotoboy(id, nextMotoboy.id));
       }
-      assignedCount = ordersToAssign.length;
+      playNewOrderSound();
+      saveMotoboyToCloud({ ...nextMotoboy, callingToCounterAt: Date.now() });
+      setCallingCounterTimer({
+        motoboyId: nextMotoboy.id,
+        motoboyName: nextMotoboy.name,
+        secondsLeft: 30,
+      });
+      triggerActionToast(
+        `🚀 ${selectedOrderIds.length} ${selectedOrderIds.length === 1 ? 'pedido selecionado vinculado' : 'pedidos selecionados vinculados'} a ${nextMotoboy.name.split(' ')[0]} e chamado ao balcão!`
+      );
       setSelectedOrderIds([]);
+      return;
     }
 
-    saveMotoboyToCloud({ ...nextMotoboy, callingToCounterAt: Date.now() });
-    setCallingCounterTimer({
-      motoboyId: nextMotoboy.id,
-      motoboyName: nextMotoboy.name,
-      secondsLeft: 30,
-    });
-
-    if (assignedCount > 0) {
+    // Scenario B: Motoboy already has orders linked to them
+    if (motoboyLinkedOrders.length > 0) {
+      playNewOrderSound();
+      saveMotoboyToCloud({ ...nextMotoboy, callingToCounterAt: Date.now() });
+      setCallingCounterTimer({
+        motoboyId: nextMotoboy.id,
+        motoboyName: nextMotoboy.name,
+        secondsLeft: 30,
+      });
       triggerActionToast(
-        `🚀 ${assignedCount} ${assignedCount === 1 ? 'pedido atribuído' : 'pedidos atribuídos'} a ${nextMotoboy.name.split(' ')[0]} e chamado ao balcão!`
+        `🛎️ Chamando ${nextMotoboy.name.split(' ')[0]} no balcão com ${motoboyLinkedOrders.length} ${motoboyLinkedOrders.length === 1 ? 'pedido vinculado' : 'pedidos vinculados'}!`
       );
-    } else {
-      triggerActionToast(
-        `🛎️ Chamando ${nextMotoboy.name.split(' ')[0]} (1º da Fila) no balcão!`
-      );
+      return;
     }
+
+    // Scenario C: No orders linked and no checkboxes selected
+    triggerActionToast(
+      `⚠️ O motoboy ${nextMotoboy.name.split(' ')[0]} não possui pedidos vinculados! Vincule os pedidos ao motoboy (ou selecione na lista) antes de despachar.`
+    );
   };
 
   const handleSimulateIncomingOrder = (channel: 'ifood' | 'cardapio_web' | 'pdv' | 'whatsapp') => {

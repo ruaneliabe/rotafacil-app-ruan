@@ -676,10 +676,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             type="button"
             onClick={() => setIsDailyReportModalOpen(true)}
             title="Abrir Relatório do Dia"
-            className="p-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1 text-[11px] font-extrabold cursor-pointer"
+            className="p-2 sm:p-1.5 sm:px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1 text-[11px] font-extrabold cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span>Relatório</span>
+            <span className="hidden sm:inline">Relatório</span>
           </button>
           {/* Sound / Notification Test Button */}
           <button
@@ -692,10 +692,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               triggerSystemActionToast('Sinal sonoro de entrega testado!');
             }}
             title="Testar sinal sonoro de entregas"
-            className="p-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1 text-[11px] font-extrabold cursor-pointer"
+            className="p-2 sm:p-1.5 sm:px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1 text-[11px] font-extrabold cursor-pointer"
           >
             <Volume2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span>Som</span>
+            <span className="hidden sm:inline">Som</span>
           </button>
 
           {/* Dev GPS Toggle (Discrete Tool) */}
@@ -703,14 +703,14 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             type="button"
             onClick={() => setShowDevGpsPanel(!showDevGpsPanel)}
             title="Painel de Testes GPS"
-            className={`p-1.5 px-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-[11px] font-extrabold ${
+            className={`p-2 sm:p-1.5 sm:px-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-[11px] font-extrabold ${
               showDevGpsPanel
                 ? 'bg-amber-400 text-slate-950 font-black'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
             }`}
           >
             <Zap className="w-3.5 h-3.5 shrink-0" />
-            <span>GPS</span>
+            <span className="hidden sm:inline">GPS</span>
           </button>
 
           {/* Profile Switcher or Logout Button */}
@@ -719,10 +719,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               type="button"
               onClick={handleLogoutAccount}
               title="Sair da Conta de Entregador"
-              className="p-1.5 px-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 transition-all cursor-pointer flex items-center gap-1 text-[11px] font-extrabold"
+              className="p-2 sm:p-1.5 sm:px-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 transition-all cursor-pointer flex items-center gap-1 text-[11px] font-extrabold"
             >
               <LogOut className="w-3.5 h-3.5 text-rose-300 shrink-0" />
-              <span>Sair</span>
+              <span className="hidden sm:inline">Sair</span>
             </button>
           ) : (
             <select
@@ -980,114 +980,35 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                     Entrega {assignedOrders.findIndex(o => o.status === 'in_transit') >= 0 ? assignedOrders.findIndex(o => o.status === 'in_transit') + 1 : 1} de {assignedOrders.length}
                   </span>
                 </div>
-              ) : (() => {
-                const kitchenPendingOrders = assignedOrders.filter((o) => o.status === 'preparing' || o.status === 'pending');
-                const readyOrdersCount = assignedOrders.length - kitchenPendingOrders.length;
-                const isAllReady = kitchenPendingOrders.length === 0;
-
-                if (!isAllReady) {
-                  return (
-                    <div className="w-full bg-slate-900 border-2 border-amber-500/80 p-3.5 rounded-2xl text-white shadow-xl space-y-2.5">
-                      <div className="flex items-center justify-between text-xs font-black">
-                        <div className="flex items-center gap-2 text-amber-300">
-                          <Clock className="w-4 h-4 text-amber-400 animate-spin shrink-0" />
-                          <span className="uppercase tracking-wide">
-                            Conferência no Balcão ({readyOrdersCount} de {assignedOrders.length} prontos)
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-black bg-amber-950 text-amber-300 px-2.5 py-0.5 rounded-md border border-amber-600/60 uppercase">
-                          ⏳ Aguardando Cozinha
-                        </span>
-                      </div>
-
-                      {/* Checklist Breakdown */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        {assignedOrders.map((o) => {
-                          const isReady = o.status === 'ready_at_counter' || o.status === 'picked_up';
-                          return (
-                            <div
-                              key={o.id}
-                              className={`p-2 rounded-xl flex items-center justify-between border transition-all ${
-                                isReady
-                                  ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
-                                  : 'bg-amber-950/60 border-amber-500/40 text-amber-200 font-medium'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 truncate pr-1">
-                                <span className="font-extrabold">{isReady ? '✓' : '⏳'}</span>
-                                <span className="font-black text-white">#{o.codeNumber}</span>
-                                <span className="truncate text-[11px] text-slate-300">({o.neighborhood || 'Centro'})</span>
-                              </div>
-                              <span
-                                className={`text-[10px] font-black uppercase px-2 py-0.5 rounded shrink-0 ${
-                                  isReady ? 'bg-emerald-900 text-emerald-300 border border-emerald-500/40' : 'bg-amber-900 text-amber-300 border border-amber-600/40'
-                                }`}
-                              >
-                                {isReady ? 'Pronto' : 'Em Preparo'}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const firstOrder = assignedOrders[0];
-                          if (firstOrder) {
-                            onUpdateOrderStatus(firstOrder.id, 'in_transit');
-                          }
-                          assignedOrders.slice(1).forEach((o) => {
-                            if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
-                              onUpdateOrderStatus(o.id, 'picked_up');
-                            }
-                          });
-                          if (onUpdateMotoboyStatus && activeMotoboy) {
-                            onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
-                          }
-                          triggerSystemActionToast(`🚀 Rota iniciada! Siga para a 1ª parada.`);
-                        }}
-                        className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center justify-center gap-2 uppercase transition-all cursor-pointer border border-emerald-400/50"
-                      >
-                        <ShoppingBag className="w-4 h-4 text-amber-300 fill-amber-300 shrink-0" />
-                        <span>
-                          ✓ Peguei os Pedidos Prontos e Iniciar Rota ({readyOrdersCount}/{assignedOrders.length})
-                        </span>
-                      </button>
-                    </div>
-                  );
-                }
-
-                return (
-                  /* BATCH CONFIRM ALL PICKED UP & START ROUTE BUTTON */
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const firstOrder = assignedOrders[0];
-                      if (firstOrder) {
-                        onUpdateOrderStatus(firstOrder.id, 'in_transit');
+              ) : (
+                /* BATCH CONFIRM ALL PICKED UP & START ROUTE BUTTON */
+                <button
+                  type="button"
+                  onClick={() => {
+                    const firstOrder = assignedOrders[0];
+                    if (firstOrder) {
+                      onUpdateOrderStatus(firstOrder.id, 'in_transit');
+                    }
+                    assignedOrders.slice(1).forEach((o) => {
+                      if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
+                        onUpdateOrderStatus(o.id, 'picked_up');
                       }
-                      assignedOrders.slice(1).forEach((o) => {
-                        if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
-                          onUpdateOrderStatus(o.id, 'picked_up');
-                        }
-                      });
-                      if (onUpdateMotoboyStatus && activeMotoboy) {
-                        onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
-                      }
-                      triggerSystemActionToast(
-                        `🚀 Rota iniciada! Siga para a 1ª parada: #${firstOrder?.codeNumber} (${firstOrder?.neighborhood || 'Centro'})`
-                      );
-                    }}
-                    className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer animate-pulse border border-emerald-300"
-                  >
-                    <ShoppingBag className="w-5 h-5 fill-current text-slate-950 shrink-0" />
-                    <span>
-                      ✓ Todos Prontos na Bag - Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'Entrega' : 'Entregas'})
-                    </span>
-                  </button>
-                );
-              })()
+                    });
+                    if (onUpdateMotoboyStatus && activeMotoboy) {
+                      onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
+                    }
+                    triggerSystemActionToast(
+                      `🚀 Rota iniciada! Siga para a 1ª parada: #${firstOrder?.codeNumber} (${firstOrder?.neighborhood || 'Centro'})`
+                    );
+                  }}
+                  className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer animate-pulse border border-emerald-300"
+                >
+                  <ShoppingBag className="w-5 h-5 fill-current text-slate-950 shrink-0" />
+                  <span>
+                    ✓ Peguei os Pedidos - Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'Entrega' : 'Entregas'})
+                  </span>
+                </button>
+              )
             )}
 
             {/* Empty State or Active Orders */}
@@ -1742,23 +1663,28 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                     onSimulateArrival(order);
                                     triggerSystemActionToast("📍 Cheguei ao local! Cliente notificado.");
                                   }}
-                                  className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 active:scale-98 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all uppercase cursor-pointer border border-slate-800"
+                                  className="w-full py-4 bg-sky-500 hover:bg-sky-400 active:scale-98 text-slate-950 font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all uppercase cursor-pointer border-2 border-sky-300 animate-pulse"
                                 >
-                                  <MapPin className="w-4 h-4 text-emerald-400" />
-                                  <span>CHEGUEI AO LOCAL</span>
+                                  <MapPin className="w-5 h-5 text-slate-950 fill-sky-200 shrink-0" />
+                                  <span>📍 CHEGUEI AO LOCAL DA ENTREGA</span>
                                 </button>
                               ) : (
                                 <button
                                   type="button"
                                   onClick={() => {
                                     onUpdateOrderStatus(order.id, 'delivered');
+                                    setArrivedOrderIds((prev) => {
+                                      const copy = { ...prev };
+                                      delete copy[order.id];
+                                      return copy;
+                                    });
                                     setManualExpandedId(null);
                                     triggerSystemActionToast("✓ Entrega concluída!");
                                   }}
-                                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-sm rounded-xl flex items-center justify-center gap-2 shadow-md transition-all uppercase cursor-pointer border border-emerald-400/50"
+                                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-xl transition-all uppercase cursor-pointer border-2 border-emerald-300"
                                 >
-                                  <CheckCircle2 className="w-5 h-5" />
-                                  <span>✓ CONCLUIR ENTREGA</span>
+                                  <CheckCircle2 className="w-5 h-5 text-slate-950 shrink-0" />
+                                  <span>✓ CONCLUIR ENTREGA #{order.codeNumber}</span>
                                 </button>
                               )}
                             </div>
@@ -1938,6 +1864,80 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           </button>
         </div>
       </div>
+
+      {/* 🎒 STICKY BOTTOM FLOATING CTA FOR QUICK ONE-HANDED DRIVER ACTIONS */}
+      {assignedOrders.length > 0 && activeTab === 'active' && (() => {
+        const firstOrder = assignedOrders[0];
+        if (!firstOrder) return null;
+
+        const isInTransit = firstOrder.status === 'in_transit';
+        const hasArrived = Boolean(arrivedOrderIds[firstOrder.id]);
+        const isPickedUp = firstOrder.status === 'picked_up';
+
+        return (
+          <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-md bg-slate-950/95 border-2 border-emerald-500/80 p-2.5 px-3.5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center justify-between gap-2 text-white animate-slideUp">
+            <div className="min-w-0 pr-1">
+              <div className="flex items-center gap-1.5 text-[10px] font-black text-amber-300 uppercase tracking-wide">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                <span>1ª Parada • #{firstOrder.codeNumber}</span>
+              </div>
+              <p className="text-xs font-black text-white truncate max-w-[170px] sm:max-w-[210px]">
+                {firstOrder.street || firstOrder.address}
+              </p>
+            </div>
+
+            <div className="shrink-0">
+              {isInTransit && !hasArrived ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setArrivedOrderIds((prev) => ({ ...prev, [firstOrder.id]: true }));
+                    onSimulateArrival(firstOrder);
+                    triggerSystemActionToast("📍 Cheguei ao local! Cliente notificado.");
+                  }}
+                  className="px-3.5 py-2.5 bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5 uppercase border border-sky-300"
+                >
+                  <MapPin className="w-4 h-4 fill-sky-100" />
+                  <span>Cheguei Ao Local</span>
+                </button>
+              ) : isInTransit && hasArrived ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateOrderStatus(firstOrder.id, 'delivered');
+                    setArrivedOrderIds((prev) => {
+                      const copy = { ...prev };
+                      delete copy[firstOrder.id];
+                      return copy;
+                    });
+                    setManualExpandedId(null);
+                    triggerSystemActionToast("✓ Entrega concluída!");
+                  }}
+                  className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5 uppercase border border-emerald-300"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Concluir Entrega</span>
+                </button>
+              ) : isPickedUp ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onUpdateOrderStatus(firstOrder.id, 'in_transit');
+                    if (onUpdateMotoboyStatus && activeMotoboy) {
+                      onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
+                    }
+                    triggerSystemActionToast(`🚀 Deslocamento iniciado para #${firstOrder.codeNumber}!`);
+                  }}
+                  className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5 uppercase border border-emerald-300"
+                >
+                  <Zap className="w-4 h-4 fill-current" />
+                  <span>Iniciar Deslocamento</span>
+                </button>
+              ) : null}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* DETAILED EARNINGS & SALES BREAKDOWN MODAL */}
       {isEarningsModalOpen && (
