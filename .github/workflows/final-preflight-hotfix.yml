@@ -1,0 +1,111 @@
+name: Final Preflight Hotfix
+on:
+  push:
+    paths:
+      - '.github/workflows/final-preflight-hotfix.yml'
+permissions:
+  contents: write
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Apply operational hotfixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def rep(path, old, new, count=None):
+              p=Path(path); s=p.read_text(encoding='utf-8')
+              n=s.count(old)
+              if count is not None and n != count:
+                  raise SystemExit(f'{path}: expected {count} occurrences, got {n}: {old[:80]!r}')
+              if n == 0:
+                  raise SystemExit(f'{path}: pattern not found: {old[:100]!r}')
+              s=s.replace(old,new)
+              p.write_text(s,encoding='utf-8')
+              print(path, 'replaced', n)
+
+          # APP: immutable motoboy identity only; no name/username fallback.
+          app='src/App.tsx'
+          old_assign="""    const targetMotoboy = motoboys.find(\n      (m) =>\n        m.id === motoboyId ||\n        (m.username && m.username.toLowerCase() === motoboyId.toLowerCase()) ||\n        m.name.toLowerCase() === motoboyId.toLowerCase()\n    );"""
+          rep(app, old_assign, "    const targetMotoboy = motoboys.find((m) => m.id === motoboyId);", count=2)
+
+          old_transit="""      const targetMotoboy = motoboys.find(\n        (m) =>\n          m.id === targetOrder.assignedMotoboyId ||\n          (m.username && m.username.toLowerCase() === targetOrder.assignedMotoboyId?.toLowerCase()) ||\n          m.name.toLowerCase() === targetOrder.assignedMotoboyId?.toLowerCase() ||\n          (targetOrder.assignedMotoboyName && m.name.toLowerCase() === targetOrder.assignedMotoboyName.toLowerCase())\n      );"""
+          rep(app, old_transit, "      const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);", count=1)
+
+          old_delivered="""      const targetMotoboy = motoboys.find(\n        (m) =>\n          (targetOrder.assignedMotoboyId && m.id === targetOrder.assignedMotoboyId) ||\n          (m.username && targetOrder.assignedMotoboyId && m.username.toLowerCase() === targetOrder.assignedMotoboyId.toLowerCase()) ||\n          (m.name && targetOrder.assignedMotoboyId && m.name.toLowerCase() === targetOrder.assignedMotoboyId.toLowerCase()) ||\n          (m.name && targetOrder.assignedMotoboyName && m.name.toLowerCase() === targetOrder.assignedMotoboyName.toLowerCase())\n      );"""
+          rep(app, old_delivered, "      const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);", count=1)
+
+          old_remaining="""              (o.assignedMotoboyId === targetMotoboy.id ||\n               (o.assignedMotoboyName && targetMotoboy.name && o.assignedMotoboyName.toLowerCase() === targetMotoboy.name.toLowerCase())) &&"""
+          rep(app, old_remaining, "              o.assignedMotoboyId === targetMotoboy.id &&", count=1)
+
+          # Preserve operational status when merely linking orders (do not turn returning driver into available).
+          rep(app, "      status: targetMotoboy.status === 'delivering' ? 'delivering' : 'available',", "      status: targetMotoboy.status,", count=2)
+
+          # New drivers must be born out of queue and with zero daily counters in local UI too.
+          old_new="""      id: `m-${Date.now()}`,\n      status: 'available',\n      activeOrdersCount: 0,\n      totalEarnedToday: newMotoboyData.fixedFee || 0,"""
+          new_new="""      id: `m-${Date.now()}`,\n      status: 'offline',\n      activeOrdersCount: 0,\n      totalEarnedToday: 0,\n      deliveriesCountToday: 0,"""
+          rep(app, old_new, new_new, count=1)
+
+          # GPS heartbeat: refresh timestamp even while stationary, so live tracking does not go stale.
+          old_gps="""        if (!distChanged) return prevMotoboys;\n\n        const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() };"""
+          new_gps="""        const heartbeatDue = !current.locationUpdatedAt || Date.now() - current.locationUpdatedAt >= 10000;\n        if (!distChanged && !heartbeatDue) return prevMotoboys;\n\n        const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() };"""
+          rep(app, old_gps, new_gps, count=1)
+
+          # FIREBASE: keep historical delivered orders; daily filtering belongs in UI metrics.
+          fb='src/lib/firebase.ts'
+          rep(fb, "      if (order.status === 'delivered' && order.deliveredDate !== today) return;\n", "", count=1)
+          # Disable old one-time clean-test reset from normal startup (latent destructive risk).
+          rep(fb, "    await resetOperationalDataOnceForCleanTest();\n", "", count=1)
+
+          # STORE DASHBOARD: daily metrics by explicit date; operational ownership strictly by ID.
+          sd='src/components/StoreDashboard.tsx'
+          old_metrics="""  const deliveredToday = orders.filter((o) => o.status === 'delivered');\n  const totalRevenue = orders.reduce((acc, o) => acc + o.total, 0);"""
+          new_metrics="""  const todayDateKey = (() => {\n    const d = new Date();\n    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;\n  })();\n  const deliveredToday = orders.filter((o) => o.status === 'delivered' && o.deliveredDate === todayDateKey);\n  const todayOrders = orders.filter((o) => o.createdDate === todayDateKey || o.deliveredDate === todayDateKey);\n  const totalRevenue = todayOrders.reduce((acc, o) => acc + o.total, 0);"""
+          rep(sd, old_metrics, new_metrics, count=1)
+          rep(sd, "                <span className=\"text-[11px] text-slate-500 font-medium\">{orders.length} pedidos</span>", "                <span className=\"text-[11px] text-slate-500 font-medium\">{todayOrders.length} pedidos</span>", count=1)
+
+          old_linked="""        (o.assignedMotoboyId === nextMotoboy.id ||\n          (nextMotoboy.username && o.assignedMotoboyId?.toLowerCase() === nextMotoboy.username.toLowerCase()) ||\n          (nextMotoboy.name && o.assignedMotoboyId?.toLowerCase() === nextMotoboy.name.toLowerCase())) &&"""
+          rep(sd, old_linked, "        o.assignedMotoboyId === nextMotoboy.id &&", count=1)
+
+          old_morders="""                              (o.assignedMotoboyId === m.id ||\n                                o.assignedMotoboyName?.toLowerCase() === m.name.toLowerCase() ||\n                                (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||\n                                o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase())"""
+          rep(sd, old_morders, "                              o.assignedMotoboyId === m.id", count=1)
+
+          old_mapmatch="""                                return (\n                                  ord.assignedMotoboyId === selectedMotoboyId ||\n                                  (focusedMb && ord.assignedMotoboyName?.toLowerCase() === focusedMb.name.toLowerCase()) ||\n                                  (focusedMb?.username && ord.assignedMotoboyId?.toLowerCase() === focusedMb.username.toLowerCase())\n                                );"""
+          rep(sd, old_mapmatch, "                                return ord.assignedMotoboyId === selectedMotoboyId;", count=1)
+
+          # MOTOBOY APP: completed-today calculations must ignore historical days.
+          ma='src/components/MotoboyApp.tsx'
+          old_completed="""  const completedOrders = useMemo(\n    () => orders.filter((o) => o.status === 'delivered' && matchesDriver(o)),\n    [orders, activeMotoboy?.id]\n  );"""
+          new_completed="""  const completedOrders = useMemo(() => {\n    const d = new Date();\n    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;\n    return orders.filter((o) => o.status === 'delivered' && o.deliveredDate === today && matchesDriver(o));\n  }, [orders, activeMotoboy?.id]);"""
+          rep(ma, old_completed, new_completed, count=1)
+
+          # DISPATCH BRAIN: ownership by ID; parse HH:mm using createdDate instead of Invalid Date("14:48").
+          brain='src/utils/dispatchBrain.ts'
+          old_owner="""        (o.assignedMotoboyId === m.id ||\n          (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||\n          (m.name && o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase()))"""
+          rep(brain, old_owner, "        o.assignedMotoboyId === m.id", count=1)
+
+          marker="""  const storeLat = shift.storeLat || -26.91530418395996;\n  const storeLng = shift.storeLng || -49.1146354675293;"""
+          helper="""  const storeLat = shift.storeLat || -26.91530418395996;\n  const storeLng = shift.storeLng || -49.1146354675293;\n  const nowDate = new Date();\n  const todayDateKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;\n  const getOrderCreatedTimestamp = (ord: Order) => {\n    const [year, month, day] = (ord.createdDate || todayDateKey).split('-').map(Number);\n    const [hour, minute] = (ord.createdAt || '00:00').split(':').map(Number);\n    return new Date(year, (month || 1) - 1, day || 1, hour || 0, minute || 0).getTime();\n  };"""
+          rep(brain, marker, helper, count=1)
+          rep(brain, "      const createdTime = new Date(ord.createdAt).getTime();", "      const createdTime = getOrderCreatedTimestamp(ord);", count=1)
+          rep(brain, "  const deliveredToday = orders.filter((o) => o.status === 'delivered');", "  const deliveredToday = orders.filter((o) => o.status === 'delivered' && o.deliveredDate === todayDateKey);", count=1)
+          PY
+      - name: Install dependencies
+        run: npm ci
+      - name: TypeScript preflight
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Commit verified hotfixes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/App.tsx src/lib/firebase.ts src/components/StoreDashboard.tsx src/components/MotoboyApp.tsx src/utils/dispatchBrain.ts
+          git diff --cached --quiet || git commit -m 'Hotfix tecnico final para teste operacional'
+          git push
