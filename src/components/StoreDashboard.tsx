@@ -939,7 +939,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 {/* ✨ INSIGHTS & EFICIÊNCIA DA OPERAÇÃO (MENSAGENS POSITIVAS DISPENSÁVEIS/MINIMIZÁVEIS) */}
                 {insightAlerts.length > 0 && (
                   !isSavingsDismissed ? (
-                    <div className="bg-slate-900/45 border border-slate-800/70 rounded-xl px-3 py-2 shadow-sm flex flex-row items-center justify-between gap-3 text-slate-300 transition-all">
+                    <div className="hidden">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-slate-800/80 border border-slate-700 flex items-center justify-center text-emerald-400 shrink-0 font-black text-xs">
                           ✨
@@ -1042,41 +1042,41 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           )}
 
           {/* 4. STRIPE-STYLE OPERATIONAL METRICS CARDS */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 rounded-2xl border border-slate-800/80 bg-slate-950/35 overflow-hidden">
             {/* CARD 1: Espera Médio na Fila */}
-            <div className="bg-slate-900/55 px-3.5 py-3 rounded-xl border border-slate-800/80 shadow-sm flex flex-col justify-between space-y-1.5">
+            <div className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-amber-400 shrink-0" /> Espera Médio Fila
                 </span>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/70">
+                <span className="hidden xl:inline-flex px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-slate-900 text-slate-600 border border-slate-800">
                   ⚡ Otimizado
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">~7.5 min</span>
+                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">~7.5 min</span>
                 <span className="text-[11px] text-slate-500 font-medium">aguardando despacho</span>
               </div>
             </div>
 
             {/* CARD 2: Tempo até Retirada */}
-            <div className="bg-slate-900/55 px-3.5 py-3 rounded-xl border border-slate-800/80 shadow-sm flex flex-col justify-between space-y-1.5">
+            <div className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <Zap className="w-4 h-4 text-emerald-400 shrink-0" /> Tempo até Retirada
                 </span>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800/80 text-slate-500 border border-slate-700/70">
+                <span className="hidden xl:inline-flex px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-slate-900 text-slate-600 border border-slate-800">
                   Balcão
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">~2.2 min</span>
+                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">~2.2 min</span>
                 <span className="text-[11px] text-slate-500 font-medium">chamada → saída</span>
               </div>
             </div>
 
             {/* CARD 3: Motoboys Disponíveis / Parados */}
-            <div className="bg-slate-900/55 px-3.5 py-3 rounded-xl border border-slate-800/80 shadow-sm flex flex-col justify-between space-y-1.5">
+            <div className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <Bike className="w-4 h-4 text-blue-400 shrink-0" /> Motoboys Fila Agora
@@ -1088,7 +1088,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">
+                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
                   {motoboysAvailable.length}/{motoboys.length}
                 </span>
                 <span className="text-[11px] text-slate-500 font-medium truncate">
@@ -1098,7 +1098,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
 
             {/* CARD 4: Faturamento & Entregas Hoje */}
-            <div className="bg-slate-900/55 px-3.5 py-3 rounded-xl border border-slate-800/80 shadow-sm flex flex-col justify-between space-y-1.5">
+            <div className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" /> Entregas Hoje
@@ -1108,7 +1108,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">{formattedCurrency(totalRevenue)}</span>
+                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">{formattedCurrency(totalRevenue)}</span>
                 <span className="text-[11px] text-slate-500 font-medium">{orders.length} pedidos</span>
               </div>
             </div>
@@ -1122,7 +1122,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 <button
                   type="button"
                   onClick={onOpenNewOrderModal}
-                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md border border-emerald-400/40 transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-lg border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus className="w-4 h-4 text-white shrink-0" />
                   <span>+ Lançar Pedido</span>
@@ -1136,7 +1136,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
             {/* Banner when 0 unassigned orders */}
             {unassignedOrders.length === 0 && (
-              <div className="py-2 px-3 bg-slate-900/45 rounded-lg border border-slate-800 flex items-center gap-2 text-xs">
+              <div className="hidden">
                 <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-xs font-black shrink-0">
                   ✓
                 </div>
@@ -1417,7 +1417,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                         return (
                           <div
                             key={ord.id}
-                            className={`bg-slate-800 p-3 rounded-xl border transition-all space-y-2 shadow-2xs ${
+                            className={`bg-slate-800 p-2.5 rounded-xl border transition-all space-y-2 shadow-none ${
                               isSelected
                                 ? 'border-2 border-emerald-500 bg-slate-800/90 ring-1 ring-emerald-500/30'
                                 : 'border-slate-700/80 hover:border-slate-600'
@@ -1590,7 +1590,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 {/* Middle & Right Column: Map + Rotas Disponíveis (Dynamic Full Span when empty) */}
                 <div className={`${unassignedOrders.length > 0 ? 'lg:col-span-7' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-12 gap-3`}>
                   {/* Map Panel with Sleek Filter Controls */}
-                  <div id="dashboard-map-section" className="md:col-span-7 h-[380px] md:h-auto min-h-[320px] flex flex-col bg-slate-900/90 rounded-2xl border border-slate-800 p-2.5 space-y-2.5 shadow-sm">
+                  <div id="dashboard-map-section" className="md:col-span-8 h-[430px] md:h-auto min-h-[380px] flex flex-col bg-slate-950/45 rounded-2xl border border-slate-800/80 p-2.5 space-y-2 shadow-sm">
                   {/* Clean Toolbar Header */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1 pt-0.5">
                     {/* Left: Title & GPS Sync Button */}
@@ -1687,7 +1687,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           onClick={() => setMapFilter('all')}
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             mapFilter === 'all'
-                              ? 'bg-emerald-500 text-slate-950 shadow-2xs font-extrabold'
+                              ? 'bg-slate-200 text-slate-950 shadow-2xs font-extrabold'
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
@@ -1709,7 +1709,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           onClick={() => setMapFilter('orders')}
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             mapFilter === 'orders'
-                              ? 'bg-blue-500 text-white shadow-2xs font-extrabold'
+                              ? 'bg-slate-700 text-white shadow-2xs font-extrabold'
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
@@ -1771,7 +1771,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </div>
 
                 {/* Rotas disponíveis dos Motoboys */}
-                <div className="md:col-span-5 bg-slate-900/60 rounded-2xl p-3 border border-slate-700/70 space-y-3 flex flex-col justify-between">
+                <div className="md:col-span-4 bg-slate-950/35 rounded-2xl p-2.5 border border-slate-800/80 space-y-2.5 flex flex-col justify-between">
                   <div className="space-y-3">
                     {/* Header */}
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
@@ -1794,7 +1794,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       </span>
                     </div>
 
-                    <div className="space-y-2.5 max-h-[400px] overflow-y-auto pr-0.5">
+                    <div className="space-y-2 max-h-[455px] overflow-y-auto pr-1">
                       {motoboys.map((m) => {
                         const availableMotoboys = [...motoboys]
                           .filter((x) => x.status === 'available')
@@ -1824,10 +1824,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                         return (
                           <div
                             key={m.id}
-                            className={`p-3 rounded-xl border transition-all space-y-2 shadow-2xs ${
+                            className={`p-2.5 rounded-xl border transition-all space-y-2 shadow-none ${
                               isThisMotoboyFocused
-                                ? 'bg-indigo-950/80 border-indigo-500 ring-2 ring-indigo-500/40'
-                                : 'bg-slate-800/90 border-slate-700/80'
+                                ? 'bg-slate-800/90 border-slate-600 ring-1 ring-slate-500/40'
+                                : 'bg-slate-900/55 border-slate-800/90'
                             }`}
                           >
                             {/* Card Header */}
@@ -1898,13 +1898,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                             {/* Live Tracking Quick Banner for Driver in Transit */}
                             {mOrders.length > 0 && (m.status === 'delivering' || mOrders.some((o) => o.status === 'in_transit')) && (
-                              <div className="bg-sky-950/80 border border-sky-500/50 p-2.5 rounded-xl flex flex-col gap-1.5 text-xs text-sky-200">
-                                <div className="flex items-center justify-between font-black text-sky-300">
+                              <div className="bg-slate-950/70 border border-slate-800 p-2 rounded-lg flex flex-col gap-1.5 text-xs text-slate-300">
+                                <div className="flex items-center justify-between font-semibold text-slate-300">
                                   <span className="flex items-center gap-1.5">
                                     <MapPin className="w-4 h-4 text-sky-400 animate-pulse" />
                                     <span>Rastreamento em Tempo Real</span>
                                   </span>
-                                  <span className="text-[10px] bg-sky-900/90 text-sky-200 px-2 py-0.5 rounded-md border border-sky-600/50 uppercase font-black">
+                                  <span className="text-[9px] bg-slate-900 text-slate-500 px-2 py-0.5 rounded-md border border-slate-800 uppercase font-semibold">
                                     📡 Sinal Ativo
                                   </span>
                                 </div>
@@ -1915,7 +1915,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                       const activeOrder = mOrders.find((o) => o.status === 'in_transit') || mOrders[0];
                                       if (activeOrder) onSelectOrderForTracking(activeOrder);
                                     }}
-                                    className="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-extrabold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs uppercase"
+                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-[10px] rounded-lg transition-all flex items-center gap-1 cursor-pointer border border-slate-700"
                                   >
                                     <MapPin className="w-3 h-3 text-sky-200" />
                                     <span>Mapa ao Vivo</span>
@@ -1951,7 +1951,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                         window.open(url, '_blank');
                                       }
                                     }}
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-[10px] rounded-lg transition-all flex items-center gap-1 cursor-pointer border border-slate-700"
                                   >
                                     <span>💬 Enviar Whats</span>
                                   </button>
@@ -1970,11 +1970,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   return (
                                     <div
                                       key={ord.id}
-                                      className="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-700/60 text-xs text-slate-200"
+                                      className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-slate-950/45 border border-slate-800/80 text-xs text-slate-300"
                                     >
                                       <div className="min-w-0 flex-1 pr-2">
                                         <div className="flex items-center gap-1.5 truncate">
-                                          <span className="text-amber-400 font-bold shrink-0">{numSymbol}</span>
+                                          <span className="text-slate-500 font-bold shrink-0">{numSymbol}</span>
                                           <span className="font-extrabold text-white truncate">#{ord.codeNumber}</span>
                                           <span className="text-slate-400 text-[11px] truncate">— {ord.street || ord.address}</span>
                                         </div>
@@ -1989,7 +1989,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                               🟢 Pronto
                                             </span>
                                           ) : (
-                                            <span className="text-amber-400 font-medium">
+                                            <span className="text-slate-500 font-medium">
                                               🟠 Em cozinha
                                             </span>
                                           )}
