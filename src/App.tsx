@@ -121,6 +121,7 @@ export default function App() {
     ];
 
     legacyOperationalKeys.forEach((key) => localStorage.removeItem(key));
+    sessionStorage.removeItem('rota_facil_active_motoboy_id');
   }, []);
 
   useEffect(() => {
@@ -151,24 +152,34 @@ export default function App() {
       if (ordersReady && motoboysReady && shiftReady) setCloudSynced(true);
     };
 
-    seedInitialDataIfEmpty();
+    let disposed = false;
+    let unsubOrders = () => {};
+    let unsubMotoboys = () => {};
+    let unsubShift = () => {};
 
-    const unsubOrders = subscribeToOrders((cloudOrders) => {
-      setOrders(cloudOrders);
-      ordersReady = true;
-      markCloudReady();
-    });
+    const startCloudSync = async () => {
+      // Finish and verify the reset before listeners or reconciliation effects can write.
+      await seedInitialDataIfEmpty();
+      if (disposed) return;
+      setOrders([]);
+      setMotoboys([]);
 
-    const unsubMotoboys = subscribeToMotoboys((cloudMotoboys) => {
-      setMotoboys(cloudMotoboys);
-      motoboysReady = true;
-      markCloudReady();
-    });
+      unsubOrders = subscribeToOrders((cloudOrders) => {
+        setOrders(cloudOrders);
+        ordersReady = true;
+        markCloudReady();
+      });
 
-    const unsubShift = subscribeToShift((cloudShift) => {
-      shiftReady = true;
-      markCloudReady();
-      if (cloudShift) {
+      unsubMotoboys = subscribeToMotoboys((cloudMotoboys) => {
+        setMotoboys(cloudMotoboys);
+        motoboysReady = true;
+        markCloudReady();
+      });
+
+      unsubShift = subscribeToShift((cloudShift) => {
+        shiftReady = true;
+        markCloudReady();
+        if (cloudShift) {
         // If stored shift has old default coords (e.g. Rua João Pessoa or old -26.9228), update to exact Rua dos Caçadores 653 (-26.92485, -49.09880)
         if (
           cloudShift.storeLat === -26.9153287 ||
@@ -188,10 +199,14 @@ export default function App() {
         } else {
           setShift(cloudShift);
         }
-      }
-    });
+        }
+      });
+    };
+
+    startCloudSync().catch((err) => console.error('Cloud initialization failed:', err));
 
     return () => {
+      disposed = true;
       unsubOrders();
       unsubMotoboys();
       unsubShift();

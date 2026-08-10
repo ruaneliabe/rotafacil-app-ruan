@@ -43,6 +43,7 @@ export interface Order {
   originChannel?: 'ifood' | 'cardapio_web' | 'whatsapp' | 'pdv' | 'manual';
   kitchenReadyInMin?: number;
   promisedTime?: string;
+  operationalEpoch?: string;
 }
 
 export interface Motoboy {
@@ -67,6 +68,7 @@ export interface Motoboy {
   joinedQueueAt?: number;
   callingToCounterAt?: number;
   accessRevokedAt?: number;
+  operationalEpoch?: string;
 }
 
 export type UserRole = 'store_admin' | 'motoboy' | 'customer';
@@ -89,6 +91,8 @@ export interface StoreShift {
   storeLat: number;
   storeLng: number;
   adminPassword?: string;
+  operationalResetVersion?: string;
+  operationalResetAt?: number;
 }
 
 export interface OperationalMetrics {

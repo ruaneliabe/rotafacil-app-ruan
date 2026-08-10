@@ -8,6 +8,7 @@ import {
   setDoc,
   getDocs,
   deleteDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -28,6 +29,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 const localDateKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const STORE_PILOT_RESET_VERSION = 'hope_store_pilot_2026_08_10_v4';
 
 function forceMotoboyLogout() {
   if (typeof window === 'undefined') return;
@@ -67,6 +69,7 @@ export function subscribeToOrders(callback: (orders: Order[]) => void) {
     const list: Order[] = [];
     snapshot.forEach((docSnap) => {
       let order = { id: docSnap.id, ...docSnap.data() } as Order;
+      if (order.operationalEpoch !== STORE_PILOT_RESET_VERSION) return;
       if (order.status === 'delivered' && !order.deliveredDate) {
         order = { ...order, deliveredDate: today, deliveredTimestamp: order.deliveredTimestamp || Date.now() };
         setDoc(docSnap.ref, { deliveredDate: today, deliveredTimestamp: order.deliveredTimestamp }, { merge: true }).catch(() => {});
@@ -84,6 +87,7 @@ export function subscribeToMotoboys(callback: (motoboys: Motoboy[]) => void) {
     const list: Motoboy[] = [];
     snapshot.forEach((docSnap) => {
       const raw = { id: docSnap.id, ...docSnap.data() } as Motoboy;
+      if (raw.operationalEpoch !== STORE_PILOT_RESET_VERSION) return;
       if (raw.statsDate !== today) {
         const reset = { ...raw, deliveriesCountToday: 0, totalEarnedToday: 0, statsDate: today } as Motoboy;
         list.push(reset);
@@ -113,7 +117,7 @@ export function subscribeToShift(callback: (shift: StoreShift) => void) {
 export async function saveOrderToCloud(order: Order) {
   try {
     const today = localDateKey();
-    const payload: Order = { ...order, createdDate: order.createdDate || today, ...(order.status === 'delivered' ? { deliveredDate: order.deliveredDate || today, deliveredTimestamp: order.deliveredTimestamp || Date.now() } : {}) };
+    const payload: Order = { ...order, operationalEpoch: STORE_PILOT_RESET_VERSION, createdDate: order.createdDate || today, ...(order.status === 'delivered' ? { deliveredDate: order.deliveredDate || today, deliveredTimestamp: order.deliveredTimestamp || Date.now() } : {}) };
     await setDoc(doc(db, 'orders', payload.id), cleanForFirestore(payload), { merge: true });
     if (payload.status === 'delivered' && payload.assignedMotoboyId) {
       const allOrders = await getDocs(collection(db, 'orders'));
@@ -141,6 +145,7 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
     let payload: Motoboy = isNewDriver
       ? { ...dailyBase, status: 'offline', activeOrdersCount: 0, totalEarnedToday: 0, deliveriesCountToday: 0, statsDate: today, joinedQueueAt: undefined, callingToCounterAt: undefined }
       : dailyBase;
+    payload = { ...payload, operationalEpoch: STORE_PILOT_RESET_VERSION };
     if (existingData?.status === 'returning_to_store' && payload.status !== 'returning_to_store') {
       const queueTimestamp = Number(payload.joinedQueueAt || 0);
       const isFreshArrivalConfirmation = payload.status === 'available' && payload.activeOrdersCount === 0 && queueTimestamp > 0 && Math.abs(Date.now() - queueTimestamp) <= 15000;
@@ -189,37 +194,62 @@ export async function clearAllDatabaseData() {
 
 export async function saveShiftToCloud(shift: StoreShift) { await setDoc(doc(db, 'shifts', 'current_shift'), shift, { merge: true }); }
 
+async function deleteOperationalDocuments(includeCurrentEpoch: boolean) {
+  const [ordersSnapshot, motoboysSnapshot] = await Promise.all([
+    getDocs(collection(db, 'orders')),
+    getDocs(collection(db, 'motoboys')),
+  ]);
+  const documents = [...ordersSnapshot.docs, ...motoboysSnapshot.docs].filter(
+    (item) => includeCurrentEpoch || item.data().operationalEpoch !== STORE_PILOT_RESET_VERSION
+  );
+  for (let start = 0; start < documents.length; start += 400) {
+    const batch = writeBatch(db);
+    documents.slice(start, start + 400).forEach((item) => batch.delete(item.ref));
+    await batch.commit();
+  }
+}
+
 async function resetOperationalDataOnceForStorePilot() {
-  const markerRef = doc(db, 'system_flags', 'store_pilot_reset_2026_08_10_v4_verified');
-  if ((await getDoc(markerRef)).exists()) return;
   const shiftRef = doc(db, 'shifts', 'current_shift');
   const snap = await getDoc(shiftRef);
   const current = snap.exists() ? (snap.data() as StoreShift) : null;
   const preservedPassword = current?.adminPassword || INITIAL_STORE_SHIFT.adminPassword || 'hope2026';
+  const needsFullReset = current?.operationalResetVersion !== STORE_PILOT_RESET_VERSION;
 
-  await clearAllDatabaseData();
-
-  const cleanShift = {
-    ...INITIAL_STORE_SHIFT,
-    isOpen: false,
-    openedAt: '',
-    initialCash: 0,
+  await deleteOperationalDocuments(needsFullReset);
+  if (needsFullReset) {
+    await wait(750);
+    await deleteOperationalDocuments(true);
+  }
+  const resetShift: StoreShift = {
+    isOpen: needsFullReset ? false : Boolean(current?.isOpen),
+    openedAt: needsFullReset ? '' : (current?.openedAt || ''),
+    initialCash: needsFullReset ? 0 : (current?.initialCash || 0),
     storeName: 'Hope Burger',
     storePhone: '(47) 99153-9855',
     storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
     storeLat: -26.91530418395996,
     storeLng: -49.1146354675293,
     adminPassword: preservedPassword,
+    operationalResetVersion: STORE_PILOT_RESET_VERSION,
+    operationalResetAt: needsFullReset ? Date.now() : (current?.operationalResetAt || Date.now()),
   };
-  await setDoc(shiftRef, cleanForFirestore(cleanShift));
 
   const [ordersAfter, motoboysAfter] = await Promise.all([
     getDocs(collection(db, 'orders')),
     getDocs(collection(db, 'motoboys')),
   ]);
-  if (!ordersAfter.empty || !motoboysAfter.empty) throw new Error('RESET_VERIFY_FAILED');
-
-  await setDoc(markerRef, { completed: true, resetAt: Date.now(), orders: 0, motoboys: 0, verified: true });
+  const staleOrders = ordersAfter.docs.filter((item) => item.data().operationalEpoch !== STORE_PILOT_RESET_VERSION);
+  const staleMotoboys = motoboysAfter.docs.filter((item) => item.data().operationalEpoch !== STORE_PILOT_RESET_VERSION);
+  if (needsFullReset && (!ordersAfter.empty || !motoboysAfter.empty)) {
+    throw new Error(`Store pilot reset verification failed: orders=${ordersAfter.size}, motoboys=${motoboysAfter.size}`);
+  }
+  if (staleOrders.length || staleMotoboys.length) {
+    throw new Error(`Legacy operational cleanup failed: orders=${staleOrders.length}, motoboys=${staleMotoboys.length}`);
+  }
+  // The completion marker is stored only after the destructive operation was
+  // read back successfully. A failed/raced reset is retried on the next load.
+  await setDoc(shiftRef, resetShift);
 }
 
 export async function seedInitialDataIfEmpty() {
