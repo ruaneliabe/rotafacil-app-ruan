@@ -124,6 +124,8 @@ export interface Stop {
   cep?: string;
   notes?: string;
   deliveryWindow?: string;
+  motoboyId?: string;
+  motoboyName?: string;
 }
 
 export interface RouteConfig {

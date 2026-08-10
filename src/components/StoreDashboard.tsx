@@ -1559,40 +1559,69 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                         🎯 Sincronizar GPS Real
                       </button>
                     </div>
-                    <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-xl border border-slate-700">
-                      <button
-                        type="button"
-                        onClick={() => setMapFilter('all')}
-                        className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
-                          mapFilter === 'all'
-                            ? 'bg-emerald-500 text-slate-950 shadow-2xs'
-                            : 'text-slate-400 hover:text-slate-200'
-                        }`}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Motoboy Filter Selector */}
+                      <select
+                        value={selectedMotoboyId || ''}
+                        onChange={(e) => setSelectedMotoboyId(e.target.value || null)}
+                        className="bg-slate-800 text-slate-100 border border-slate-700 text-[10px] font-black rounded-lg px-2 py-1 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs"
+                        title="Filtrar o mapa para focar em apenas 1 motoboy"
                       >
-                        Todos ({activeOrders.length + motoboys.length})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMapFilter('returning')}
-                        className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
-                          mapFilter === 'returning'
-                            ? 'bg-amber-500 text-slate-950 shadow-2xs'
-                            : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        ⚡ Voltando ({returningMotoboysWithDistance.length})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMapFilter('orders')}
-                        className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
-                          mapFilter === 'orders'
-                            ? 'bg-blue-500 text-white shadow-2xs'
-                            : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        📦 Pedidos ({activeOrders.length})
-                      </button>
+                        <option value="">🌐 Frota Inteira ({motoboys.filter((m) => m.status !== 'offline').length} motoboys)</option>
+                        {motoboys
+                          .filter((m) => m.status !== 'offline')
+                          .map((m) => (
+                            <option key={m.id} value={m.id}>
+                              🛵 {m.name} ({m.status === 'delivering' ? 'Em Rota' : m.status === 'returning_to_store' ? 'Voltando' : 'Na Loja'})
+                            </option>
+                          ))}
+                      </select>
+
+                      {selectedMotoboyId && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedMotoboyId(null)}
+                          className="px-2 py-0.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-500/40 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                        >
+                          ✕ Ver Frota Toda
+                        </button>
+                      )}
+
+                      <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-xl border border-slate-700">
+                        <button
+                          type="button"
+                          onClick={() => setMapFilter('all')}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                            mapFilter === 'all'
+                              ? 'bg-emerald-500 text-slate-950 shadow-2xs'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Todos ({activeOrders.length + motoboys.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMapFilter('returning')}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                            mapFilter === 'returning'
+                              ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          ⚡ Voltando ({returningMotoboysWithDistance.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMapFilter('orders')}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                            mapFilter === 'orders'
+                              ? 'bg-blue-500 text-white shadow-2xs'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          📦 Pedidos ({activeOrders.length})
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -1604,6 +1633,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                         lat: shift.storeLat,
                         lng: shift.storeLng,
                       }}
+                      selectedMotoboyId={selectedMotoboyId}
+                      onSelectMotoboy={(id) => setSelectedMotoboyId(id)}
                       motoboysList={
                         mapFilter === 'all'
                           ? motoboys.filter((m) => m.status !== 'offline')
@@ -1614,20 +1645,32 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       stops={
                         mapFilter === 'returning'
                           ? []
-                          : activeOrders.map((ord, idx) => ({
-                              id: ord.id,
-                              orderIndex: idx + 1,
-                              title: `#${ord.codeNumber} - ${ord.clientName}`,
-                              address: ord.address,
-                              neighborhood: ord.neighborhood,
-                              lat: ord.lat,
-                              lng: ord.lng,
-                              status: ord.status === 'delivered' ? 'delivered' : ord.status === 'in_transit' ? 'in_transit' : 'pending',
-                              priority: 'medium',
-                              recipientName: ord.clientName,
-                              phone: ord.clientPhone,
-                              valueToReceive: ord.total,
-                            }))
+                          : activeOrders
+                              .filter((ord) => {
+                                if (!selectedMotoboyId) return true;
+                                const focusedMb = motoboys.find((mb) => mb.id === selectedMotoboyId);
+                                return (
+                                  ord.assignedMotoboyId === selectedMotoboyId ||
+                                  (focusedMb && ord.assignedMotoboyName?.toLowerCase() === focusedMb.name.toLowerCase()) ||
+                                  (focusedMb?.username && ord.assignedMotoboyId?.toLowerCase() === focusedMb.username.toLowerCase())
+                                );
+                              })
+                              .map((ord, idx) => ({
+                                id: ord.id,
+                                orderIndex: idx + 1,
+                                title: `#${ord.codeNumber} - ${ord.clientName}`,
+                                address: ord.address,
+                                neighborhood: ord.neighborhood,
+                                lat: ord.lat,
+                                lng: ord.lng,
+                                status: ord.status === 'delivered' ? 'delivered' : ord.status === 'in_transit' ? 'in_transit' : 'pending',
+                                priority: 'medium',
+                                recipientName: ord.clientName,
+                                phone: ord.clientPhone,
+                                valueToReceive: ord.total,
+                                motoboyId: ord.assignedMotoboyId || undefined,
+                                motoboyName: ord.assignedMotoboyName || undefined,
+                              }))
                       }
                     />
                   </div>
@@ -1681,10 +1724,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                         const circleNumbers = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
 
+                        const isThisMotoboyFocused = selectedMotoboyId === m.id;
+
                         return (
                           <div
                             key={m.id}
-                            className="bg-slate-800/90 p-3 rounded-xl border border-slate-700/80 space-y-2 shadow-2xs"
+                            className={`p-3 rounded-xl border transition-all space-y-2 shadow-2xs ${
+                              isThisMotoboyFocused
+                                ? 'bg-indigo-950/80 border-indigo-500 ring-2 ring-indigo-500/40'
+                                : 'bg-slate-800/90 border-slate-700/80'
+                            }`}
                           >
                             {/* Card Header */}
                             <div className="flex items-start justify-between gap-2">
@@ -1738,6 +1787,18 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   )}
                                 </p>
                               </div>
+
+                              <button
+                                type="button"
+                                onClick={() => setSelectedMotoboyId(isThisMotoboyFocused ? null : m.id)}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-extrabold border transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                                  isThisMotoboyFocused
+                                    ? 'bg-amber-500 text-slate-950 border-amber-300 font-black shadow-md'
+                                    : 'bg-slate-700/80 hover:bg-slate-700 text-slate-200 border-slate-600'
+                                }`}
+                              >
+                                {isThisMotoboyFocused ? '🎯 Focado' : '🗺️ Mapa'}
+                              </button>
                             </div>
 
                             {/* Live Tracking Quick Banner for Driver in Transit */}

@@ -19,7 +19,8 @@ interface CustomerTrackingViewProps {
   motoboy?: Motoboy | null;
   shift: StoreShift;
   allOrders?: Order[];
-  onBackToDashboard: () => void;
+  onBackToDashboard?: () => void;
+  isOperator?: boolean;
 }
 
 export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
@@ -28,19 +29,22 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
   shift,
   allOrders = [],
   onBackToDashboard,
+  isOperator = false,
 }) => {
-  const [estimatedETA, setEstimatedETA] = useState<number>(order.estimatedMinutes);
+  const [estimatedETA, setEstimatedETA] = useState<number>(order.estimatedMinutes || 30);
 
   useEffect(() => {
-    // Simulate countdown for realism
+    // Dynamic countdown for realism
     const interval = setInterval(() => {
       setEstimatedETA((prev) => (prev > 1 ? prev - 1 : 1));
     }, 60000);
     return () => clearInterval(interval);
   }, []);
 
-  const formattedCurrency = (val: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  const formattedCurrency = (val: number | undefined | null) => {
+    const safeVal = typeof val === 'number' && !isNaN(val) ? val : 0;
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(safeVal);
+  };
 
   // Calculate route stop queue position for this motoboy
   const motoboyOrders = (allOrders || [])
@@ -78,31 +82,43 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
       {/* Header Bar */}
       <div className="bg-[#1e4d3b] text-white p-4 sticky top-0 z-50 shadow-md flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white font-black flex items-center justify-center text-lg">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white font-black flex items-center justify-center text-lg shadow-inner">
             🍔
           </div>
           <div>
-            <h2 className="font-extrabold text-sm">{shift.storeName}</h2>
+            <h2 className="font-extrabold text-sm">{shift.storeName || 'Hope Burger'}</h2>
             <p className="text-[11px] text-emerald-200">Rastreio em Tempo Real • #{order.codeNumber}</p>
           </div>
         </div>
 
-        <button
-          onClick={onBackToDashboard}
-          className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all"
-        >
-          Voltar ao Painel
-        </button>
+        {isOperator && onBackToDashboard && (
+          <button
+            onClick={onBackToDashboard}
+            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+          >
+            Voltar ao Painel
+          </button>
+        )}
       </div>
 
       <div className="p-4 space-y-5">
-        {/* Status Card Banner */}
+        {/* Live Status Indicator & ETA */}
         <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs text-center space-y-4">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-extrabold">
-            <Clock className="w-4 h-4 text-emerald-600" />
-            {order.status === 'delivered'
-              ? 'Pedido Entregue!'
-              : `Previsão de entrega: ~${estimatedETA} min`}
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-extrabold">
+              <Clock className="w-4 h-4 text-emerald-600" />
+              {order.status === 'delivered'
+                ? 'Pedido Entregue!'
+                : `Previsão de entrega: ~${estimatedETA} min`}
+            </div>
+
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-800 border border-emerald-200 text-[11px] font-extrabold">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>Atualização ao Vivo</span>
+            </div>
           </div>
 
           <div>
@@ -119,7 +135,7 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
                 ? 'Seu pedido está pronto e preparado para a saída do entregador! 📦'
                 : 'Seu pedido está sendo preparado na cozinha! 🔥'}
             </h1>
-            <p className="text-xs text-slate-500 mt-1">Código de Rastreio: {order.trackingCode}</p>
+            <p className="text-xs text-slate-500 mt-1 font-mono">Código de Rastreio: {order.trackingCode}</p>
 
             {/* Sub-banner for queue status ahead */}
             {stopsAhead > 0 && order.status !== 'delivered' && order.status !== 'in_transit' && (
@@ -174,23 +190,31 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
                 </p>
               </div>
 
-              <a
-                href={`https://wa.me/55${motoboy.phone.replace(/\D/g, '')}`}
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm shrink-0"
-              >
-                <MessageSquare className="w-3.5 h-3.5" /> Falar
-              </a>
+              {motoboy.phone && (
+                <a
+                  href={`https://wa.me/55${motoboy.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${motoboy.name}! Sou o cliente do pedido #${order.codeNumber}.`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm shrink-0 transition-all cursor-pointer"
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-100" />
+                  <span>Falar no WhatsApp</span>
+                </a>
+              )}
             </div>
           </div>
         )}
 
         {/* Map Display */}
         <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs space-y-2 p-3">
-          <span className="text-xs font-extrabold text-slate-800 block px-1">
-            Mapa de Acompanhamento Ao Vivo
-          </span>
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-extrabold text-slate-800">
+              Mapa de Acompanhamento Ao Vivo
+            </span>
+            <span className="text-[10px] text-slate-500 font-medium">
+              🗺️ Rota estimada ao seu endereço
+            </span>
+          </div>
           <div className="h-[280px] rounded-2xl overflow-hidden">
             <RouteMap
               origin={{
@@ -229,10 +253,35 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
           </h3>
 
           <div className="space-y-2 text-xs">
-            <div className="flex items-center justify-between py-1">
-              <span className="text-slate-600 font-medium">{order.itemsSummary}</span>
-              <span className="font-bold text-slate-900">{formattedCurrency(order.subtotal)}</span>
-            </div>
+            {order.items && order.items.length > 0 ? (
+              order.items.map((item, idx) => {
+                const rawPrice = typeof item.price === 'number' && !isNaN(item.price) ? item.price : 0;
+                const qty = typeof item.quantity === 'number' && item.quantity > 0 ? item.quantity : 1;
+                const itemTotal = rawPrice * qty;
+                return (
+                  <div key={item.id || idx} className="flex items-start justify-between py-1.5 border-b border-slate-100 text-xs">
+                    <div>
+                      <div className="font-semibold text-slate-800">
+                        {qty}x {item.name}
+                      </div>
+                      {item.observations && (
+                        <div className="text-[11px] text-amber-700 italic mt-0.5">Obs: {item.observations}</div>
+                      )}
+                    </div>
+                    <span className="font-bold text-slate-900">{formattedCurrency(itemTotal)}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="flex items-center justify-between py-1.5 border-b border-slate-100 text-xs">
+                <span className="text-slate-700 font-semibold">{order.itemsSummary || 'Itens do pedido'}</span>
+                <span className="font-bold text-slate-900">
+                  {formattedCurrency(
+                    order.subtotal && !isNaN(order.subtotal) ? order.subtotal : (order.total || 0)
+                  )}
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center justify-between py-1 border-t border-slate-100 text-slate-500">
               <span>Taxa de Entrega</span>
@@ -246,7 +295,7 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
 
             <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700">
               <span>Forma de Pagamento:</span>
-              <span className="uppercase text-slate-900">{order.paymentMethod}</span>
+              <span className="uppercase text-slate-900 font-bold">{order.paymentMethod}</span>
             </div>
           </div>
         </div>

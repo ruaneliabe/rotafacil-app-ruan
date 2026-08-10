@@ -615,6 +615,7 @@ export default function App() {
             motoboy={motoboys.find((m) => m.id === matchedOrder.assignedMotoboyId)}
             shift={shift}
             allOrders={orders}
+            isOperator={Boolean(session && session.role === 'store_admin')}
             onBackToDashboard={() => {
               window.history.pushState({}, '', window.location.pathname);
               setUrlTrackingCode(null);

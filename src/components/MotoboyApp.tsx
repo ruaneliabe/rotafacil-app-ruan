@@ -1281,7 +1281,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               </div>
             ) : (
               /* List of active delivery cards */
-              <div className="space-y-3">
+              <div className="space-y-3 pb-36">
                 {assignedOrders.map((order, index) => {
                   const isInTransit = order.status === 'in_transit';
                   const isFirstOrder = index === 0;
@@ -1423,10 +1423,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                           <div className="flex items-center gap-2 pt-1 text-xs font-bold text-slate-300">
                             <span className="bg-slate-800/90 text-amber-300 px-2.5 py-1 rounded-lg border border-slate-700">
-                              ⏱️ ~{order.estimatedMinutes || 7} min
+                              {hasArrived ? '⏱️ No local (0 min)' : `⏱️ ~${Math.max(2, Math.round((order.estimatedMinutes || 8) * 0.5))} min`}
                             </span>
                             <span className="bg-slate-800/90 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700">
-                              🗺️ ~{order.distanceKm || 3.2} km
+                              {hasArrived ? '📍 ~0.1 km (No destino)' : `🗺️ ~${(order.distanceKm || 2.4).toFixed(1)} km`}
                             </span>
                           </div>
                         </div>
@@ -1674,9 +1674,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                     onSimulateArrival(order);
                                     triggerSystemActionToast("📍 Cheguei ao local! Cliente notificado.");
                                   }}
-                                  className="w-full py-4 bg-sky-500 hover:bg-sky-400 active:scale-98 text-slate-950 font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all uppercase cursor-pointer border-2 border-sky-300 animate-pulse"
+                                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/25 transition-all uppercase cursor-pointer border-2 border-emerald-300 animate-pulse"
                                 >
-                                  <MapPin className="w-5 h-5 text-slate-950 fill-sky-200 shrink-0" />
+                                  <MapPin className="w-5 h-5 text-slate-950 fill-emerald-200 shrink-0" />
                                   <span>📍 CHEGUEI AO LOCAL DA ENTREGA</span>
                                 </button>
                               ) : (
@@ -1906,9 +1906,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                     onSimulateArrival(firstOrder);
                     triggerSystemActionToast("📍 Cheguei ao local! Cliente notificado.");
                   }}
-                  className="px-3.5 py-2.5 bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5 uppercase border border-sky-300"
+                  className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/25 transition-all cursor-pointer flex items-center gap-1.5 uppercase border border-emerald-300"
                 >
-                  <MapPin className="w-4 h-4 fill-sky-100" />
+                  <MapPin className="w-4 h-4 fill-emerald-100" />
                   <span>Cheguei Ao Local</span>
                 </button>
               ) : isInTransit && hasArrived ? (

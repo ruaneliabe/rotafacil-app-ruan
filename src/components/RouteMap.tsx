@@ -14,6 +14,8 @@ interface RouteMapProps {
   motoboyLat?: number;
   motoboyLng?: number;
   motoboysList?: Motoboy[];
+  selectedMotoboyId?: string | null;
+  onSelectMotoboy?: (motoboyId: string | null) => void;
 }
 
 export const RouteMap: React.FC<RouteMapProps> = ({
@@ -27,6 +29,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   motoboyLat,
   motoboyLng,
   motoboysList,
+  selectedMotoboyId = null,
+  onSelectMotoboy,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -156,8 +160,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             <div class="w-8 h-8 ${bgColor} rounded-full shadow-lg border-2 flex items-center justify-center font-bold text-xs z-30">
               ${badgeHtml}
             </div>
-            <div class="mt-0.5 bg-slate-900/90 text-slate-200 px-1.5 py-0.5 rounded text-[9px] font-extrabold whitespace-nowrap border border-slate-700 shadow-sm z-30">
-              ${stop.neighborhood || 'Centro'}
+            <div class="mt-0.5 bg-slate-900/95 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap border border-emerald-500/60 shadow-md z-30">
+              ${stop.title?.includes('Seu Endereço') ? '📍 Seu Endereço' : (stop.neighborhood || 'Centro')}
             </div>
           </div>
         `,
@@ -205,14 +209,110 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       markersGroup.addLayer(marker);
     });
 
-    // 3. Draw Motoboy Markers on Map (Sleek Circular Avatar Pin)
+    // 3. Draw Motoboy Markers on Map (Sleek Scalable Cluster + Focus System)
     if (motoboysList && motoboysList.length > 0) {
-      motoboysList.forEach((mb, idx) => {
+      // Split motoboys into "At Store" and "On Road"
+      const atStore = motoboysList.filter((m) => m.status === 'available' || m.status === 'offline');
+      const onRoad = motoboysList.filter((m) => m.status !== 'available' && m.status !== 'offline');
+
+      // A) RENDER AT-STORE MOTOBOYS (Clustered or Individual based on count & selection)
+      const isAStoreMotoboySelected = selectedMotoboyId && atStore.some((m) => m.id === selectedMotoboyId);
+
+      if (atStore.length > 2 && !isAStoreMotoboySelected) {
+        // Cluster at-store motoboys into 1 sleek Fleet Badge
+        const clusterIcon = L.divIcon({
+          className: 'custom-fleet-cluster-pin z-40',
+          html: `
+            <div class="relative flex flex-col items-center justify-center">
+              <div class="px-2.5 py-1 bg-emerald-950/95 text-emerald-300 border-2 border-emerald-400 rounded-xl shadow-2xl font-black text-xs flex items-center gap-1.5 animate-pulse">
+                <span class="text-sm">🛵</span>
+                <span>${atStore.length} na Loja (Fila)</span>
+              </div>
+            </div>
+          `,
+          iconSize: [120, 36],
+          iconAnchor: [60, 18],
+        });
+
+        let storeQueuePopupHtml = `
+          <div class="p-2 min-w-[220px] max-h-[220px] overflow-y-auto text-slate-100 space-y-1.5">
+            <div class="flex items-center justify-between pb-1 border-b border-slate-800">
+              <span class="text-xs font-black text-emerald-400 uppercase">🏪 Fila de Espera na Loja</span>
+              <span class="text-[10px] font-bold bg-emerald-900 text-emerald-200 px-1.5 py-0.5 rounded">${atStore.length} motoboys</span>
+            </div>
+        `;
+
+        atStore.forEach((mb, qIdx) => {
+          storeQueuePopupHtml += `
+            <div class="p-1.5 bg-slate-900 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
+              <div>
+                <span class="font-extrabold text-white">${qIdx + 1}º ${mb.name}</span>
+                <span class="block text-[10px] text-slate-400">${mb.vehicleModel || 'Moto'}</span>
+              </div>
+              <span class="text-[10px] px-1.5 py-0.5 bg-emerald-950 text-emerald-300 font-bold rounded">Pronto</span>
+            </div>
+          `;
+        });
+
+        storeQueuePopupHtml += `</div>`;
+
+        const clusterMarker = L.marker([origin.lat + 0.0001, origin.lng + 0.0001], {
+          icon: clusterIcon,
+          zIndexOffset: 800,
+        }).bindPopup(storeQueuePopupHtml);
+
+        markersGroup.addLayer(clusterMarker);
+      } else {
+        // Individual pins for at-store motoboys with circular radial layout
+        atStore.forEach((mb, idx) => {
+          const isThisSelected = mb.id === selectedMotoboyId;
+          const angle = (idx / (atStore.length || 1)) * 2 * Math.PI;
+          const radius = 0.00035;
+          const mbLat = origin.lat + Math.sin(angle) * radius;
+          const mbLng = origin.lng + Math.cos(angle) * radius;
+
+          const initial = mb.name ? mb.name.charAt(0).toUpperCase() : 'M';
+          const ringColor = isThisSelected ? 'border-amber-300 ring-4 ring-amber-500/50 scale-110' : 'border-emerald-400';
+
+          const motoboyIcon = L.divIcon({
+            className: 'custom-motoboy-pin z-40',
+            html: `
+              <div class="relative flex flex-col items-center justify-center">
+                <div class="w-8 h-8 rounded-full bg-slate-950 border-2 ${ringColor} text-emerald-300 flex items-center justify-center font-black text-xs shadow-2xl z-30">
+                  ${initial}
+                </div>
+                <div class="mt-0.5 bg-emerald-600 text-white font-extrabold px-1.5 py-0.5 rounded text-[9px] uppercase whitespace-nowrap shadow-md border border-emerald-300 z-30">
+                  ${mb.name.split(' ')[0]}
+                </div>
+              </div>
+            `,
+            iconSize: [70, 48],
+            iconAnchor: [35, 24],
+          });
+
+          const mbMarker = L.marker([mbLat, mbLng], { icon: motoboyIcon }).bindPopup(`
+            <div class="p-2 min-w-[200px] text-slate-100">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <span class="font-extrabold text-xs text-white">${mb.name}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-black uppercase bg-emerald-950 text-emerald-300 border border-emerald-700">Na Loja</span>
+              </div>
+              <p class="text-xs text-slate-300">${mb.vehicleModel || 'Moto'} • ${mb.plate || ''}</p>
+            </div>
+          `);
+
+          markersGroup.addLayer(mbMarker);
+          bounds.push([mbLat, mbLng]);
+        });
+      }
+
+      // B) RENDER ON-ROAD MOTOBOYS (Delivering or Returning)
+      onRoad.forEach((mb) => {
         let mbLat = mb.currentLat || origin.lat;
         let mbLng = mb.currentLng || origin.lng;
         const isReturning = mb.status === 'returning_to_store' || (mb as any).isReturning;
         const isDelivering = mb.status === 'delivering';
-        const isAvailable = mb.status === 'available' || mb.status === 'offline';
+        const isSelected = selectedMotoboyId === mb.id;
+        const isFilteringActive = Boolean(selectedMotoboyId);
 
         // Check if motoboy has a real distinct GPS location set
         const hasCustomGps =
@@ -222,16 +322,39 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           mb.currentLng !== 0 &&
           (Math.abs(mb.currentLat - origin.lat) > 0.0003 || Math.abs(mb.currentLng - origin.lng) > 0.0003);
 
-        // Fallback offset at store ONLY if motoboy does NOT have a distinct live GPS position
-        if (!hasCustomGps && isAvailable) {
-          mbLat = origin.lat + (idx * 0.00015);
-          mbLng = origin.lng + (idx * 0.00015);
-        } else if (!hasCustomGps && isReturning) {
+        if (!hasCustomGps && isReturning) {
           mbLat = origin.lat + 0.0075;
           mbLng = origin.lng - 0.0120;
         }
 
         const initial = mb.name ? mb.name.charAt(0).toUpperCase() : 'M';
+
+        // If another motoboy is selected, show this motoboy as a clean discrete dot to avoid screen clutter!
+        if (isFilteringActive && !isSelected) {
+          const discreteDotIcon = L.divIcon({
+            className: 'custom-discrete-dot z-20',
+            html: `
+              <div class="w-3.5 h-3.5 rounded-full ${isReturning ? 'bg-amber-500' : 'bg-blue-500'} border border-white shadow-md cursor-pointer opacity-70 hover:opacity-100 hover:scale-125 transition-all"></div>
+            `,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+          });
+
+          const dotMarker = L.marker([mbLat, mbLng], { icon: discreteDotIcon }).bindPopup(`
+            <div class="p-1.5 text-slate-100 text-xs">
+              <strong>${mb.name}</strong> (${isReturning ? 'Voltando' : 'Em Rota'})
+            </div>
+          `);
+
+          if (onSelectMotoboy) {
+            dotMarker.on('click', () => onSelectMotoboy(mb.id));
+          }
+
+          markersGroup.addLayer(dotMarker);
+          return;
+        }
+
+        // Selected or All-mode Motoboy Marker
         const ringColor = isReturning
           ? 'border-amber-400 bg-amber-500/20 text-amber-300'
           : isDelivering
@@ -250,7 +373,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           html: `
             <div class="relative flex flex-col items-center justify-center">
               ${isReturning ? '<div class="absolute -inset-1.5 bg-amber-500/40 rounded-full animate-ping"></div>' : ''}
-              <div class="w-8 h-8 rounded-full bg-slate-950 border-2 ${ringColor} flex items-center justify-center font-black text-xs shadow-2xl z-30">
+              <div class="w-8 h-8 rounded-full bg-slate-950 border-2 ${ringColor} ${isSelected ? 'ring-4 ring-amber-400/80 scale-110' : ''} flex items-center justify-center font-black text-xs shadow-2xl z-30">
                 ${initial}
               </div>
               <div class="mt-0.5 ${badgeBg} px-2 py-0.5 rounded-md text-[10px] uppercase whitespace-nowrap shadow-lg border z-30">
@@ -273,6 +396,10 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             <p class="text-xs text-slate-300">${mb.vehicleModel || 'Moto'} • ${mb.plate || ''}</p>
           </div>
         `);
+
+        if (onSelectMotoboy) {
+          mbMarker.on('click', () => onSelectMotoboy(mb.id));
+        }
 
         markersGroup.addLayer(mbMarker);
         bounds.push([mbLat, mbLng]);
@@ -367,7 +494,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     } else {
       map.setView([origin.lat || -26.92130, origin.lng || -49.09480], 14);
     }
-  }, [origin, stops, selectedStopId, motoboysList, showMotoboyMarker, motoboyLat, motoboyLng]);
+  }, [origin, stops, selectedStopId, motoboysList, showMotoboyMarker, motoboyLat, motoboyLng, selectedMotoboyId]);
 
   // Counts for top status chip bar
   const availableCount = motoboysList?.filter((m) => m.status === 'available' || m.status === 'offline').length || 0;
