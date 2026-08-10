@@ -58,6 +58,24 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Security/Operation Error: ', JSON.stringify(errInfo));
 }
 
+function forceMotoboyLogout() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem('rota_facil_session');
+    window.localStorage.removeItem('rota_facil_active_motoboy_id');
+    window.sessionStorage.removeItem('rota_facil_session');
+    window.sessionStorage.removeItem('rota_facil_active_motoboy_id');
+  } catch {
+    // ignore storage errors
+  }
+
+  window.setTimeout(() => {
+    window.location.replace(`${window.location.origin}${window.location.pathname}?login=1&t=${Date.now()}`);
+  }, 0);
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Realtime listeners
 export function subscribeToOrders(callback: (orders: Order[]) => void) {
   const colRef = collection(db, 'orders');
@@ -87,8 +105,7 @@ export function subscribeToMotoboys(callback: (motoboys: Motoboy[]) => void) {
         list.push({ id: docSnap.id, ...docSnap.data() } as Motoboy);
       });
 
-      // A deleted driver must lose access immediately on every device.
-      // Firestore is authoritative; local browser storage is only a session cache.
+      // A deleted or explicitly revoked driver must lose access immediately.
       if (typeof window !== 'undefined') {
         try {
           const savedSession = window.localStorage.getItem('rota_facil_session');
@@ -99,18 +116,11 @@ export function subscribeToMotoboys(callback: (motoboys: Motoboy[]) => void) {
             };
 
             if (parsedSession.role === 'motoboy' && parsedSession.motoboyId) {
-              const driverStillExists = list.some((m) => m.id === parsedSession.motoboyId);
+              const currentDriver = list.find((m) => m.id === parsedSession.motoboyId) as (Motoboy & { accessRevokedAt?: number }) | undefined;
+              const accessRevoked = Boolean(currentDriver?.accessRevokedAt);
 
-              if (!driverStillExists) {
-                window.localStorage.removeItem('rota_facil_session');
-                window.localStorage.removeItem('rota_facil_active_motoboy_id');
-                window.sessionStorage.removeItem('rota_facil_session');
-                window.sessionStorage.removeItem('rota_facil_active_motoboy_id');
-
-                // Force a clean navigation so React cannot keep rendering a stale in-memory session.
-                window.setTimeout(() => {
-                  window.location.replace(`${window.location.origin}${window.location.pathname}`);
-                }, 0);
+              if (!currentDriver || accessRevoked) {
+                forceMotoboyLogout();
                 return;
               }
             }
@@ -185,6 +195,22 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
 export async function deleteMotoboyFromCloud(motoboyId: string) {
   try {
     const docRef = doc(db, 'motoboys', motoboyId);
+    const existing = await getDoc(docRef);
+    if (!existing.exists()) return;
+
+    // Revoke first so a logged-in phone receives an explicit access-loss event.
+    await setDoc(
+      docRef,
+      {
+        status: 'offline',
+        accessRevokedAt: Date.now(),
+        joinedQueueAt: null,
+        callingToCounterAt: null,
+      },
+      { merge: true }
+    );
+
+    await wait(1200);
     await deleteDoc(docRef);
   } catch (err) {
     console.error('Error deleting motoboy from cloud:', err);
@@ -195,8 +221,30 @@ export async function deleteAllMotoboysFromCloud() {
   try {
     const colRef = collection(db, 'motoboys');
     const snapshot = await getDocs(colRef);
-    const deletePromises = snapshot.docs.map((docSnap) => deleteDoc(docSnap.ref));
-    await Promise.all(deletePromises);
+    if (snapshot.empty) return;
+
+    const revokedAt = Date.now();
+
+    // First revoke every access. Logged-in phones react to this snapshot and return to login.
+    await Promise.all(
+      snapshot.docs.map((docSnap) =>
+        setDoc(
+          docSnap.ref,
+          {
+            status: 'offline',
+            accessRevokedAt: revokedAt,
+            joinedQueueAt: null,
+            callingToCounterAt: null,
+          },
+          { merge: true }
+        )
+      )
+    );
+
+    // Give realtime listeners enough time to receive the revocation before documents disappear.
+    await wait(1500);
+
+    await Promise.all(snapshot.docs.map((docSnap) => deleteDoc(docSnap.ref)));
   } catch (err) {
     console.error('Error deleting all motoboys from cloud:', err);
     throw err;
