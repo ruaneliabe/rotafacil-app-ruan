@@ -23,10 +23,10 @@ export const INITIAL_MOTOBOYS: Motoboy[] = [
     activeOrdersCount: 0,
     currentLat: -26.9228,
     currentLng: -49.1014,
-    fixedFee: 50.0,
+    fixedFee: 60.0,
     perDeliveryFee: 8.5,
     deliveriesCountToday: 2,
-    totalEarnedToday: 60.0,
+    totalEarnedToday: 77.0,
     username: 'ruan',
   },
 ];

@@ -19,7 +19,7 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
   const [password, setPassword] = useState('');
   const [vehicleModel, setVehicleModel] = useState('Honda Titan 160');
   const [plate, setPlate] = useState('');
-  const [arranqueInput, setArranqueInput] = useState('40.00');
+  const [arranqueInput, setArranqueInput] = useState('60.00');
 
   if (!isOpen) return null;
 

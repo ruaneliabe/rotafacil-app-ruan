@@ -49,122 +49,7 @@ interface MotoboyAppProps {
   onLogout?: () => void;
 }
 
-function HoldToFinishShiftButton({
-  onFinish,
-  className = '',
-}: {
-  onFinish: () => void;
-  className?: string;
-}) {
-  const [progress, setProgress] = useState(0);
-  const isHoldingRef = useRef(false);
-  const animFrameRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number | null>(null);
-  const HOLD_DURATION_MS = 1600;
 
-  const startHolding = (e?: React.SyntheticEvent) => {
-    if (!isHoldingRef.current) {
-      isHoldingRef.current = true;
-      startTimeRef.current = performance.now() - (progress / 100) * HOLD_DURATION_MS;
-
-      const step = (now: number) => {
-        if (!isHoldingRef.current) return;
-        if (!startTimeRef.current) startTimeRef.current = now;
-        const elapsed = now - startTimeRef.current;
-        const pct = Math.min(100, (elapsed / HOLD_DURATION_MS) * 100);
-        setProgress(pct);
-
-        if (pct >= 100) {
-          isHoldingRef.current = false;
-          setProgress(100);
-          if (typeof window !== 'undefined' && navigator.vibrate) {
-            try { navigator.vibrate([80, 40, 80]); } catch {}
-          }
-          setTimeout(() => {
-            onFinish();
-            setProgress(0);
-          }, 150);
-        } else {
-          animFrameRef.current = requestAnimationFrame(step);
-        }
-      };
-
-      animFrameRef.current = requestAnimationFrame(step);
-    }
-  };
-
-  const stopHolding = () => {
-    isHoldingRef.current = false;
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-    }
-    let currentPct = progress;
-    const decay = () => {
-      if (isHoldingRef.current) return;
-      currentPct = Math.max(0, currentPct - 10);
-      setProgress(currentPct);
-      if (currentPct > 0) {
-        requestAnimationFrame(decay);
-      }
-    };
-    requestAnimationFrame(decay);
-  };
-
-  const handleClick = () => {
-    if (progress >= 100) return;
-    const nextPct = Math.min(100, progress + 25);
-    setProgress(nextPct);
-    if (nextPct >= 100) {
-      if (typeof window !== 'undefined' && navigator.vibrate) {
-        try { navigator.vibrate([80, 40, 80]); } catch {}
-      }
-      setTimeout(() => {
-        onFinish();
-        setProgress(0);
-      }, 150);
-    }
-  };
-
-  return (
-    <div className="w-full space-y-1">
-      <button
-        type="button"
-        onMouseDown={startHolding}
-        onMouseUp={stopHolding}
-        onMouseLeave={stopHolding}
-        onTouchStart={startHolding}
-        onTouchEnd={stopHolding}
-        onTouchCancel={stopHolding}
-        onClick={handleClick}
-        className={`relative overflow-hidden select-none touch-none w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-950 text-white font-black text-xs rounded-2xl border-2 border-rose-500/70 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${className}`}
-      >
-        <div
-          className="absolute inset-y-0 left-0 bg-gradient-to-r from-rose-600 via-rose-500 to-rose-600 transition-all duration-75 ease-out pointer-events-none"
-          style={{ width: `${progress}%` }}
-        />
-
-        <div className="relative z-10 flex items-center justify-center gap-2 uppercase tracking-wide">
-          <Power className="w-4 h-4 text-rose-400 shrink-0 animate-pulse" />
-          {progress > 0 ? (
-            <span className="font-mono font-black text-white">
-              ENCERRANDO EXPEDIENTE... {Math.round(progress)}%
-            </span>
-          ) : (
-            <>
-              <span>Encerrar expediente</span>
-              <span className="text-[10px] text-rose-300 font-extrabold bg-rose-950/80 px-2 py-0.5 rounded-full border border-rose-800">
-                Segure p/ carregar 100%
-              </span>
-            </>
-          )}
-        </div>
-      </button>
-      <p className="text-[10px] text-slate-400 font-medium text-center">
-        💡 Mantenha pressionado ou clique repetidamente para carregar 100% e ver o relatório do dia.
-      </p>
-    </div>
-  );
-}
 
 export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   motoboys,
@@ -419,7 +304,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     return matchesDriver(o);
   });
 
-  const arranqueAmount = activeMotoboy?.fixedFee || 0;
+  const arranqueAmount = activeMotoboy?.fixedFee && activeMotoboy.fixedFee > 0 ? (activeMotoboy.fixedFee === 50 ? 60 : activeMotoboy.fixedFee) : 60;
   const deliveryFeesTotal = completedOrders.reduce(
     (acc, o) => acc + (o.deliveryFee && o.deliveryFee > 0 ? o.deliveryFee : (activeMotoboy?.perDeliveryFee || 7.00)),
     0
@@ -913,29 +798,29 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       {/* 2. Three Clean, Intuitive Metric Cards */}
       <div className="bg-slate-100 px-3.5 py-2.5 border-b border-slate-200">
         <div className="grid grid-cols-3 gap-2">
-          {/* Card 1: Pedidos */}
+          {/* Card 1: Minha Bolsa */}
           <div className="bg-white p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs text-center flex flex-col justify-between">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight block">
-              🎒 Pedidos
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight block truncate">
+              🎒 Minha Bolsa
             </span>
             <div className="font-black text-xl text-slate-900 leading-tight my-0.5">
               {assignedOrders.length}
             </div>
             <span className="text-[10px] font-bold text-slate-400 block truncate">
-              {assignedOrders.length === 1 ? '1 na bolsa' : 'na bolsa'}
+              {assignedOrders.length === 1 ? '1 pedido ativo' : 'pedidos ativos'}
             </span>
           </div>
 
           {/* Card 2: Entregas */}
           <div className="bg-white p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs text-center flex flex-col justify-between">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight block">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight block truncate">
               📦 Entregas
             </span>
             <div className="font-black text-xl text-emerald-600 leading-tight my-0.5">
               {completedOrders.length}
             </div>
             <span className="text-[10px] font-bold text-slate-400 block truncate">
-              hoje
+              concluídas hoje
             </span>
           </div>
 
@@ -951,9 +836,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             <div className="font-black text-sm sm:text-base text-emerald-400 leading-tight my-0.5 truncate">
               {formattedCurrency(totalEarnedDisplay)}
             </div>
-            <div className="text-[9px] font-bold text-slate-300 block truncate">
-              Arranque R$ {arranqueAmount.toFixed(0)} • Taxas R$ {deliveryFeesTotal.toFixed(0)}
-            </div>
+            <span className="text-[10px] font-extrabold text-slate-300 block truncate">
+              Ver Detalhes ›
+            </span>
           </button>
         </div>
 
@@ -1203,7 +1088,14 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                               )}
 
                               <div className="pt-2 border-t border-slate-200/80">
-                                <HoldToFinishShiftButton onFinish={handleFinishShift} />
+                                <button
+                                  type="button"
+                                  onClick={handleFinishShift}
+                                  className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-950 active:scale-98 text-white font-black text-xs rounded-2xl border border-rose-500/70 shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
+                                >
+                                  <Power className="w-4 h-4 text-rose-400 shrink-0" />
+                                  <span>Encerrar Expediente</span>
+                                </button>
                               </div>
                             </div>
                           );
@@ -1260,7 +1152,14 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                   <span>Pausar disponibilidade</span>
                                 </button>
 
-                                <HoldToFinishShiftButton onFinish={handleFinishShift} />
+                                <button
+                                  type="button"
+                                  onClick={handleFinishShift}
+                                  className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-950 active:scale-98 text-white font-black text-xs rounded-2xl border border-rose-500/70 shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
+                                >
+                                  <Power className="w-4 h-4 text-rose-400 shrink-0" />
+                                  <span>Encerrar Expediente</span>
+                                </button>
                               </div>
                             )}
 
