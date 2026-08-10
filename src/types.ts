@@ -3,7 +3,7 @@ export type PaymentMethod = 'pix' | 'cartao_maquininha' | 'dinheiro';
 
 export interface OrderItem {
   id: string;
-  name: string; // e.g., "X-Salada Especial + Fritas", "Pizza Calabresa Grande"
+  name: string;
   quantity: number;
   price: number;
   observations?: string;
@@ -11,13 +11,13 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
-  codeNumber: number; // e.g. #101
+  codeNumber: number;
   clientName: string;
   clientPhone: string;
-  address: string; // Endereço completo formatado
-  street?: string; // Logradouro/Rua ex: "Rua XV de Novembro"
-  houseNumber?: string; // Número ex: "653" ou "S/N"
-  complement?: string; // Complemento ex: "Apto 201, Bloco B"
+  address: string;
+  street?: string;
+  houseNumber?: string;
+  complement?: string;
   neighborhood: string;
   lat: number;
   lng: number;
@@ -27,41 +27,46 @@ export interface Order {
   deliveryFee: number;
   total: number;
   paymentMethod: PaymentMethod;
-  changeFor?: number; // Troco para R$ 100
+  changeFor?: number;
   status: OrderStatus;
   createdAt: string;
+  createdDate?: string; // YYYY-MM-DD local date
   estimatedMinutes: number;
   assignedMotoboyId?: string | null;
   assignedMotoboyName?: string | null;
   deliveredAt?: string;
+  deliveredDate?: string; // YYYY-MM-DD local date
+  deliveredTimestamp?: number;
   notes?: string;
   trackingCode: string;
   routeSequence?: number;
   originChannel?: 'ifood' | 'cardapio_web' | 'whatsapp' | 'pdv' | 'manual';
-  kitchenReadyInMin?: number; // 0 = ready at counter, 5 = ready in 5 mins
-  promisedTime?: string; // e.g. "20:45"
+  kitchenReadyInMin?: number;
+  promisedTime?: string;
 }
 
 export interface Motoboy {
   id: string;
   name: string;
   phone: string;
-  username?: string; // Para login do motoboy
-  password?: string; // Para login do motoboy
-  vehicleModel: string; // e.g. "Honda CG 160 Fan"
+  username?: string;
+  password?: string;
+  vehicleModel: string;
   plate: string;
   status: 'available' | 'delivering' | 'returning_to_store' | 'offline' | 'busy';
   activeOrdersCount: number;
   currentLat: number;
   currentLng: number;
-  locationUpdatedAt?: number; // Timestamp ms of last real device GPS update
+  locationUpdatedAt?: number;
   avatarUrl?: string;
-  fixedFee: number; // R$ diária
-  perDeliveryFee: number; // R$ por corrida
+  fixedFee: number;
+  perDeliveryFee: number;
   totalEarnedToday: number;
   deliveriesCountToday?: number;
-  joinedQueueAt?: number; // Timestamp in ms when joined queue at store
-  callingToCounterAt?: number; // Timestamp in ms when store calls motoboy to counter
+  statsDate?: string; // YYYY-MM-DD local date for daily counters
+  joinedQueueAt?: number;
+  callingToCounterAt?: number;
+  accessRevokedAt?: number;
 }
 
 export type UserRole = 'store_admin' | 'motoboy' | 'customer';
@@ -96,7 +101,6 @@ export interface OperationalMetrics {
   delayedOrdersCount: number;
 }
 
-// Legacy compatibility types
 export type PriorityLevel = 'high' | 'medium' | 'low';
 export type StopStatus = 'pending' | 'in_transit' | 'delivered' | 'failed';
 export type TransportMode = 'motorcycle' | 'bicycle' | 'car' | 'moto' | 'truck';
