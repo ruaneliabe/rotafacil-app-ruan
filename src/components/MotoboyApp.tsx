@@ -19,22 +19,15 @@ import {
   LogOut,
   DollarSign,
   CreditCard,
-  QrCode,
-  Sparkles,
   ChevronRight,
-  ArrowRight,
-  Store,
-  User,
   Pause,
   Lock,
   Users,
   Power,
   FileText,
   X,
-  Share2,
   Copy,
   TrendingUp,
-  Award
 } from 'lucide-react';
 
 interface MotoboyAppProps {
@@ -50,8 +43,6 @@ interface MotoboyAppProps {
   isLockedToMotoboy?: boolean;
   onLogout?: () => void;
 }
-
-
 
 export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   motoboys,
@@ -69,2246 +60,413 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   const [activeMotoboyId, setActiveMotoboyId] = useState<string>(() => {
     if (initialMotoboyId) return initialMotoboyId;
     try {
-      const saved = localStorage.getItem('rota_facil_active_motoboy_id');
-      if (saved) return saved;
+      return localStorage.getItem('rota_facil_active_motoboy_id') || '';
     } catch {
-      // ignore
+      return '';
     }
-    return '';
   });
-
-  useEffect(() => {
-    if (initialMotoboyId) {
-      setActiveMotoboyId(initialMotoboyId);
-      try {
-        localStorage.setItem('rota_facil_active_motoboy_id', initialMotoboyId);
-      } catch {
-        // ignore
-      }
-    }
-  }, [initialMotoboyId]);
-
   const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'map'>('active');
   const [deviceGps, setDeviceGps] = useState<{ lat: number; lng: number } | null>(null);
-  const [gpsStatusMsg, setGpsStatusMsg] = useState<string>('Localização ativa');
-  const [showDevGpsPanel, setShowDevGpsPanel] = useState<boolean>(false);
-  const [isEarningsModalOpen, setIsEarningsModalOpen] = useState<boolean>(false);
-  const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState<boolean>(false);
-  const [availableSince, setAvailableSince] = useState<number>(Date.now());
-  const [shiftStartedAt, setShiftStartedAt] = useState<number>(Date.now() - 4.5 * 3600 * 1000);
+  const [gpsStatusMsg, setGpsStatusMsg] = useState('Localização ativa');
+  const [showDevGpsPanel, setShowDevGpsPanel] = useState(false);
+  const [isEarningsModalOpen, setIsEarningsModalOpen] = useState(false);
+  const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
+  const [availableSince, setAvailableSince] = useState(Date.now());
+  const [shiftStartedAt, setShiftStartedAt] = useState(Date.now() - 4.5 * 3600 * 1000);
   const [shiftEndedAt, setShiftEndedAt] = useState<string | null>(null);
-  const [isWakeLockActive, setIsWakeLockActive] = useState<boolean>(false);
+  const [isWakeLockActive, setIsWakeLockActive] = useState(false);
   const wakeLockRef = useRef<any>(null);
   const [expandedExtraOrderIds, setExpandedExtraOrderIds] = useState<Record<string, boolean>>({});
+  const [manualExpandedId, setManualExpandedId] = useState<string | null>(null);
+  const [arrivedOrderIds, setArrivedOrderIds] = useState<Record<string, boolean>>({});
+  const [notificationPermission, setNotificationPermission] = useState<string>(
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+  );
+
+  useEffect(() => {
+    if (!initialMotoboyId) return;
+    setActiveMotoboyId(initialMotoboyId);
+    try {
+      localStorage.setItem('rota_facil_active_motoboy_id', initialMotoboyId);
+    } catch {}
+  }, [initialMotoboyId]);
+
+  const activeMotoboy = useMemo(() => {
+    if (!motoboys.length) return undefined;
+    const target = (initialMotoboyId || activeMotoboyId || '').trim();
+    if (target) {
+      const exact = motoboys.find((m) => m.id === target);
+      if (exact) return exact;
+    }
+    return isLockedToMotoboy ? undefined : motoboys[0];
+  }, [motoboys, activeMotoboyId, initialMotoboyId, isLockedToMotoboy]);
+
+  // A driver owns an order ONLY by immutable driver ID. Never by name/username.
+  // This prevents a newly-created "Ruan" from inheriting an old Ruan's deliveries/earnings.
+  const matchesDriver = (order: Order) => Boolean(
+    activeMotoboy?.id && order.assignedMotoboyId === activeMotoboy.id
+  );
+
+  const assignedOrders = useMemo(
+    () => orders
+      .filter((o) => o.status !== 'delivered' && o.status !== 'cancelled' && matchesDriver(o))
+      .sort((a, b) => (a.routeSequence || 0) - (b.routeSequence || 0)),
+    [orders, activeMotoboy?.id]
+  );
+
+  const completedOrders = useMemo(
+    () => orders.filter((o) => o.status === 'delivered' && matchesDriver(o)),
+    [orders, activeMotoboy?.id]
+  );
+
+  const arranqueAmount = activeMotoboy?.fixedFee && activeMotoboy.fixedFee > 0 ? activeMotoboy.fixedFee : 0;
+  const deliveryFeesTotal = completedOrders.reduce(
+    (acc, o) => acc + (o.deliveryFee && o.deliveryFee > 0 ? o.deliveryFee : (activeMotoboy?.perDeliveryFee || 0)),
+    0
+  );
+  const calculatedTotalEarnings = arranqueAmount + deliveryFeesTotal;
+  const totalEarnedDisplay = calculatedTotalEarnings;
+
+  const formattedCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
   const requestWakeLock = async () => {
-    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
-      try {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-        setIsWakeLockActive(true);
-        wakeLockRef.current.addEventListener('release', () => {
-          setIsWakeLockActive(false);
-        });
-      } catch (err) {
-        console.warn('Wake Lock error:', err);
-      }
-    }
+    if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
+    try {
+      wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      setIsWakeLockActive(true);
+      wakeLockRef.current.addEventListener('release', () => setIsWakeLockActive(false));
+    } catch {}
   };
 
   useEffect(() => {
     requestWakeLock();
     return () => {
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release().catch(() => {});
-      }
+      if (wakeLockRef.current) wakeLockRef.current.release().catch(() => {});
     };
   }, []);
 
-  const handleFinishShift = () => {
-    if (window.confirm('Tem certeza que deseja encerrar o expediente de hoje? Seus dados serão salvos no relatório do dia.')) {
-      const timeStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      setShiftEndedAt(timeStr);
-      if (onUpdateMotoboyStatus && activeMotoboy) {
-        onUpdateMotoboyStatus(activeMotoboy.id, 'offline');
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    const success = (pos: GeolocationPosition) => {
+      const lat = Number(pos.coords.latitude.toFixed(6));
+      const lng = Number(pos.coords.longitude.toFixed(6));
+      setDeviceGps({ lat, lng });
+      setGpsStatusMsg('GPS ativo');
+      if (activeMotoboy && (Math.abs((activeMotoboy.currentLat || 0) - lat) > 0.0001 || Math.abs((activeMotoboy.currentLng || 0) - lng) > 0.0001)) {
+        saveMotoboyToCloud({ ...activeMotoboy, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() });
       }
-      setIsDailyReportModalOpen(true);
-      triggerSystemActionToast(`🏁 Expediente encerrado às ${timeStr}! Confira seu relatório.`);
-    }
-  };
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-      const handleSuccess = (pos: GeolocationPosition) => {
-        const lat = Number(pos.coords.latitude.toFixed(6));
-        const lng = Number(pos.coords.longitude.toFixed(6));
-        setDeviceGps({ lat, lng });
-        setGpsStatusMsg(`GPS Ativo (Lat: ${lat}, Lng: ${lng})`);
-      };
-
-      const handleError = (err: GeolocationPositionError) => {
-        console.warn('Erro ao obter GPS:', err.message);
-        setGpsStatusMsg(`Permissão de GPS pendente (${err.message})`);
-      };
-
-      // Initial fetch
-      navigator.geolocation.getCurrentPosition(handleSuccess, handleError, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-      });
-
-      // Continuous watch
-      const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 4000,
-      });
-
-      return () => navigator.geolocation.clearWatch(watchId);
-    } else {
-      setGpsStatusMsg('Navegador sem suporte a GPS');
-    }
-  }, []);
-
-  const handleRequestGpsManual = () => {
-    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-      setGpsStatusMsg('Buscando localização exata...');
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
-          setDeviceGps({ lat, lng });
-          setGpsStatusMsg(`GPS Atualizado! (${lat}, ${lng})`);
-          triggerSystemActionToast(`📍 Posição atualizada: ${lat}, ${lng}`);
-        },
-        (err) => {
-          setGpsStatusMsg(`Erro no GPS: ${err.message}`);
-          triggerSystemActionToast(`⚠️ Não foi possível obter GPS: ${err.message}`);
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    }
-  };
-
-  const [showNotificationToast, setShowNotificationToast] = useState<boolean>(false);
-  const [notificationToastTitle, setNotificationToastTitle] = useState<string>('NOVO PEDIDO OU ROTA DISPONÍVEL');
-  const [notificationToastMessage, setNotificationToastMessage] = useState<string>('Novo pedido ou rota disponível');
-  const [actionToast, setActionToast] = useState<string | null>(null);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstallGuide, setShowInstallGuide] = useState<boolean>(false);
-  // Expanded card state (defaults to index 0)
-  const [manualExpandedId, setManualExpandedId] = useState<string | null>(null);
-  const [arrivedOrderIds, setArrivedOrderIds] = useState<Record<string, boolean>>({});
-
-  const triggerSystemActionToast = (_msg: string) => {
-    // Disabled to prevent intrusive toast popups on motoboy screen
-  };
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
     };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
-
-  const handleInstallClick = () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(() => {
-        setDeferredPrompt(null);
-      });
-    } else {
-      setShowInstallGuide(!showInstallGuide);
-    }
-  };
-
-  const activeMotoboy = useMemo(() => {
-    if (!motoboys || motoboys.length === 0) return undefined;
-    const targetId = (activeMotoboyId || initialMotoboyId || '').trim().toLowerCase();
-    if (targetId) {
-      const found = motoboys.find(
-        (m) =>
-          m.id.toLowerCase() === targetId ||
-          (m.username && m.username.toLowerCase() === targetId) ||
-          m.name.toLowerCase() === targetId ||
-          m.name.toLowerCase().includes(targetId)
-      );
-      if (found) return found;
-    }
-    // If locked to a motoboy or initial ID given, don't fallback to motoboys[0] if loading
-    return isLockedToMotoboy ? undefined : motoboys[0];
-  }, [motoboys, activeMotoboyId, initialMotoboyId, isLockedToMotoboy]);
-
-  // Track counter call signal from store
-  const isBeingCalledToCounter = Boolean(
-    activeMotoboy?.callingToCounterAt &&
-    Date.now() - activeMotoboy.callingToCounterAt < 60000
-  );
+    const error = (err: GeolocationPositionError) => setGpsStatusMsg(`GPS pendente: ${err.message}`);
+    navigator.geolocation.getCurrentPosition(success, error, { enableHighAccuracy: true, timeout: 10000 });
+    const watchId = navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true, timeout: 15000, maximumAge: 4000 });
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [activeMotoboy?.id]);
 
   useEffect(() => {
-    if (isBeingCalledToCounter) {
-      playNewOrderAlert();
-      if (typeof window !== 'undefined' && navigator.vibrate) {
-        try { navigator.vibrate([100, 50, 100, 50, 200]); } catch {}
-      }
-    }
-  }, [isBeingCalledToCounter]);
-
-  // Sync availableSince with activeMotoboy joinedQueueAt timestamp
-  useEffect(() => {
-    if (activeMotoboy?.joinedQueueAt) {
-      setAvailableSince(activeMotoboy.joinedQueueAt);
-    }
+    if (activeMotoboy?.joinedQueueAt) setAvailableSince(activeMotoboy.joinedQueueAt);
   }, [activeMotoboy?.joinedQueueAt]);
 
-  useEffect(() => {
-    // Strictly guard GPS update: Only update cloud if activeMotoboy matches the actual device session
-    if (deviceGps && activeMotoboy) {
-      const targetId = (activeMotoboyId || initialMotoboyId || '').trim().toLowerCase();
-      const isExactMatch =
-        targetId &&
-        (activeMotoboy.id.toLowerCase() === targetId ||
-          (activeMotoboy.username && activeMotoboy.username.toLowerCase() === targetId));
-
-      if (isExactMatch) {
-        if (
-          Math.abs((activeMotoboy.currentLat || 0) - deviceGps.lat) > 0.0001 ||
-          Math.abs((activeMotoboy.currentLng || 0) - deviceGps.lng) > 0.0001
-        ) {
-          saveMotoboyToCloud({
-            ...activeMotoboy,
-            currentLat: deviceGps.lat,
-            currentLng: deviceGps.lng,
-          });
-        }
-      }
-    }
-  }, [deviceGps, activeMotoboy, activeMotoboyId, initialMotoboyId]);
-
-  const effectiveMotoboyId = activeMotoboy?.id || activeMotoboyId;
-
-  const matchesDriver = (o: Order) => {
-    const assignedId = (o.assignedMotoboyId || '').toLowerCase().trim();
-    const assignedName = (o.assignedMotoboyName || '').toLowerCase().trim();
-
-    const mId = (effectiveMotoboyId || '').toLowerCase().trim();
-    const mActiveId = (activeMotoboyId || '').toLowerCase().trim();
-    const mInitId = (initialMotoboyId || '').toLowerCase().trim();
-    const mName = (activeMotoboy?.name || '').toLowerCase().trim();
-    const mUsername = (activeMotoboy?.username || '').toLowerCase().trim();
-
-    if (!assignedId && !assignedName) return false;
-
-    // Direct ID/Username/Name matches
-    const isIdMatch =
-      (mId && assignedId === mId) ||
-      (mActiveId && assignedId === mActiveId) ||
-      (mInitId && assignedId === mInitId) ||
-      (mUsername && assignedId === mUsername) ||
-      (mName && assignedId === mName);
-
-    const isNameMatch =
-      (mName && assignedName === mName) ||
-      (mUsername && assignedName === mUsername) ||
-      (mId && assignedName === mId) ||
-      (mActiveId && assignedName === mActiveId) ||
-      (mName && (assignedName.includes(mName) || mName.includes(assignedName))) ||
-      (mName && (assignedId.includes(mName) || mName.includes(assignedId))) ||
-      (assignedName && (mName.includes(assignedName) || mUsername.includes(assignedName)));
-
-    return isIdMatch || isNameMatch;
-  };
-
-  const assignedOrders = orders
-    .filter((o) => {
-      if (o.status === 'delivered' || o.status === 'cancelled') return false;
-      return matchesDriver(o);
-    })
-    .sort((a, b) => (a.routeSequence || 0) - (b.routeSequence || 0));
-
-  const completedOrders = orders.filter((o) => {
-    if (o.status !== 'delivered') return false;
-    return matchesDriver(o);
-  });
-
-  const arranqueAmount = activeMotoboy?.fixedFee && activeMotoboy.fixedFee > 0 ? activeMotoboy.fixedFee : 0;
-  const deliveryFeesTotal = completedOrders.reduce(
-    (acc, o) => acc + (o.deliveryFee && o.deliveryFee > 0 ? o.deliveryFee : (activeMotoboy?.perDeliveryFee || 7.00)),
-    0
-  );
-  const calculatedTotalEarnings = arranqueAmount + deliveryFeesTotal;
-  const totalEarnedDisplay = Math.max(activeMotoboy?.totalEarnedToday || 0, calculatedTotalEarnings);
-
-  const formattedCurrency = (val: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-  const [notificationPermission, setNotificationPermission] = useState<string>(
-    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+  const isBeingCalledToCounter = Boolean(
+    activeMotoboy?.callingToCounterAt && Date.now() - activeMotoboy.callingToCounterAt < 60000
   );
 
   const requestNotificationPermission = async () => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      try {
-        const perm = await Notification.requestPermission();
-        setNotificationPermission(perm);
-        if (perm === 'granted') {
-          triggerSystemActionToast('Notificações de áudio e tela ativadas com sucesso!');
-        }
-      } catch (err) {
-        console.warn('Notification permission error:', err);
-      }
-    }
-  };
-
-  // Sound and vibration alert
-  const playNewOrderAlert = (bodyMsg: string = 'Novo pedido ou rota disponível') => {
-    if (!soundEnabled) return;
-
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        navigator.vibrate([200, 100, 200, 100, 400]);
-      } catch {
-        // ignore
-      }
-    }
-
-    // Voice announcement (Speech Synthesis) for hands-free audio alert
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance('Novo pedido atribuído! Verifique a sua bolsa.');
-        utterance.lang = 'pt-BR';
-        utterance.rate = 1.0;
-        utterance.volume = 1.0;
-        window.speechSynthesis.speak(utterance);
-      } catch {
-        // ignore
-      }
-    }
-
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
     try {
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (AudioCtx) {
-        const ctx = new AudioCtx();
-        if (ctx.state === 'suspended') {
-          ctx.resume();
-        }
-
-        const playBeep = (freq: number, startTime: number, duration: number) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, ctx.currentTime + startTime);
-
-          gain.gain.setValueAtTime(0, ctx.currentTime + startTime);
-          gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + startTime + 0.02);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + duration);
-
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-
-          osc.start(ctx.currentTime + startTime);
-          osc.stop(ctx.currentTime + startTime + duration);
-        };
-
-        // Pleasant 3-tone chime sequence (C5, E5, G5)
-        playBeep(523.25, 0, 0.18);
-        playBeep(659.25, 0.15, 0.2);
-        playBeep(783.99, 0.32, 0.45);
-      }
-    } catch (e) {
-      console.warn('Could not play audio alert:', e);
-    }
-
-    // Push system browser notification if allowed
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        const notif = new Notification('🛵 Rota Fácil Delivery', {
-          body: bodyMsg,
-          tag: 'new-order-alert',
-          requireInteraction: true,
-          icon: '/favicon.ico',
-        });
-        notif.onclick = () => {
-          window.focus();
-        };
-      } catch (err) {
-        console.warn('Error firing system notification:', err);
-      }
-    }
-  };
-
-  const prevAssignedIdsRef = useRef<string[]>([]);
-  const prevQueuePosRef = useRef<number | null>(null);
-  const isInitialMount = useRef(true);
-
-  // Monitor queue position advances and notify motoboy when someone ahead leaves
-  useEffect(() => {
-    if (!activeMotoboy || activeMotoboy.status !== 'available') {
-      prevQueuePosRef.current = null;
-      return;
-    }
-
-    const availableDrivers = [...motoboys]
-      .filter((m) => m.status === 'available')
-      .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
-
-    const driverIndex = availableDrivers.findIndex((m) => m.id === activeMotoboy.id);
-    const currentQueuePos = driverIndex >= 0 ? driverIndex + 1 : null;
-
-    if (currentQueuePos !== null) {
-      if (prevQueuePosRef.current !== null && currentQueuePos < prevQueuePosRef.current) {
-        // Motoboy moved up in the queue (e.g., 3 -> 2 or 2 -> 1)
-        const toastMsg =
-          currentQueuePos === 1
-            ? '🚀 Você agora é o 1º DA FILA de entregas!'
-            : `🚀 Você subiu na fila! Agora você é o ${currentQueuePos}º da fila!`;
-
-        triggerSystemActionToast(toastMsg);
-
-        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-          try {
-            navigator.vibrate([150, 100, 150]);
-          } catch {
-            // ignore
-          }
-        }
-
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-          try {
-            window.speechSynthesis.cancel();
-            const voiceText =
-              currentQueuePos === 1
-                ? 'Você subiu na fila. Agora você é o primeiro da fila!'
-                : `Você subiu na fila. Agora você é o ${currentQueuePos}º da fila.`;
-            const utterance = new SpeechSynthesisUtterance(voiceText);
-            utterance.lang = 'pt-BR';
-            utterance.rate = 1.0;
-            utterance.volume = 1.0;
-            window.speechSynthesis.speak(utterance);
-          } catch {
-            // ignore
-          }
-        }
-
-        try {
-          const AudioCtx =
-            window.AudioContext ||
-            (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-          if (AudioCtx) {
-            const ctx = new AudioCtx();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15);
-            gain.gain.setValueAtTime(0.3, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.4);
-          }
-        } catch {
-          // ignore
-        }
-
-        if (
-          typeof window !== 'undefined' &&
-          'Notification' in window &&
-          Notification.permission === 'granted'
-        ) {
-          try {
-            const notif = new Notification('🛵 Atualização da Fila', {
-              body: toastMsg,
-              tag: 'queue-position-update',
-              requireInteraction: true,
-              icon: '/favicon.ico',
-            });
-            notif.onclick = () => {
-              window.focus();
-            };
-          } catch (err) {
-            console.warn('Queue notification error:', err);
-          }
-        }
-      }
-      prevQueuePosRef.current = currentQueuePos;
-    }
-  }, [motoboys, activeMotoboy?.id, activeMotoboy?.status]);
-
-  useEffect(() => {
-    const currentAssignedIds = assignedOrders.map((o) => o.id);
-
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      prevAssignedIdsRef.current = currentAssignedIds;
-      return;
-    }
-
-    // Identify newly assigned orders that weren't assigned in the previous tick
-    const newlyAssigned = assignedOrders.filter(
-      (o) => !prevAssignedIdsRef.current.includes(o.id)
-    );
-
-    if (newlyAssigned.length > 0) {
-      playNewOrderAlert(`🛵 Novo(s) ${newlyAssigned.length} pedido(s) atribuído(s) a você!`);
-    }
-
-    prevAssignedIdsRef.current = currentAssignedIds;
-  }, [assignedOrders]);
-
-  const handleOpenGoogleMaps = (address: string, lat?: number, lng?: number) => {
-    const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(address);
-    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
-    window.open(url, '_blank');
+      setNotificationPermission(await Notification.requestPermission());
+    } catch {}
   };
 
   const handleOpenWaze = (address: string, lat?: number, lng?: number) => {
-    const url = (lat && lng)
+    const url = lat && lng
       ? `https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes`
       : `https://www.waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`;
     window.open(url, '_blank');
   };
 
-  const handleSendWhatsAppArrival = (order: Order) => {
-    const message = `Olá ${order.clientName}! 🛵 Seu motoboy (${activeMotoboy?.name || 'Rota Fácil'}) CHEGOU com o pedido #${order.codeNumber}! Pode vir receber, por favor! 🛵`;
-    const cleanPhone = order.clientPhone.replace(/\D/g, '');
-    if (cleanPhone) {
-      const url = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`;
-      window.open(url, '_blank');
-    }
+  const handleOpenGoogleMaps = (address: string, lat?: number, lng?: number) => {
+    const query = lat && lng ? `${lat},${lng}` : encodeURIComponent(address);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
   };
 
-  const handleSendWhatsAppDeparture = (order: Order) => {
-    const trackingUrl = `${window.location.origin}/?rastreio=${order.trackingCode || order.id}`;
-    const message = `Olá ${order.clientName}! 🛵 Seu pedido #${order.codeNumber} SAIU PARA ENTREGA com o entregador ${activeMotoboy?.name || 'Rota Fácil'}! 🛵\n\nAcompanhe no mapa em tempo real:\n${trackingUrl}`;
-    const cleanPhone = order.clientPhone.replace(/\D/g, '');
-    if (cleanPhone) {
-      const url = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`;
-      window.open(url, '_blank');
-    }
+  const handleFinishShift = () => {
+    if (!activeMotoboy || !window.confirm('Tem certeza que deseja encerrar o expediente de hoje?')) return;
+    const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    setShiftEndedAt(time);
+    onUpdateMotoboyStatus?.(activeMotoboy.id, 'offline');
+    setIsDailyReportModalOpen(true);
   };
 
   const handleLogoutAccount = () => {
-    if (window.confirm('Deseja sair da conta do entregador?')) {
-      try {
-        localStorage.removeItem('rota_facil_session');
-      } catch {
-        // ignore
-      }
-      if (onLogout) {
-        onLogout();
-      } else {
-        window.location.reload();
-      }
-    }
+    if (!window.confirm('Deseja sair da conta do entregador?')) return;
+    try {
+      localStorage.removeItem('rota_facil_session');
+      localStorage.removeItem('rota_facil_active_motoboy_id');
+    } catch {}
+    onLogout?.();
   };
+
+  const availableDrivers = [...motoboys]
+    .filter((m) => m.status === 'available')
+    .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
+  const queueIndex = activeMotoboy ? availableDrivers.findIndex((m) => m.id === activeMotoboy.id) : -1;
+  const queuePos = queueIndex >= 0 ? queueIndex + 1 : 0;
+
+  if (!activeMotoboy && isLockedToMotoboy) {
+    return (
+      <div className="w-full max-w-md mx-auto bg-white rounded-3xl p-8 text-center border border-slate-200 shadow-md">
+        <h3 className="font-black text-slate-900 text-lg">Acesso não encontrado</h3>
+        <p className="text-sm text-slate-500 mt-2">Este cadastro de entregador não existe mais.</p>
+        <button onClick={onLogout} className="mt-5 w-full py-3 bg-slate-900 text-white rounded-xl font-black text-sm">Voltar ao login</button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-auto bg-slate-50 text-slate-900 rounded-3xl border border-slate-200 shadow-md overflow-hidden flex flex-col font-sans min-h-[680px] relative">
-
-      {/* Official Store Automation Notification Toast */}
-      {actionToast && (
-        <div className="absolute top-2 left-3 right-3 z-50 bg-slate-950/95 border border-emerald-500/50 text-white p-2 px-3 shadow-xl flex items-center gap-2 animate-fadeIn backdrop-blur-md rounded-2xl">
-          <div className="w-5 h-5 rounded-md bg-emerald-500 text-slate-950 flex items-center justify-center shrink-0 font-black text-xs">
-            ✓
-          </div>
-          <div className="text-xs font-bold text-slate-100 leading-snug truncate">
-            {actionToast}
-          </div>
-        </div>
-      )}
-
-      {/* 1. Header Bar - Clean Motoboy Profile & Action Bar */}
-      <div className="bg-slate-900 px-4 py-3 text-white flex items-center justify-between gap-3 shadow-xs border-b border-slate-800">
-        {/* Left: Driver Avatar + Name + Online Badge */}
+      <div className="bg-slate-900 px-4 py-3 text-white flex items-center justify-between gap-3 border-b border-slate-800">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shrink-0 shadow-xs border border-amber-300">
-            {activeMotoboy?.name ? activeMotoboy.name.charAt(0).toUpperCase() : '👤'}
+          <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shrink-0 border border-amber-300">
+            {activeMotoboy?.name?.charAt(0).toUpperCase() || 'M'}
           </div>
-
           <div className="min-w-0">
-            <h3 className="font-extrabold text-sm sm:text-base text-white leading-tight truncate">
-              {activeMotoboy?.name || 'Entregador'}
-            </h3>
+            <h3 className="font-extrabold text-base text-white leading-tight truncate">{activeMotoboy?.name}</h3>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${
-                activeMotoboy?.status === 'offline'
-                  ? 'bg-rose-400'
-                  : activeMotoboy?.status === 'busy'
-                  ? 'bg-amber-400'
-                  : 'bg-emerald-400 animate-pulse'
-              }`}></span>
-              <span className={`text-[11px] font-bold ${
-                activeMotoboy?.status === 'offline'
-                  ? 'text-rose-300'
-                  : activeMotoboy?.status === 'busy'
-                  ? 'text-amber-300'
-                  : assignedOrders.length > 0
-                  ? 'text-emerald-300'
-                  : 'text-emerald-300'
-              }`}>
-                {activeMotoboy?.status === 'offline'
-                  ? 'Offline'
-                  : activeMotoboy?.status === 'busy'
-                  ? 'Pausado'
-                  : assignedOrders.length > 0
-                  ? assignedOrders.some((o) => o.status === 'in_transit')
-                    ? `🛵 Em Rota (${assignedOrders.length})`
-                    : `🎒 Retirando Pedidos (${assignedOrders.length})`
-                  : activeMotoboy?.status === 'returning_to_store'
-                  ? '🏢 Voltando p/ Loja'
-                  : '🟢 Na Fila da Loja'}
+              <span className={`w-2 h-2 rounded-full ${activeMotoboy?.status === 'offline' ? 'bg-rose-400' : activeMotoboy?.status === 'busy' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+              <span className="text-[11px] font-bold text-emerald-300">
+                {activeMotoboy?.status === 'offline' ? 'Offline' : activeMotoboy?.status === 'busy' ? 'Pausado' : activeMotoboy?.status === 'returning_to_store' ? '🏢 Voltando p/ Loja' : assignedOrders.length ? '🛵 Em rota' : '🟢 Na fila da loja'}
               </span>
             </div>
           </div>
         </div>
-
-        {/* Right Action Icons: Report, Sound Test, Dev GPS, Logout/Switch */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {/* Relatório do Dia Quick Access */}
-          <button
-            type="button"
-            onClick={() => setIsDailyReportModalOpen(true)}
-            title="Abrir Relatório do Dia"
-            className="p-2 sm:p-1.5 sm:px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1 text-[11px] font-extrabold cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="hidden sm:inline">Relatório</span>
-          </button>
-          {/* Sound / Notification Test Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (notificationPermission === 'default') {
-                requestNotificationPermission();
-              }
-              playNewOrderAlert();
-              triggerSystemActionToast('Sinal sonoro de entrega testado!');
-            }}
-            title="Testar sinal sonoro de entregas"
-            className="p-2 sm:p-1.5 sm:px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1 text-[11px] font-extrabold cursor-pointer"
-          >
-            <Volume2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="hidden sm:inline">Som</span>
-          </button>
-
-          {/* Dev GPS Toggle (Discrete Tool) */}
-          <button
-            type="button"
-            onClick={() => setShowDevGpsPanel(!showDevGpsPanel)}
-            title="Painel de Testes GPS"
-            className={`p-2 sm:p-1.5 sm:px-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-[11px] font-extrabold ${
-              showDevGpsPanel
-                ? 'bg-amber-400 text-slate-950 font-black'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden sm:inline">GPS</span>
-          </button>
-
-          {/* Profile Switcher or Logout Button */}
-          {isLockedToMotoboy ? (
-            <button
-              type="button"
-              onClick={handleLogoutAccount}
-              title="Sair da Conta de Entregador"
-              className="p-2 sm:p-1.5 sm:px-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 transition-all cursor-pointer flex items-center gap-1 text-[11px] font-extrabold"
-            >
-              <LogOut className="w-3.5 h-3.5 text-rose-300 shrink-0" />
-              <span className="hidden sm:inline">Sair</span>
-            </button>
-          ) : (
-            <select
-              value={activeMotoboyId}
-              onChange={(e) => setActiveMotoboyId(e.target.value)}
-              title="Alternar Perfil de Entregador"
-              className="bg-slate-800 text-slate-200 font-bold text-xs py-1.5 px-2 rounded-xl border border-slate-700 focus:outline-none max-w-[90px] truncate cursor-pointer"
-            >
-              {motoboys.map((m) => (
-                <option key={m.id} value={m.id}>
-                  👤 {m.name.split(' ')[0]}
-                </option>
-              ))}
-            </select>
-          )}
+        <div className="flex gap-1.5">
+          <button onClick={() => setIsDailyReportModalOpen(true)} className="p-2 rounded-xl bg-slate-800 text-amber-300 border border-slate-700"><FileText className="w-4 h-4" /></button>
+          <button onClick={() => setShowDevGpsPanel(!showDevGpsPanel)} className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700"><Zap className="w-4 h-4" /></button>
+          <button onClick={handleLogoutAccount} className="p-2 rounded-xl bg-rose-950 text-rose-300 border border-rose-800"><LogOut className="w-4 h-4" /></button>
         </div>
       </div>
 
-      {/* 🔔 URGENT STORE COUNTER CALL BANNER (Substitui painel de senhas) */}
       {isBeingCalledToCounter && (
-        <div className="bg-amber-400 text-slate-950 p-4 px-5 border-b-4 border-amber-600 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-bounce">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-slate-950 text-amber-400 flex items-center justify-center font-black text-2xl shrink-0 shadow-lg border border-slate-800">
-              🛎️
-            </div>
-            <div>
-              <h3 className="font-black text-base sm:text-lg text-slate-950 uppercase tracking-tight leading-tight">
-                Chamado no Balcão da Loja!
-              </h3>
-              <p className="text-xs font-bold text-slate-900 mt-0.5">
-                Dirija-se ao balcão agora para retirar o pedido e sair para entrega.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (activeMotoboy && onUpdateMotoboyStatus) {
-                saveMotoboyToCloud({ ...activeMotoboy, callingToCounterAt: undefined });
-              }
-              triggerSystemActionToast("🟢 Confirmação enviada! Você está no balcão da loja.");
-            }}
-            className="w-full sm:w-auto py-3 px-5 bg-slate-950 hover:bg-slate-900 active:scale-95 text-amber-300 font-black text-xs sm:text-sm rounded-2xl shadow-xl transition-all cursor-pointer uppercase tracking-wider border border-slate-800 shrink-0"
-          >
-            <span>🟢 Confirmar Presença no Balcão</span>
-          </button>
+        <div className="bg-amber-400 text-slate-950 px-4 py-3 font-black text-sm border-b border-amber-600">
+          🛎️ Chamado no balcão — dirija-se à loja para retirar os pedidos.
         </div>
       )}
 
-      {/* BACKGROUND NOTIFICATION PERMISSION BANNER (If not granted) */}
       {notificationPermission !== 'granted' && (
-        <div className="bg-amber-500 text-slate-950 px-3.5 py-2 text-xs font-bold flex items-center justify-between gap-2 shadow-xs border-b border-amber-600">
-          <div className="flex items-center gap-2 min-w-0">
-            <BellRing className="w-4 h-4 shrink-0 animate-bounce text-slate-950" />
-            <span className="truncate">Ative alertas de novos pedidos enquanto o app estiver aberto!</span>
-          </div>
-          <button
-            type="button"
-            onClick={requestNotificationPermission}
-            className="px-2.5 py-1 bg-slate-950 hover:bg-slate-900 text-amber-300 font-black rounded-lg text-[10px] uppercase transition-all cursor-pointer shrink-0"
-          >
-            Ativar
-          </button>
+        <div className="bg-amber-500 text-slate-950 px-3.5 py-2 text-xs font-bold flex items-center justify-between">
+          <span className="truncate">🔔 Ative alertas de novos pedidos</span>
+          <button onClick={requestNotificationPermission} className="px-2.5 py-1 bg-slate-950 text-amber-300 rounded-lg text-[10px] font-black">ATIVAR</button>
         </div>
       )}
 
-      {/* DEV / TEST GPS PANEL (Only visible when toggled) */}
       {showDevGpsPanel && (
-        <div className="bg-amber-950/90 text-amber-100 px-3.5 py-2.5 text-xs font-medium border-b border-amber-800 flex flex-col sm:flex-row items-center justify-between gap-2 animate-fadeIn">
-          <div className="flex items-center gap-2">
-            <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded">
-              MODO TESTE
-            </span>
-            <span className="text-amber-200 font-mono text-[11px] truncate">
-              {gpsStatusMsg}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleRequestGpsManual}
-              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-lg text-[10px] transition-all cursor-pointer"
-            >
-              📍 Atualizar GPS Real
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const testLat = -26.9298;
-                const testLng = -49.0965;
-                setDeviceGps({ lat: testLat, lng: testLng });
-                setGpsStatusMsg(`📍 Posição Simula Longe (~3km)`);
-                if (activeMotoboy) {
-                  saveMotoboyToCloud({
-                    ...activeMotoboy,
-                    currentLat: testLat,
-                    currentLng: testLng,
-                  });
-                }
-                triggerSystemActionToast('📍 Posição de teste definida (~3 km da loja)!');
-              }}
-              className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-amber-300 font-black rounded-lg text-[10px] border border-amber-500/30 transition-all cursor-pointer"
-            >
-              📍 Simular Longe (~3km)
-            </button>
-          </div>
+        <div className="bg-slate-800 text-slate-200 px-4 py-2 text-[11px] flex items-center justify-between">
+          <span>{gpsStatusMsg}</span>
+          <span>{deviceGps ? `${deviceGps.lat}, ${deviceGps.lng}` : 'Aguardando GPS'}</span>
         </div>
       )}
 
-      {/* 2. Three Clean, Intuitive Metric Cards */}
-      <div className="bg-slate-100 px-3.5 py-2.5 border-b border-slate-200">
+      <div className="bg-slate-100 px-3.5 py-3 border-b border-slate-200">
         <div className="grid grid-cols-3 gap-2">
-          {/* Card 1: Na Bag */}
-          <div className="bg-white p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs text-center flex flex-col justify-between">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight block truncate">
-              🎒 Na Bag
-            </span>
-            <div className="font-black text-xl text-slate-900 leading-tight my-0.5">
-              {assignedOrders.length}
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 block truncate">
-              {assignedOrders.length === 1 ? '1 pedido ativo' : 'pedidos na bag'}
-            </span>
+          <div className="bg-white p-2.5 rounded-2xl border border-slate-200 text-center">
+            <span className="text-[10px] font-black text-slate-500 uppercase block">🎒 Na bag</span>
+            <strong className="text-2xl font-black text-slate-950 block">{assignedOrders.length}</strong>
+            <span className="text-[10px] text-slate-400 font-bold">pedidos ativos</span>
           </div>
-
-          {/* Card 2: Entregas */}
-          <div className="bg-white p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs text-center flex flex-col justify-between">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight block truncate">
-              📦 Entregas
-            </span>
-            <div className="font-black text-xl text-emerald-600 leading-tight my-0.5">
-              {completedOrders.length}
-            </div>
-            <span className="text-[10px] font-bold text-slate-400 block truncate">
-              concluídas hoje
-            </span>
+          <div className="bg-white p-2.5 rounded-2xl border border-slate-200 text-center">
+            <span className="text-[10px] font-black text-slate-500 uppercase block">📦 Entregas</span>
+            <strong className="text-2xl font-black text-emerald-600 block">{completedOrders.length}</strong>
+            <span className="text-[10px] text-slate-400 font-bold">concluídas hoje</span>
           </div>
-
-          {/* Card 3: Ganhos hoje (High contrast black-on-yellow for direct sunlight) */}
           <button
             type="button"
             onClick={() => setIsEarningsModalOpen(true)}
-            className="bg-amber-400 hover:bg-amber-300 active:scale-98 p-2.5 rounded-2xl text-center flex flex-col justify-between transition-all cursor-pointer shadow-xs border border-amber-500 group text-slate-950"
+            className="bg-slate-900 hover:bg-slate-800 p-2.5 rounded-2xl border border-slate-700 text-left transition-all shadow-sm group overflow-hidden"
           >
-            <span className="text-[10px] font-black text-slate-950 uppercase tracking-tight flex items-center justify-center gap-0.5 truncate">
-              💰 Ganhos hoje <ChevronRight className="w-3 h-3 text-slate-950 group-hover:translate-x-0.5 transition-transform shrink-0" />
-            </span>
-            <div className="font-black text-base text-slate-950 leading-tight my-0.5 truncate">
-              {formattedCurrency(totalEarnedDisplay)}
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[10px] font-black text-amber-300 uppercase tracking-wide">💰 Ganhos</span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
             </div>
-            <span className="text-[9px] font-bold text-slate-900 block truncate">
-              R$ {arranqueAmount.toFixed(0)} fixo + R$ {deliveryFeesTotal.toFixed(0)} taxas
-            </span>
+            <strong className="text-lg font-black text-white block mt-1 leading-none whitespace-nowrap">{formattedCurrency(totalEarnedDisplay)}</strong>
+            <span className="text-[9px] text-slate-400 font-bold block mt-1">hoje • ver resumo</span>
           </button>
         </div>
 
-        {/* PROGRESS BAR FOR ACTIVE ROUTE */}
         {assignedOrders.length > 0 && (
-          <div className="mt-2.5 pt-2 border-t border-slate-200/80">
-            <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-600 mb-1">
-              <span className="flex items-center gap-1 text-slate-900">
-                <Zap className="w-3 h-3 text-amber-500 fill-amber-500" /> ROTA ATIVA:
-              </span>
-              <span className="text-emerald-700 font-bold">
-                {assignedOrders.filter((o) => o.status === 'in_transit').length > 0
-                  ? 'Em deslocamento'
-                  : 'Retirando pedidos'}{' '}
-                • {assignedOrders.length} {assignedOrders.length === 1 ? 'parada restante' : 'paradas restantes'}
-              </span>
+          <div className="mt-3 pt-2 border-t border-slate-200">
+            <div className="flex items-center justify-between text-[10px] font-black mb-1">
+              <span className="text-slate-900">⚡ ROTA ATIVA</span>
+              <span className="text-emerald-700">Em deslocamento • {assignedOrders.length} {assignedOrders.length === 1 ? 'parada' : 'paradas'}</span>
             </div>
-            <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden flex">
-              <div
-                className="bg-emerald-500 h-full transition-all duration-500 rounded-full"
-                style={{
-                  width: `${
-                    assignedOrders.some((o) => o.status === 'in_transit')
-                      ? 70
-                      : assignedOrders.some((o) => o.status === 'picked_up')
-                      ? 40
-                      : 15
-                  }%`
-                }}
-              ></div>
-            </div>
+            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: '70%' }} /></div>
           </div>
         )}
       </div>
 
-      {/* 3. Navigation Tabs with High Contrast */}
-      <div className="bg-slate-100 px-2 py-2 border-b border-slate-200 flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => setActiveTab('active')}
-          className={`flex-1 py-2 px-2 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-            activeTab === 'active'
-              ? 'bg-slate-950 text-white shadow-md border border-slate-800'
-              : 'bg-white text-slate-800 hover:text-slate-950 border border-slate-300/90 shadow-2xs hover:bg-slate-50'
-          }`}
-        >
-          <Zap className={`w-3.5 h-3.5 ${activeTab === 'active' ? 'text-amber-400' : 'text-slate-600'}`} />
-          {assignedOrders.length > 0 ? 'Minha Rota' : 'Fila'}
-          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-            activeTab === 'active' ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 text-slate-800 border border-slate-200'
-          }`}>
-            {assignedOrders.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('map')}
-          className={`flex-1 py-2 px-2 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-            activeTab === 'map'
-              ? 'bg-slate-950 text-white shadow-md border border-slate-800'
-              : 'bg-white text-slate-800 hover:text-slate-950 border border-slate-300/90 shadow-2xs hover:bg-slate-50'
-          }`}
-        >
-          <MapPin className="w-3.5 h-3.5 text-emerald-500" />
-          Mapa
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('completed')}
-          className={`flex-1 py-2 px-2 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-            activeTab === 'completed'
-              ? 'bg-slate-950 text-white shadow-md border border-slate-800'
-              : 'bg-white text-slate-800 hover:text-slate-950 border border-slate-300/90 shadow-2xs hover:bg-slate-50'
-          }`}
-        >
-          <CheckCircle2 className={`w-3.5 h-3.5 ${activeTab === 'completed' ? 'text-emerald-400' : 'text-slate-600'}`} />
-          Histórico
-          <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-            activeTab === 'completed' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 text-slate-800 border border-slate-200'
-          }`}>
-            {completedOrders.length}
-          </span>
-        </button>
+      <div className="bg-slate-100 px-2 py-2 border-b border-slate-200 flex gap-1.5">
+        <button onClick={() => setActiveTab('active')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'active' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300'}`}>⚡ {assignedOrders.length ? 'Minha Rota' : 'Fila'} <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950">{assignedOrders.length}</span></button>
+        <button onClick={() => setActiveTab('map')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'map' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300'}`}>📍 Mapa</button>
+        <button onClick={() => setActiveTab('completed')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'completed' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300'}`}>✓ Histórico <span className="ml-1 text-slate-400">{completedOrders.length}</span></button>
       </div>
 
-      {/* 4. Main Body Content */}
-      <div className="p-3.5 space-y-4 flex-1 overflow-y-auto bg-slate-50 flex flex-col justify-between">
+      <div className="p-3.5 flex-1 bg-slate-50 overflow-y-auto">
         {activeTab === 'active' ? (
-          <>
-            {/* Quick Batch Bar or Informative Status Bar */}
-            {assignedOrders.length > 0 && (
-              assignedOrders.some((o) => o.status === 'in_transit') ? (
-                /* INFORMATIVE ROUTE STATUS BAR WHEN ALREADY IN TRANSIT */
-                <div className="w-full py-3 px-4 bg-slate-900 border border-emerald-500/50 rounded-2xl flex items-center justify-between text-xs font-black text-emerald-300 shadow-lg">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                    <span className="uppercase">🚚 ROTA EM ANDAMENTO</span>
-                  </div>
-                  <span className="text-slate-300 font-bold bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800">
-                    Entrega {assignedOrders.findIndex(o => o.status === 'in_transit') >= 0 ? assignedOrders.findIndex(o => o.status === 'in_transit') + 1 : 1} de {assignedOrders.length}
-                  </span>
-                </div>
+          assignedOrders.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-4">
+              {activeMotoboy?.status === 'returning_to_store' ? (
+                <>
+                  <div className="text-4xl">🏢</div>
+                  <h4 className="text-xl font-black">Voltando para a loja</h4>
+                  <p className="text-xs text-slate-500">Ao chegar, confirme abaixo para entrar no final da fila.</p>
+                  <button onClick={() => onConfirmArrivalAtStore?.(activeMotoboy.id)} className="w-full py-3 bg-slate-900 text-white font-black rounded-xl">📍 Cheguei à loja</button>
+                </>
+              ) : activeMotoboy?.status === 'offline' ? (
+                <>
+                  <div className="text-4xl">⏱️</div>
+                  <h4 className="text-xl font-black">Expediente encerrado</h4>
+                  <p className="text-xs text-slate-500">Entre na fila somente quando estiver pronto para trabalhar.</p>
+                  <button onClick={() => { onUpdateMotoboyStatus?.(activeMotoboy.id, 'available'); setAvailableSince(Date.now()); setShiftStartedAt(Date.now()); setShiftEndedAt(null); }} className="w-full py-3.5 bg-emerald-600 text-white font-black rounded-xl">🟢 Iniciar expediente / Entrar na fila</button>
+                </>
+              ) : activeMotoboy?.status === 'busy' ? (
+                <>
+                  <div className="text-4xl">⏸️</div>
+                  <h4 className="text-xl font-black">Disponibilidade pausada</h4>
+                  <button onClick={() => onUpdateMotoboyStatus?.(activeMotoboy.id, 'available')} className="w-full py-3 bg-emerald-600 text-white font-black rounded-xl">Voltar para a fila</button>
+                </>
               ) : (
-                /* BATCH CONFIRM ALL PICKED UP & START ROUTE BUTTON */
-                <button
-                  type="button"
-                  onClick={() => {
-                    const firstOrder = assignedOrders[0];
-                    if (firstOrder) {
-                      onUpdateOrderStatus(firstOrder.id, 'in_transit');
-                    }
-                    assignedOrders.slice(1).forEach((o) => {
-                      if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
-                        onUpdateOrderStatus(o.id, 'picked_up');
-                      }
-                    });
-                    if (onUpdateMotoboyStatus && activeMotoboy) {
-                      onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
-                    }
-                    triggerSystemActionToast(
-                      `🚀 Rota iniciada! Siga para a 1ª parada: #${firstOrder?.codeNumber} (${firstOrder?.neighborhood || 'Centro'})`
-                    );
-                  }}
-                  className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer animate-pulse border border-emerald-300"
-                >
-                  <ShoppingBag className="w-5 h-5 fill-current text-slate-950 shrink-0" />
-                  <span>
-                    ✓ Peguei os Pedidos - Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'Entrega' : 'Entregas'})
-                  </span>
-                </button>
-              )
-            )}
-
-            {/* Empty State or Active Orders */}
-            {assignedOrders.length === 0 ? (
-              <div className="my-auto py-6 px-2">
-                <div className="bg-white rounded-2xl p-6 text-center border border-slate-200 shadow-xs space-y-4 max-w-sm mx-auto">
-                  {activeMotoboy?.status === 'returning_to_store' ? (
-                    <>
-                      <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center mx-auto border border-slate-200">
-                        <Building2 className="w-6 h-6 text-slate-800" />
-                      </div>
-
-                      <div>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200 inline-block mb-1">
-                          Retornando
-                        </span>
-                        <h4 className="font-black text-slate-900 text-lg">Voltando para a Loja</h4>
-                        <p className="text-xs text-slate-500 mt-1 font-medium">
-                          Ao chegar na loja, toque no botão abaixo para entrar na fila.
-                        </p>
-                      </div>
-
-                      {onConfirmArrivalAtStore && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onConfirmArrivalAtStore(activeMotoboy.id);
-                            triggerSystemActionToast("✅ Chegada confirmada na loja!");
-                          }}
-                          className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-                        >
-                          <MapPin className="w-4 h-4 text-emerald-400" />
-                          <span>Cheguei à Loja</span>
-                        </button>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {/* DYNAMIC HUMAN-CENTERED QUEUE POSITION */}
-                      {(() => {
-                        const availableDrivers = [...motoboys]
-                          .filter((m) =>
-                            m.status === 'available' ||
-                            (m.id === activeMotoboy?.id && !['offline', 'busy', 'delivering', 'returning_to_store'].includes(m.status))
-                          )
-                          .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
-                        const driverIndex = availableDrivers.findIndex((m) => m.id === activeMotoboy?.id);
-                        const queuePos = driverIndex >= 0 ? driverIndex + 1 : 1;
-                        const otherAvailableDrivers = availableDrivers.filter((m) => m.id !== activeMotoboy?.id);
-                        const initialQueueTimestamp = activeMotoboy?.joinedQueueAt || availableSince;
-                        const initialMinutesInQueue = Math.max(0, Math.floor((Date.now() - initialQueueTimestamp) / 60000));
-                        const formattedQueueTime = String(initialMinutesInQueue).padStart(2, '0');
-
-                        if (activeMotoboy?.status === 'offline') {
-                          return (
-                            <div className="space-y-4 py-3 text-center">
-                              <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black bg-rose-100 text-rose-900 border border-rose-300 shadow-2xs">
-                                <Clock className="w-3.5 h-3.5 text-rose-700 shrink-0" />
-                                <span>Expediente encerrado{shiftEndedAt ? ` às ${shiftEndedAt}` : ''}</span>
-                              </div>
-                              <div>
-                                <h4 className="text-xl font-black text-slate-900">Seu turno está fechado</h4>
-                                <p className="text-xs text-slate-500 mt-1 font-medium">
-                                  Inicie o expediente para entrar na fila e começar a receber entregas.
-                                </p>
-                              </div>
-                              {onUpdateMotoboyStatus && activeMotoboy && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onUpdateMotoboyStatus(activeMotoboy.id, 'available');
-                                    setAvailableSince(Date.now());
-                                    setShiftStartedAt(Date.now());
-                                    setShiftEndedAt(null);
-                                    triggerSystemActionToast("🟢 Expediente iniciado! Você entrou na fila da loja.");
-                                  }}
-                                  className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-xs rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wide border border-emerald-400"
-                                >
-                                  <span>🟢 Iniciar expediente</span>
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => setIsDailyReportModalOpen(true)}
-                                className="w-full py-3 px-4 bg-white hover:bg-slate-50 text-slate-800 font-extrabold text-xs rounded-2xl border border-slate-300 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
-                              >
-                                <FileText className="w-4 h-4 text-slate-700" />
-                                <span>📄 Ver Relatório do Dia</span>
-                              </button>
-                            </div>
-                          );
-                        }
-
-                        if (activeMotoboy?.status === 'busy') {
-                          return (
-                            <div className="space-y-4 py-2 text-center">
-                              <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300">
-                                ⏸️ Disponibilidade Pausada
-                              </div>
-                              <div>
-                                <h4 className="text-xl font-black text-slate-900">Você está em pausa</h4>
-                                <p className="text-xs text-slate-500 mt-1 font-medium">
-                                  Você não receberá novos pedidos até voltar a ficar disponível.
-                                </p>
-                              </div>
-                              {onUpdateMotoboyStatus && activeMotoboy && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onUpdateMotoboyStatus(activeMotoboy.id, 'available');
-                                    setAvailableSince(Date.now());
-                                    triggerSystemActionToast("🟢 Você voltou a ficar disponível na loja!");
-                                  }}
-                                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                                >
-                                  <span>🟢 Voltar a ficar Disponível</span>
-                                </button>
-                              )}
-
-                              <div className="pt-2 border-t border-slate-200/80">
-                                <button
-                                  type="button"
-                                  onClick={handleFinishShift}
-                                  className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-950 active:scale-98 text-white font-black text-xs rounded-2xl border border-rose-500/70 shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
-                                >
-                                  <Power className="w-4 h-4 text-rose-400 shrink-0" />
-                                  <span>Encerrar Expediente</span>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        const estCallTimeMin = Math.max(2, queuePos * 2);
-                        const effectiveTimestamp = activeMotoboy?.joinedQueueAt || availableSince;
-                        const minutesInQueue = Math.max(0, Math.floor((Date.now() - effectiveTimestamp) / 60000));
-                        const humanQueueTimeText = minutesInQueue === 0 ? 'Acabou de entrar' : `${minutesInQueue} min`;
-
-                        return (
-                          <div className="space-y-3 py-1 text-center">
-                            {/* DISPONÍVEL NA LOJA & TELA SEMPRE LIGADA BADGES */}
-                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                                <span className="uppercase tracking-wider">Disponível na loja</span>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={requestWakeLock}
-                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold transition-all cursor-pointer ${
-                                  isWakeLockActive
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                                    : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
-                                }`}
-                                title="Evita que o celular apague a tela enquanto estiver no suporte da moto"
-                              >
-                                <span>📱 Tela Ligada:</span>
-                                <strong className={isWakeLockActive ? 'text-blue-700 font-black' : 'text-slate-500'}>
-                                  {isWakeLockActive ? 'Ativada' : 'Ativar'}
-                                </strong>
-                              </button>
-                            </div>
-
-                            {/* COMPACT HIGH-IMPACT QUEUE POSITION HERO */}
-                            <div className="bg-white border border-slate-200/90 p-3.5 rounded-2xl shadow-2xs space-y-2 text-center">
-                              <div>
-                                <strong className="text-3xl sm:text-4xl font-black text-slate-950 block tracking-tight">
-                                  {queuePos}º da fila
-                                </strong>
-                                <span className="text-emerald-700 font-extrabold text-xs block mt-0.5">
-                                  {queuePos === 1
-                                    ? '🚀 Próximo a receber um pedido!'
-                                    : `${queuePos - 1} ${queuePos - 1 === 1 ? 'motoboy à sua frente' : 'motoboys à sua frente'}`}
-                                </span>
-                              </div>
-
-                              <div className="w-full grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
-                                <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/80 text-center">
-                                  <span className="text-[10px] font-bold text-slate-500 block">⚡ Estimativa chamada</span>
-                                  <strong className="text-emerald-700 font-black text-sm">~{estCallTimeMin} min</strong>
-                                </div>
-                                <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/80 text-center">
-                                  <span className="text-[10px] font-bold text-slate-500 block">⏱️ Na fila desde</span>
-                                  <strong className="text-slate-900 font-black text-sm">{humanQueueTimeText}</strong>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* HIGH-CONTRAST CLEAR SHIFT CONTROLS (PAUSAR PRIMEIRO, ENCERRAR SEGUNDO) */}
-                            {onUpdateMotoboyStatus && activeMotoboy && (
-                              <div className="pt-1 space-y-2">
-                                {/* PRIMARY ACTION: PAUSAR DISPONIBILIDADE */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onUpdateMotoboyStatus(activeMotoboy.id, 'busy');
-                                    triggerSystemActionToast("⏸️ Disponibilidade pausada.");
-                                  }}
-                                  className="w-full py-2.5 px-3 bg-white hover:bg-slate-50 active:scale-98 text-slate-900 font-extrabold text-xs rounded-2xl border border-slate-300 shadow-2xs transition-all flex flex-col items-center justify-center cursor-pointer group"
-                                >
-                                  <div className="flex items-center gap-1.5 font-black text-slate-900">
-                                    <Pause className="w-4 h-4 text-amber-500 shrink-0" />
-                                    <span>Pausar disponibilidade</span>
-                                  </div>
-                                  <span className="text-[10px] text-slate-500 font-medium">Sair da fila temporariamente (abastecer / almoçar)</span>
-                                </button>
-
-                                {/* SECONDARY DESTRUCTIVE ACTION: ENCERRAR EXPEDIENTE */}
-                                <button
-                                  type="button"
-                                  onClick={handleFinishShift}
-                                  className="w-full py-2 px-3 bg-slate-900/90 hover:bg-slate-950 active:scale-98 text-rose-300 font-bold text-xs rounded-2xl border border-rose-500/40 transition-all flex flex-col items-center justify-center cursor-pointer"
-                                >
-                                  <div className="flex items-center gap-1.5 font-extrabold">
-                                    <Power className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                                    <span>Encerrar Expediente</span>
-                                  </div>
-                                  <span className="text-[10px] text-slate-400 font-normal">Finalizar o dia de trabalho e ver relatório</span>
-                                </button>
-                              </div>
-                            )}
-
-                            {/* LIVE FILA DA LOJA LIST */}
-                            <div className="mt-5 pt-4 border-t border-slate-200/90 text-left">
-                              <div className="flex items-center justify-between mb-2 px-1">
-                                <h6 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                                  <Users className="w-4 h-4 text-amber-500" /> Outros na fila ({otherAvailableDrivers.length})
-                                </h6>
-                                <span className="text-[10px] font-bold text-slate-400">Ordem em tempo real</span>
-                              </div>
-
-                              <div className="space-y-1.5">
-                                {otherAvailableDrivers.length === 0 ? (
-                                  <p className="text-xs text-slate-400 text-center py-2">Nenhum motoboy atrás de você</p>
-                                ) : (
-                                  otherAvailableDrivers.map((driver, idx) => {
-                                    const isMe = driver.id === activeMotoboy?.id;
-                                    const driverInQueueMin = driver.joinedQueueAt
-                                      ? Math.max(0, Math.floor((Date.now() - driver.joinedQueueAt) / 60000))
-                                      : 0;
-
-                                    return (
-                                      <div
-                                        key={driver.id}
-                                        className={`flex items-center justify-between p-2.5 rounded-xl text-xs font-extrabold border transition-all ${
-                                          isMe
-                                            ? 'bg-amber-400/20 border-amber-400/70 text-slate-950 shadow-2xs'
-                                            : 'bg-slate-50 border-slate-200/80 text-slate-700'
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                          <span className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
-                                            isMe ? 'bg-amber-400 text-slate-950 border border-amber-500' : 'bg-slate-200 text-slate-700'
-                                          }`}>
-                                            {availableDrivers.findIndex((m) => m.id === driver.id) + 1}º
-                                          </span>
-                                          <span className="truncate">
-                                            {driver.name} {isMe && <span className="text-amber-800 font-black ml-1">(Você)</span>}
-                                          </span>
-                                        </div>
-                                        <span className="text-[10px] text-slate-500 font-semibold shrink-0">
-                                          {driverInQueueMin} min na fila
-                                        </span>
-                                      </div>
-                                    );
-                                  })
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </>
-                  )}
-                </div>
-              </div>
-            ) : (
-              /* List of active delivery cards */
-              <div className="space-y-3 pb-36">
-                {assignedOrders.map((order, index) => {
-                  const isDriverDelivering = activeMotoboy?.status === 'delivering' || assignedOrders.some((o) => o.status === 'in_transit');
-                  const isInTransit = order.status === 'in_transit' || (isDriverDelivering && order.status !== 'delivered' && order.status !== 'cancelled');
-                  const isFirstOrder = index === 0;
-                  const isExpanded = isFirstOrder || manualExpandedId === order.id;
-                  const hasArrived = Boolean(arrivedOrderIds[order.id]);
-
-                  const isReadyAtCounter = order.status === 'ready_at_counter';
-                  const isPickedUp = order.status === 'picked_up';
-                  const isPendingInKitchen = order.status === 'preparing' || order.status === 'pending';
-
-                  // Street line vs Neighborhood
-                  const streetLine = order.street || order.address;
-                  const neighborhoodLine = `${order.neighborhood || 'Centro'} • Blumenau`;
-
-                  // Circle stop numbers: ⚡ 1ª PARADA, 2ª PARADA, etc.
-                  const stopLabel = isFirstOrder ? '⚡ 1ª PARADA' : `${index + 1}ª PARADA`;
-                  const distanceToOrderKm = calculateDistanceKm(
-                    deviceGps?.lat || activeMotoboy?.currentLat || shift.storeLat,
-                    deviceGps?.lng || activeMotoboy?.currentLng || shift.storeLng,
-                    order.lat,
-                    order.lng
-                  );
-
-                  // COMPACT CARD FOR SECONDARY PARADAS
-                  if (!isExpanded) {
-                    return (
-                      <div
-                        key={order.id}
-                        onClick={() => setManualExpandedId(order.id)}
-                        className="bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs hover:border-slate-300 transition-all cursor-pointer space-y-2 opacity-90 hover:opacity-100"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-extrabold text-[11px] border border-slate-200">
-                              {stopLabel}
-                            </span>
-                            <span className="font-extrabold text-sm text-slate-900">
-                              #{order.codeNumber}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            {isReadyAtCounter ? (
-                              <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                🟢 Pronto
-                              </span>
-                            ) : isInTransit ? (
-                              <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                                🔵 Em rota
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                                🟠 Aguardando
-                              </span>
-                            )}
-
-                            {onReorderMotoboyRoute && index > 0 && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const reordered = [...assignedOrders];
-                                  const temp = reordered[index];
-                                  reordered[index] = reordered[index - 1];
-                                  reordered[index - 1] = temp;
-                                  onReorderMotoboyRoute(reordered.map((o) => o.id));
-                                  setManualExpandedId(null);
-                                }}
-                                className="ml-1 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-amber-300 font-extrabold text-[10px] rounded-lg transition-all cursor-pointer shadow-2xs flex items-center gap-1"
-                                title="Priorizar esta entrega na rota"
-                              >
-                                ▲ Priorizar
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between text-xs text-slate-600 font-medium pt-0.5">
-                          <div className="flex items-center gap-1.5 truncate pr-2">
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-extrabold text-[10px] shrink-0 border border-emerald-200 uppercase">
-                              📍 {order.neighborhood ? order.neighborhood.toUpperCase() : 'CENTRO'}
-                            </span>
-                            <span className="truncate font-semibold text-slate-800">{streetLine}</span>
-                          </div>
-                          <span className="text-[11px] text-slate-400 shrink-0 font-bold">Toque para ver</span>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // EXPANDED PRIMARY CARD vs SECONDARY EXPANDED CARD
-                  return (
-                    <div
-                      key={order.id}
-                      className={`rounded-2xl border-2 transition-all overflow-hidden bg-white ${
-                        isFirstOrder
-                          ? 'border-amber-400 border-l-[10px] border-l-amber-400 shadow-xl ring-2 ring-amber-400/30'
-                          : hasArrived
-                          ? 'border-amber-400 shadow-md'
-                          : 'border-slate-300 border-l-[6px] border-l-slate-400 opacity-95'
-                      }`}
-                    >
-                      {/* CARD HEADER */}
-                      <div className={`px-3.5 py-2.5 text-white flex items-center justify-between ${
-                        isFirstOrder ? 'bg-slate-950' : 'bg-slate-800'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2.5 py-1 rounded-lg font-black text-xs uppercase flex items-center gap-1 shadow-2xs ${
-                            isFirstOrder
-                              ? 'bg-amber-400 text-slate-950 animate-pulse'
-                              : 'bg-slate-700 text-amber-300 border border-slate-600'
-                          }`}>
-                            {isFirstOrder ? '⚡ ENTREGA ATUAL' : stopLabel}
-                          </span>
-                          <span className="font-extrabold text-xs text-slate-300">
-                            {isFirstOrder
-                              ? (assignedOrders.length > 1 ? `1ª de ${assignedOrders.length} paradas (Sua vez!)` : 'Próxima entrega')
-                              : `Parada ${index + 1} de ${assignedOrders.length} (Aguardando)`}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-base text-amber-300">
-                            #{order.codeNumber}
-                          </span>
-                          {!isFirstOrder && (
-                            <button
-                              type="button"
-                              onClick={() => setManualExpandedId(null)}
-                              className="text-[10px] bg-slate-900 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded-md border border-slate-700 font-bold"
-                            >
-                              Recolher
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="p-3.5 space-y-3">
-                        {/* 1. ENDEREÇO DA ENTREGA (DOMINANTE - LEGÍVEL A 1M) */}
-                        <div className={`p-4 rounded-2xl border-2 space-y-1 text-white shadow-lg ${
-                          isFirstOrder ? 'bg-slate-950 border-slate-800' : 'bg-slate-900 border-slate-700/80'
-                        }`}>
-                          <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider">
-                            <span className="text-amber-400 flex items-center gap-1.5">
-                              <span>PEDIDO #{order.codeNumber}</span>
-                            </span>
-                            <span className="text-emerald-400 font-extrabold bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 text-xs">
-                              📍 {order.neighborhood ? order.neighborhood.toUpperCase() : 'CENTRO'}
-                            </span>
-                          </div>
-
-                          <h2 className="text-xl sm:text-2xl font-black text-white leading-tight tracking-tight pt-1">
-                            {streetLine}
-                          </h2>
-
-                          <div className="flex items-center gap-2 pt-1.5 text-xs font-bold text-slate-300 flex-wrap">
-                            <span className="bg-slate-900 text-amber-300 px-2.5 py-1 rounded-lg border border-slate-800 font-black">
-                              {hasArrived ? '⏱️ No local (0 min)' : `⏱️ ~${Math.max(2, Math.round((order.estimatedMinutes || 8) * 0.5))} min`}
-                            </span>
-                            <span className="bg-slate-900 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-800 font-extrabold">
-                              {hasArrived ? '📍 ~0.1 km (No destino)' : `🗺️ ~${distanceToOrderKm.toFixed(1)} km`}
-                            </span>
-                            {order.promisedTime && (
-                              <span className="bg-slate-900 text-amber-400 px-2.5 py-1 rounded-lg border border-slate-800 font-extrabold">
-                                🕒 {order.promisedTime}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* NOTICE IF EXPANDED BUT NOT FIRST ORDER */}
-                        {!isFirstOrder && (
-                          <div className="bg-amber-50 border border-amber-200 text-amber-900 p-2.5 rounded-xl font-bold text-xs flex items-center gap-2">
-                            <span>⏳</span>
-                            <span>Atenção: Conclua a 1ª parada primeiro antes de realizar esta entrega.</span>
-                          </div>
-                        )}
-
-                        {/* ARRIVAL ALERT BANNER */}
-                        {hasArrived && (
-                          <div className="bg-amber-400 text-slate-950 p-2.5 rounded-xl font-extrabold text-xs border border-amber-300 flex items-center justify-between gap-2 shadow-xs animate-pulse">
-                            <span className="flex items-center gap-1.5 font-black text-sm">
-                              📍 Você está no local!
-                            </span>
-                            <span className="text-[10px] font-bold bg-slate-900 text-amber-300 px-2 py-0.5 rounded-md">
-                              Cliente {order.clientName} avisado
-                            </span>
-                          </div>
-                        )}
-
-                        {/* 2. PAGAMENTO (1 LINHA ESSENCIAL - SEM AMBIGUIDADE) */}
-                        {order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web' ? (
-                          <div className="bg-emerald-950/90 border-2 border-emerald-500/60 p-3 rounded-2xl flex items-center justify-between text-emerald-100 shadow-sm">
-                            <div className="flex items-center gap-2 font-black text-xs sm:text-sm">
-                              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                              <span>✓ Pago via {order.paymentMethod === 'pix' ? 'PIX' : order.originChannel === 'ifood' ? 'iFood' : 'Online'} • <span className="text-emerald-300 font-extrabold">Não cobrar</span></span>
-                            </div>
-                            <span className="font-black text-amber-300 text-xs bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800 shrink-0">
-                              + {formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 8.50)}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="bg-amber-950 border-2 border-amber-500 p-3 rounded-2xl text-white flex items-center justify-between shadow-md">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-black">
-                                {order.paymentMethod === 'dinheiro' ? <DollarSign className="w-6 h-6 stroke-[3]" /> : <CreditCard className="w-6 h-6 stroke-[3]" />}
-                              </div>
-                              <div className="min-w-0">
-                                <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider block">
-                                  🚨 Cobrar no local ({order.paymentMethod === 'dinheiro' ? 'Dinheiro' : 'Maquininha'})
-                                </span>
-                                <span className="font-bold text-xs text-amber-100 block truncate">
-                                  {order.paymentMethod === 'dinheiro' ? '💵 Dinheiro na entrega' : '💳 Maquininha na entrega'}
-                                </span>
-                                {order.changeFor && order.paymentMethod === 'dinheiro' && (
-                                  <span className="text-[11px] font-extrabold text-amber-200 block">
-                                    ⚠️ Levar troco para: {formattedCurrency(order.changeFor)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <span className="text-[10px] font-black text-amber-200 uppercase block">Cobrar</span>
-                              <span className="font-black text-2xl text-amber-300 leading-none block">{formattedCurrency(order.total)}</span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 3. NAVEGAR + LIGAR (2 BOTÕES LADO A LADO) */}
-                        {(isInTransit || isPickedUp) && (
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenWaze(order.address, order.lat, order.lng)}
-                              className={`py-3.5 font-extrabold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer border ${
-                                isFirstOrder
-                                  ? 'bg-sky-600 hover:bg-sky-500 text-white border-sky-400/40'
-                                  : 'bg-slate-700 hover:bg-slate-600 text-slate-100 border-slate-600'
-                              }`}
-                            >
-                              <Navigation className="w-5 h-5 fill-current text-white" />
-                              <span>{isFirstOrder ? 'Navegar' : `Navegar (${index + 1}ª)`}</span>
-                            </button>
-
-                            {order.clientPhone ? (
-                              <a
-                                href={`tel:${order.clientPhone.replace(/\D/g, '')}`}
-                                className="py-3.5 bg-slate-800 hover:bg-slate-700 active:scale-98 text-white font-extrabold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer border border-slate-700"
-                              >
-                                <Phone className="w-5 h-5 text-emerald-400 shrink-0" />
-                                <span>Ligar</span>
-                              </a>
-                            ) : (
-                              <div className="py-3.5 bg-slate-800/60 text-slate-400 font-extrabold text-xs rounded-2xl flex items-center justify-center gap-1 border border-slate-700">
-                                <span>Sem telefone</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* 4. AÇÃO PRINCIPAL (CTA GIGANTE ÚNICO) */}
-                        <div className="pt-1 space-y-2">
-                          {isInTransit ? (
-                            <div className="space-y-2">
-                              {!isFirstOrder ? (
-                                <div className="bg-slate-900 border-2 border-amber-500/60 p-3.5 rounded-2xl space-y-2 text-white shadow-md">
-                                  <div className="flex items-center gap-2 font-black text-amber-300 text-xs tracking-wide">
-                                    <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-                                    <span>🔒 Entregar pedido #{assignedOrders[0]?.codeNumber} primeiro</span>
-                                  </div>
-                                  <p className="text-xs text-slate-300 font-medium leading-relaxed">
-                                    Esta é a {index + 1}ª parada da sua rota. Complete a 1ª parada para liberar.
-                                  </p>
-                                </div>
-                              ) : !hasArrived ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setArrivedOrderIds((prev) => ({ ...prev, [order.id]: true }));
-                                    onSimulateArrival(order);
-                                    triggerSystemActionToast("📍 Cheguei ao local! Cliente notificado.");
-                                  }}
-                                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/25 transition-all cursor-pointer border-2 border-emerald-300 animate-pulse tracking-wide"
-                                >
-                                  <MapPin className="w-5 h-5 text-slate-950 fill-emerald-200 shrink-0" />
-                                  <span>Cheguei ao local</span>
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onUpdateOrderStatus(order.id, 'delivered');
-                                    setArrivedOrderIds((prev) => {
-                                      const copy = { ...prev };
-                                      delete copy[order.id];
-                                      return copy;
-                                    });
-                                    setManualExpandedId(null);
-                                    triggerSystemActionToast("✓ Entrega concluída!");
-                                  }}
-                                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer border-2 border-emerald-300 tracking-wide"
-                                >
-                                  <CheckCircle2 className="w-5 h-5 text-slate-950 shrink-0" />
-                                  <span>✓ Concluir entrega #{order.codeNumber}</span>
-                                </button>
-                              )}
-                            </div>
-                          ) : isPendingInKitchen ? (
-                            <div className="w-full py-3 px-3 bg-amber-50 border border-amber-200 text-amber-900 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 text-center">
-                              <Clock className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
-                              <span>Cozinha preparando o pedido... 🍳</span>
-                            </div>
-                          ) : isReadyAtCounter ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onUpdateOrderStatus(order.id, 'picked_up');
-                                triggerSystemActionToast(`✅ Retirada do pedido #${order.codeNumber} confirmada!`);
-                              }}
-                              className="w-full py-4 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer animate-pulse"
-                            >
-                              <ShoppingBag className="w-5 h-5 text-slate-950 fill-current" />
-                              <span>Confirmar retirada</span>
-                            </button>
-                          ) : isPickedUp ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const firstOrder = assignedOrders[0];
-                                if (firstOrder) {
-                                  onUpdateOrderStatus(firstOrder.id, 'in_transit');
-                                }
-                                assignedOrders.slice(1).forEach((o) => {
-                                  if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
-                                    if (o.status !== 'picked_up') {
-                                      onUpdateOrderStatus(o.id, 'picked_up');
-                                    }
-                                  }
-                                });
-                                if (onUpdateMotoboyStatus && activeMotoboy) {
-                                  onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
-                                }
-                                triggerSystemActionToast(`🚀 Rota iniciada! 1ª parada: #${firstOrder?.codeNumber}`);
-                              }}
-                              className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-98 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
-                            >
-                              <Zap className="w-5 h-5 fill-current" />
-                              <span>Peguei tudo, bora! ({assignedOrders.length} {assignedOrders.length === 1 ? 'entrega' : 'entregas'})</span>
-                            </button>
-                          ) : null}
-                        </div>
-
-                        {/* 5. EXPANDABLE DETAILS ACCORDION (DETALHES COMPLEMENTARES) */}
-                        <div className="pt-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedExtraOrderIds((prev) => ({
-                                ...prev,
-                                [order.id]: !prev[order.id],
-                              }))
-                            }
-                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-700 font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-300"
-                          >
-                            <span>{expandedExtraOrderIds[order.id] ? '🔼 Ocultar Detalhes' : '🔽 Ver Detalhes (Itens, Rastreio, Maps)'}</span>
-                          </button>
-
-                          {expandedExtraOrderIds[order.id] && (
-                            <div className="mt-2.5 p-3.5 bg-slate-900 text-slate-100 rounded-2xl border border-slate-800 space-y-3 text-xs">
-                              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                                <span className="font-extrabold text-amber-300 uppercase text-[11px]">👤 Cliente: {order.clientName}</span>
-                                {order.clientPhone && (
-                                  <a
-                                    href={`https://wa.me/55${order.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                      `Olá ${order.clientName}, sou o entregador com seu pedido #${order.codeNumber}.`
-                                    )}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[10px] bg-emerald-600 text-white font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1"
-                                  >
-                                    <MessageCircle className="w-3 h-3 fill-current" />
-                                    <span>WhatsApp</span>
-                                  </a>
-                                )}
-                              </div>
-
-                              {order.items && order.items.length > 0 && (
-                                <div>
-                                  <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">📦 Itens do Pedido:</span>
-                                  <ul className="space-y-1 font-medium bg-slate-950 p-2 rounded-xl border border-slate-800">
-                                    {order.items.map((it, i) => (
-                                      <li key={i} className="flex justify-between text-slate-200 text-xs">
-                                        <span>{it.quantity}x {it.name}</span>
-                                        <span className="font-bold text-slate-400">{formattedCurrency((it.price || 0) * it.quantity)}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {order.notes && (
-                                <div className="bg-amber-950/60 p-2.5 rounded-xl border border-amber-600/40 text-amber-200">
-                                  <span className="font-black text-[10px] uppercase block">📝 Observação:</span>
-                                  <p className="font-bold text-xs">{order.notes}</p>
-                                </div>
-                              )}
-
-                              <div className="flex items-center gap-2 pt-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenGoogleMaps(order.address, order.lat, order.lng)}
-                                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-extrabold rounded-lg text-center flex items-center justify-center gap-1 border border-slate-700 cursor-pointer"
-                                >
-                                  <MapPin className="w-3.5 h-3.5 text-sky-400" />
-                                  <span>Google Maps</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const url = `${window.location.origin}/?rastreio=${order.trackingCode || order.id}`;
-                                    navigator.clipboard.writeText(url);
-                                    triggerSystemActionToast("🔗 Link de rastreio copiado!");
-                                  }}
-                                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 font-extrabold rounded-lg text-center flex items-center justify-center gap-1 border border-slate-700 cursor-pointer"
-                                >
-                                  <Copy className="w-3.5 h-3.5 text-amber-400" />
-                                  <span>Copiar Link Rastreio</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                <>
+                  <div className="flex justify-center gap-2 flex-wrap">
+                    <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-black">● DISPONÍVEL NA LOJA</span>
+                    <button onClick={requestWakeLock} className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-black">📱 Tela ligada: {isWakeLockActive ? 'Ativada' : 'Ativar'}</button>
+                  </div>
+                  <div className="border border-slate-200 rounded-2xl p-4">
+                    <strong className="text-4xl font-black block">{queuePos || 1}º da fila</strong>
+                    <span className="text-emerald-700 font-black text-sm">🚀 {queuePos <= 1 ? 'Próximo a receber um pedido!' : `${queuePos - 1} à sua frente`}</span>
+                    <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100">
+                      <div className="bg-slate-50 rounded-xl p-2"><span className="text-[10px] text-slate-500 font-bold block">⚡ Estimativa</span><strong>~{Math.max(2, (queuePos || 1) * 2)} min</strong></div>
+                      <div className="bg-slate-50 rounded-xl p-2"><span className="text-[10px] text-slate-500 font-bold block">⏱️ Na fila</span><strong>{Math.max(0, Math.floor((Date.now() - (activeMotoboy.joinedQueueAt || availableSince)) / 60000))} min</strong></div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        ) : activeTab === 'map' ? (
-          /* LIVE ROUTE MAP TAB */
-          <div className="space-y-3">
-            <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800 space-y-2.5 shadow-md">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span>
-                  <h4 className="font-extrabold text-sm text-white">Mapa da Rota Ao Vivo</h4>
-                </div>
-                <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-full font-bold text-slate-300">
-                  {deviceGps ? '📍 GPS Sincronizado' : '📍 Permissão Solicitada'}
-                </span>
-              </div>
-
-              {/* AVISAR LOJA VOLTANDO BUTTON */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeMotoboy) {
-                    const nextLat = deviceGps?.lat || activeMotoboy.currentLat || shift.storeLat;
-                    const nextLng = deviceGps?.lng || activeMotoboy.currentLng || shift.storeLng;
-                    const updated = {
-                      ...activeMotoboy,
-                      status: 'returning_to_store' as const,
-                      currentLat: nextLat,
-                      currentLng: nextLng,
-                    };
-                    saveMotoboyToCloud(updated);
-                    if (onUpdateMotoboyStatus) {
-                      onUpdateMotoboyStatus(activeMotoboy.id, 'returning_to_store');
-                    }
-                    triggerSystemActionToast('🛵 Notificação enviada à loja: "Voltando pra Loja (~5 min)"!');
-                  }
-                }}
-                className={`w-full py-2.5 px-3 font-black text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
-                  activeMotoboy?.status === 'returning_to_store'
-                    ? 'bg-amber-500 text-slate-950 border border-amber-400 animate-pulse'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400'
-                }`}
-              >
-                <Navigation className="w-4 h-4 text-white" />
-                <span>
-                  {activeMotoboy?.status === 'returning_to_store'
-                    ? '⚡ STATUS: VOLTANDO PARA A LOJA (~5 MIN)'
-                    : '🛵 AVISAR LOJA: ESTOU VOLTANDO DA ROTA (~5 MIN)'}
-                </span>
-              </button>
+                  </div>
+                  <button onClick={() => onUpdateMotoboyStatus?.(activeMotoboy.id, 'busy')} className="w-full py-3 border border-slate-300 rounded-xl font-black">⏸️ Pausar disponibilidade</button>
+                  <button onClick={handleFinishShift} className="w-full py-3 bg-slate-900 text-rose-300 border border-rose-500/40 rounded-xl font-black">⏻ Encerrar expediente</button>
+                  <div className="pt-4 border-t border-slate-200 text-left">
+                    <h6 className="text-xs font-black uppercase">👥 Outros na fila ({Math.max(0, availableDrivers.length - 1)})</h6>
+                    <div className="mt-2 space-y-1.5">
+                      {availableDrivers.filter((m) => m.id !== activeMotoboy.id).map((m) => <div key={m.id} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">{m.name}</div>)}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
+          ) : (
+            <div className="space-y-3 pb-4">
+              <div className="w-full py-3 px-4 bg-slate-900 border border-emerald-500/40 rounded-2xl flex items-center justify-between text-xs font-black text-emerald-300">
+                <span>● 🚚 ROTA EM ANDAMENTO</span><span className="text-slate-300">{assignedOrders.length} {assignedOrders.length === 1 ? 'entrega' : 'entregas'}</span>
+              </div>
+              {assignedOrders.map((order, index) => {
+                const isFirstOrder = index === 0;
+                const isExpanded = isFirstOrder || manualExpandedId === order.id;
+                const hasArrived = Boolean(arrivedOrderIds[order.id]);
+                const isInTransit = order.status === 'in_transit' || (activeMotoboy?.status === 'delivering' && isFirstOrder);
+                const streetLine = order.street || order.address;
+                const distance = calculateDistanceKm(deviceGps?.lat || activeMotoboy?.currentLat || shift.storeLat, deviceGps?.lng || activeMotoboy?.currentLng || shift.storeLng, order.lat, order.lng);
 
-            <div className="h-[400px] rounded-2xl overflow-hidden border border-slate-300 shadow-sm">
-              <RouteMap
-                origin={{
-                  name: shift.storeName || 'Ponto de Partida / Loja',
-                  address: shift.storeAddress,
-                  lat: shift.storeLat,
-                  lng: shift.storeLng,
-                }}
-                motoboyName={activeMotoboy?.name}
-                motoboyVehicle={activeMotoboy?.vehicleModel}
-                showMotoboyMarker={true}
-                motoboyLat={deviceGps?.lat || activeMotoboy?.currentLat}
-                motoboyLng={deviceGps?.lng || activeMotoboy?.currentLng}
-                stops={assignedOrders.map((o, idx) => ({
-                  id: o.id,
-                  orderIndex: idx + 1,
-                  title: `#${o.codeNumber} - ${o.clientName}`,
-                  address: o.address,
-                  lat: o.lat,
-                  lng: o.lng,
-                  status: o.status === 'delivered' ? 'delivered' : o.status === 'in_transit' ? 'in_transit' : 'pending',
-                  priority: 'high',
-                  recipientName: o.clientName,
-                }))}
-              />
+                if (!isExpanded) {
+                  return <button key={order.id} onClick={() => setManualExpandedId(order.id)} className="w-full bg-white p-3 rounded-2xl border border-slate-200 text-left flex justify-between"><span><strong>#{order.codeNumber}</strong> • {order.neighborhood}</span><span className="text-slate-400 text-xs">Toque para ver</span></button>;
+                }
+
+                return (
+                  <div key={order.id} className={`rounded-2xl border-2 overflow-hidden bg-white ${isFirstOrder ? 'border-amber-400 shadow-lg' : 'border-slate-300'}`}>
+                    <div className="bg-slate-950 text-white px-4 py-3 flex justify-between items-center"><span className="font-black text-xs text-amber-300">{isFirstOrder ? '⚡ ENTREGA ATUAL' : `${index + 1}ª PARADA`}</span><strong className="text-amber-300">#{order.codeNumber}</strong></div>
+                    <div className="p-4 space-y-3">
+                      <div className="bg-slate-950 text-white p-4 rounded-2xl">
+                        <div className="flex justify-between text-xs font-black"><span className="text-amber-400">PEDIDO #{order.codeNumber}</span><span className="text-emerald-400">📍 {(order.neighborhood || 'Centro').toUpperCase()}</span></div>
+                        <h2 className="text-2xl font-black mt-2">{streetLine}</h2>
+                        <div className="flex gap-2 mt-3"><span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-amber-300 text-xs font-black">⏱️ ~{Math.max(2, Math.round((order.estimatedMinutes || 8) * 0.5))} min</span><span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-slate-300 text-xs font-black">🗺️ ~{distance.toFixed(1)} km</span></div>
+                      </div>
+
+                      {(order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web') ? (
+                        <div className="bg-emerald-950 border border-emerald-500/60 p-3 rounded-2xl flex items-center justify-between"><span className="text-emerald-100 font-black text-sm">✓ Pago • <span className="text-emerald-300">Não cobrar</span></span><span className="bg-slate-900 text-amber-300 px-2.5 py-1 rounded-xl font-black text-xs">Ganho: + {formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}</span></div>
+                      ) : (
+                        <div className="bg-amber-950 border border-amber-500 p-3 rounded-2xl text-white flex justify-between"><span className="font-black">🚨 Cobrar no local</span><strong className="text-amber-300">{formattedCurrency(order.total)}</strong></div>
+                      )}
+
+                      {(isInTransit || order.status === 'picked_up') && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button onClick={() => handleOpenWaze(order.address, order.lat, order.lng)} className="py-3.5 bg-sky-600 text-white rounded-2xl font-black flex items-center justify-center gap-2"><Navigation className="w-5 h-5" /> Navegar</button>
+                          {order.clientPhone ? <a href={`tel:${order.clientPhone.replace(/\D/g, '')}`} className="py-3.5 bg-slate-800 text-white rounded-2xl font-black flex items-center justify-center gap-2"><Phone className="w-5 h-5 text-emerald-400" /> Ligar</a> : <div className="py-3.5 bg-slate-200 rounded-2xl text-center text-slate-500 font-black">Sem telefone</div>}
+                        </div>
+                      )}
+
+                      {isFirstOrder && isInTransit && !hasArrived && (
+                        <button onClick={() => { setArrivedOrderIds((prev) => ({ ...prev, [order.id]: true })); onSimulateArrival(order); }} className="w-full py-4 bg-emerald-500 text-slate-950 font-black text-base rounded-2xl border-2 border-emerald-300 flex items-center justify-center gap-2"><MapPin className="w-5 h-5" /> Cheguei ao local</button>
+                      )}
+                      {isFirstOrder && isInTransit && hasArrived && (
+                        <button onClick={() => { onUpdateOrderStatus(order.id, 'delivered'); setArrivedOrderIds((prev) => { const next = { ...prev }; delete next[order.id]; return next; }); setManualExpandedId(null); }} className="w-full py-4 bg-emerald-500 text-slate-950 font-black text-base rounded-2xl border-2 border-emerald-300 flex items-center justify-center gap-2"><CheckCircle2 className="w-5 h-5" /> Concluir entrega #{order.codeNumber}</button>
+                      )}
+                      {order.status === 'ready_at_counter' && (
+                        <button onClick={() => onUpdateOrderStatus(order.id, 'picked_up')} className="w-full py-4 bg-amber-400 text-slate-950 font-black rounded-2xl">🎒 Confirmar retirada</button>
+                      )}
+                      {order.status === 'picked_up' && isFirstOrder && (
+                        <button onClick={() => { onUpdateOrderStatus(order.id, 'in_transit'); onUpdateMotoboyStatus?.(activeMotoboy.id, 'delivering'); }} className="w-full py-4 bg-emerald-500 text-slate-950 font-black rounded-2xl">⚡ Peguei tudo, bora!</button>
+                      )}
+
+                      <button onClick={() => setExpandedExtraOrderIds((prev) => ({ ...prev, [order.id]: !prev[order.id] }))} className="w-full py-2.5 bg-slate-100 border border-slate-300 rounded-xl text-slate-700 font-black text-xs">{expandedExtraOrderIds[order.id] ? '🔼 Ocultar detalhes' : '🔽 Ver detalhes (Itens, Rastreio, Maps)'}</button>
+                      {expandedExtraOrderIds[order.id] && (
+                        <div className="bg-slate-900 text-white rounded-2xl p-3.5 space-y-3 text-xs">
+                          <strong className="text-amber-300">👤 {order.clientName}</strong>
+                          {order.items?.length ? <div className="bg-slate-950 rounded-xl p-2 space-y-1">{order.items.map((item, i) => <div key={i} className="flex justify-between"><span>{item.quantity}x {item.name}</span><span>{formattedCurrency(item.price * item.quantity)}</span></div>)}</div> : null}
+                          {order.notes && <div className="bg-amber-950 border border-amber-600/40 rounded-xl p-2.5 text-amber-200">📝 {order.notes}</div>}
+                          <div className="grid grid-cols-2 gap-2"><button onClick={() => handleOpenGoogleMaps(order.address, order.lat, order.lng)} className="py-2 bg-slate-800 rounded-lg font-black">Google Maps</button><button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/?rastreio=${order.trackingCode || order.id}`)} className="py-2 bg-slate-800 rounded-lg font-black text-amber-300 flex justify-center gap-1"><Copy className="w-3.5 h-3.5" /> Rastreio</button></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : activeTab === 'map' ? (
+          <div className="space-y-3">
+            <div className="bg-slate-900 text-white p-3.5 rounded-2xl"><h4 className="font-black">Mapa da minha rota</h4><p className="text-xs text-slate-400 mt-1">GPS do seu celular + suas paradas</p></div>
+            <div className="h-[400px] rounded-2xl overflow-hidden border border-slate-300">
+              <RouteMap origin={{ name: shift.storeName || 'Loja', address: shift.storeAddress, lat: shift.storeLat, lng: shift.storeLng }} motoboyName={activeMotoboy?.name} showMotoboyMarker motoboyLat={deviceGps?.lat || activeMotoboy?.currentLat} motoboyLng={deviceGps?.lng || activeMotoboy?.currentLng} stops={assignedOrders.map((o, idx) => ({ id: o.id, orderIndex: idx + 1, title: `#${o.codeNumber} - ${o.clientName}`, address: o.address, neighborhood: o.neighborhood, lat: o.lat, lng: o.lng, status: o.status === 'in_transit' ? 'in_transit' : 'pending', priority: 'high', recipientName: o.clientName }))} />
             </div>
           </div>
         ) : (
-          /* COMPLETED ORDERS TAB */
           <div className="space-y-3">
-            {/* DAILY SUMMARY HEADER CARD */}
-            <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-md space-y-3 border border-slate-800">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase text-amber-300 tracking-wide flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  Entregas de Hoje
-                </span>
-                <span className="text-[11px] font-extrabold text-slate-300 bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700">
-                  {new Date().toLocaleDateString('pt-BR')}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-1 text-center">
-                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
-                    Concluídas
-                  </span>
-                  <strong className="text-xl font-black text-white block mt-0.5">
-                    {activeMotoboy?.deliveriesCountToday || completedOrders.length}
-                  </strong>
-                </div>
-
-                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
-                    Saldo Total Hoje
-                  </span>
-                  <strong className="text-xl font-black text-emerald-400 block mt-0.5">
-                    {formattedCurrency(totalEarnedDisplay)}
-                  </strong>
-                </div>
-              </div>
-            </div>
-
-            {completedOrders.length === 0 ? (
-              <div className="py-10 text-center text-slate-500 space-y-2 bg-white rounded-2xl border border-slate-200">
-                <CheckCircle2 className="w-12 h-12 mx-auto text-slate-300" />
-                <p className="text-xs font-bold text-slate-700">Nenhuma entrega concluída hoje ainda.</p>
-                <p className="text-[11px] text-slate-400">Assim que você finalizar pedidos, eles aparecerão aqui com o valor da taxa.</p>
-              </div>
-            ) : (
-              completedOrders.map((ord) => (
-                <div
-                  key={ord.id}
-                  className="bg-white border border-slate-200 p-3.5 rounded-2xl flex items-center justify-between text-xs shadow-2xs hover:border-slate-300 transition-all"
-                >
-                  <div className="space-y-1 min-w-0 pr-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-black text-slate-900 text-sm">Pedido #{ord.codeNumber}</span>
-                      <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                        ✓ CONCLUÍDO
-                      </span>
-                    </div>
-                    <p className="text-slate-800 font-bold truncate">{ord.clientName} • {ord.neighborhood}</p>
-                    <span className="text-[11px] text-slate-500 block truncate">{ord.address}</span>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <span className="font-black text-slate-900 text-sm block">
-                      {formattedCurrency(ord.total)}
-                    </span>
-                    <span className="text-[11px] text-emerald-700 block font-black">
-                      Taxa: +{formattedCurrency(ord.deliveryFee || activeMotoboy?.perDeliveryFee || 8.5)}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
+            <div className="bg-slate-900 text-white p-4 rounded-2xl grid grid-cols-2 gap-2 text-center"><div><span className="text-[10px] text-slate-400 uppercase font-black">Entregas hoje</span><strong className="text-2xl block">{completedOrders.length}</strong></div><div><span className="text-[10px] text-slate-400 uppercase font-black">Ganhos hoje</span><strong className="text-2xl text-emerald-400 block">{formattedCurrency(totalEarnedDisplay)}</strong></div></div>
+            {completedOrders.length ? completedOrders.map((o) => <div key={o.id} className="bg-white border border-slate-200 rounded-2xl p-3 flex justify-between"><div><strong>Pedido #{o.codeNumber}</strong><p className="text-xs text-slate-500">{o.clientName} • {o.neighborhood}</p></div><span className="text-emerald-700 font-black">+{formattedCurrency(o.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}</span></div>) : <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">Nenhuma entrega concluída hoje.</div>}
           </div>
         )}
       </div>
 
-      {/* 5. Footer Summary Bar */}
-      <div className="bg-white px-4 py-3 border-t border-slate-200 flex flex-col gap-2">
-        <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
-          <span className="flex items-center gap-1 text-slate-600">
-            <MapPin className="w-3.5 h-3.5 text-emerald-600" /> Blumenau - SC
-          </span>
-          <button
-            type="button"
-            onClick={() => setIsDailyReportModalOpen(true)}
-            className="text-slate-900 hover:text-emerald-700 font-black cursor-pointer flex items-center gap-1 hover:underline transition-all"
-            title="Clique para abrir o Relatório do Dia"
-          >
-            <span>{completedOrders.length} {completedOrders.length === 1 ? 'entrega finalizada' : 'entregas finalizadas'}</span>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          </button>
-        </div>
-      </div>
+      <div className="bg-white px-4 py-3 border-t border-slate-200 flex items-center justify-between text-[11px] font-bold text-slate-500"><span>📍 Blumenau - SC</span><button onClick={() => setIsDailyReportModalOpen(true)} className="text-slate-900 font-black">{completedOrders.length} {completedOrders.length === 1 ? 'entrega finalizada' : 'entregas finalizadas'} ›</button></div>
 
-      {/* 🎒 STICKY BOTTOM FLOATING CTA FOR QUICK ONE-HANDED DRIVER ACTIONS */}
-      {assignedOrders.length > 0 && activeTab === 'active' && (() => {
-        const firstOrder = assignedOrders[0];
-        if (!firstOrder) return null;
-
-        const isInTransit = firstOrder.status === 'in_transit';
-        const hasArrived = Boolean(arrivedOrderIds[firstOrder.id]);
-        const isPickedUp = firstOrder.status === 'picked_up';
-
-        return (
-          <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-md bg-slate-950/95 border-2 border-emerald-500/80 p-2.5 px-3.5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center justify-between gap-2 text-white animate-slideUp">
-            <div className="min-w-0 pr-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-black text-amber-300 uppercase tracking-wide">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
-                <span>1ª Parada • #{firstOrder.codeNumber}</span>
-              </div>
-              <p className="text-xs font-black text-white truncate max-w-[170px] sm:max-w-[210px]">
-                {firstOrder.street || firstOrder.address}
-              </p>
-            </div>
-
-            <div className="shrink-0">
-              {isInTransit && !hasArrived ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setArrivedOrderIds((prev) => ({ ...prev, [firstOrder.id]: true }));
-                    onSimulateArrival(firstOrder);
-                    triggerSystemActionToast("📍 Cheguei ao local! Cliente notificado.");
-                  }}
-                  className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/25 transition-all cursor-pointer flex items-center gap-1.5 uppercase border border-emerald-300"
-                >
-                  <MapPin className="w-4 h-4 fill-emerald-100" />
-                  <span>Cheguei Ao Local</span>
-                </button>
-              ) : isInTransit && hasArrived ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onUpdateOrderStatus(firstOrder.id, 'delivered');
-                    setArrivedOrderIds((prev) => {
-                      const copy = { ...prev };
-                      delete copy[firstOrder.id];
-                      return copy;
-                    });
-                    setManualExpandedId(null);
-                    triggerSystemActionToast("✓ Entrega concluída!");
-                  }}
-                  className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5 uppercase border border-emerald-300"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Concluir Entrega</span>
-                </button>
-              ) : isPickedUp ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onUpdateOrderStatus(firstOrder.id, 'in_transit');
-                    if (onUpdateMotoboyStatus && activeMotoboy) {
-                      onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
-                    }
-                    triggerSystemActionToast(`🚀 Deslocamento iniciado para #${firstOrder.codeNumber}!`);
-                  }}
-                  className="px-3.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5 uppercase border border-emerald-300"
-                >
-                  <Zap className="w-4 h-4 fill-current" />
-                  <span>Iniciar Deslocamento</span>
-                </button>
-              ) : null}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* DETAILED EARNINGS & SALES BREAKDOWN MODAL */}
       {isEarningsModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-slate-200 relative my-auto animate-scaleUp text-slate-900">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
-                  💰
-                </div>
-                <div>
-                  <h4 className="font-black text-base text-slate-900">Resumo de Hoje</h4>
-                  <p className="text-xs text-slate-500 font-medium">{new Date().toLocaleDateString('pt-BR')}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsEarningsModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <LogOut className="w-5 h-5 rotate-180" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {/* Deliveries Count & Km Driven */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-center">
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Entregas</span>
-                  <strong className="text-2xl font-black text-slate-900 block mt-0.5">
-                    {completedOrders.length}
-                  </strong>
-                  <span className="text-[10px] text-slate-500 font-bold block">finalizadas hoje</span>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-center">
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Km Rodados</span>
-                  <strong className="text-2xl font-black text-slate-900 block mt-0.5">
-                    ~{(completedOrders.length * 6.1).toFixed(1)} <span className="text-xs">km</span>
-                  </strong>
-                  <span className="text-[10px] text-slate-500 font-bold block">em rotas calculadas</span>
-                </div>
-              </div>
-
-              {/* Total Collected / Sales */}
-              <div className="bg-slate-900 text-white p-3.5 rounded-2xl space-y-1 shadow-xs border border-slate-800">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-300 font-bold">Cobrado/Recebido dos Clientes:</span>
-                  <span className="font-black text-emerald-400 text-base">
-                    {formattedCurrency(
-                      completedOrders.reduce((acc, o) => acc + o.total, 0)
-                    )}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400 font-medium leading-tight">
-                  Valor total das vendas (Pix/Dinheiro/Cartão) a ser prestado contas com a loja no fechamento.
-                </p>
-              </div>
-
-              {/* Saldo & Arranque Breakdown */}
-              <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-emerald-900 border-b border-emerald-200/80 pb-1.5">
-                  <span>🚀 Arranque Fixo (Diária):</span>
-                  <span className="font-black text-emerald-950">{formattedCurrency(arranqueAmount)}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs font-bold text-emerald-900 border-b border-emerald-200/80 pb-1.5">
-                  <span>📦 Taxas ({completedOrders.length} {completedOrders.length === 1 ? 'entrega' : 'entregas'}):</span>
-                  <span className="font-black text-emerald-950">{formattedCurrency(deliveryFeesTotal)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm font-black text-emerald-950 pt-0.5">
-                  <span>💰 Saldo Total do Motoboy:</span>
-                  <span className="text-emerald-700 text-lg font-black">{formattedCurrency(totalEarnedDisplay)}</span>
-                </div>
-              </div>
-
-              {/* Time in route */}
-              <div className="flex items-center justify-between text-xs text-slate-600 font-bold pt-1 px-1">
-                <span>Tempo estimado em rota:</span>
-                <span className="text-slate-900 font-black">~{completedOrders.length * 17} minutos</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setIsEarningsModalOpen(false)}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer uppercase tracking-wider"
-            >
-              Entendido
-            </button>
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3"><div><h4 className="font-black text-lg">Ganhos de hoje</h4><p className="text-xs text-slate-500">{new Date().toLocaleDateString('pt-BR')}</p></div><button onClick={() => setIsEarningsModalOpen(false)}><X className="w-5 h-5" /></button></div>
+            <div className="bg-slate-950 text-white rounded-2xl p-4 text-center"><span className="text-[10px] uppercase text-slate-400 font-black">Total a receber</span><strong className="text-4xl text-emerald-400 block mt-1">{formattedCurrency(totalEarnedDisplay)}</strong></div>
+            <div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 border border-slate-200 rounded-xl p-3"><span className="text-[10px] text-slate-500 font-black uppercase">Fixo</span><strong className="block text-lg">{formattedCurrency(arranqueAmount)}</strong></div><div className="bg-slate-50 border border-slate-200 rounded-xl p-3"><span className="text-[10px] text-slate-500 font-black uppercase">Taxas</span><strong className="block text-lg text-emerald-700">{formattedCurrency(deliveryFeesTotal)}</strong></div></div>
+            <div className="text-xs text-slate-600 font-bold">📦 {completedOrders.length} entregas concluídas hoje</div>
+            <button onClick={() => setIsEarningsModalOpen(false)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Fechar</button>
           </div>
         </div>
       )}
 
-      {/* FULL RELATÓRIO DO DIA / FECHAMENTO DE EXPEDIENTE MODAL */}
-      {isDailyReportModalOpen && (() => {
-        const shiftElapsedHours = Math.max(0.5, (Date.now() - shiftStartedAt) / (1000 * 3600));
-        const shiftHoursInt = Math.floor(shiftElapsedHours);
-        const shiftMinsInt = Math.round((shiftElapsedHours % 1) * 60);
-        const formattedTimeInShift = `${shiftHoursInt}h ${shiftMinsInt}m`;
-        const deliveriesPerHourVal = (completedOrders.length / shiftElapsedHours).toFixed(1);
-        const earningsPerHourVal = (totalEarnedDisplay / shiftElapsedHours).toFixed(2);
-        const highestFeeVal = completedOrders.length > 0
-          ? Math.max(...completedOrders.map((o) => o.deliveryFee || activeMotoboy?.perDeliveryFee || 8.0))
-          : (activeMotoboy?.perDeliveryFee || 8.0);
-
-        return (
-          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-            <div className="bg-white rounded-3xl max-w-sm sm:max-w-md w-full p-5 space-y-4 shadow-2xl border border-slate-200 relative my-auto animate-scaleUp text-slate-900 max-h-[90vh] overflow-y-auto">
-              {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-slate-950 text-amber-400 flex items-center justify-center font-black text-lg border border-slate-800 shadow-xs">
-                    📑
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="font-black text-base text-slate-950">Relatório do Dia</h3>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                        activeMotoboy?.status === 'offline' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                      }`}>
-                        {activeMotoboy?.status === 'offline' ? `🔴 Encerrado${shiftEndedAt ? ` ${shiftEndedAt}` : ''}` : '🟢 Turno Ativo'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 font-bold mt-0.5">
-                      {activeMotoboy?.name || 'Entregador'} • {new Date().toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsDailyReportModalOpen(false)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Main Financial Highlights */}
-              <div className="bg-slate-950 text-white p-4 rounded-2xl space-y-3 border border-slate-800 shadow-md">
-                <div className="text-center border-b border-slate-800 pb-3">
-                  <span className="text-[11px] font-black uppercase text-amber-400 tracking-wider block">
-                    💰 Saldo Total A Receber Hoje
-                  </span>
-                  <strong className="text-3xl sm:text-4xl font-black text-emerald-400 block mt-1">
-                    {formattedCurrency(totalEarnedDisplay)}
-                  </strong>
-                  <span className="text-[10px] text-slate-400 font-medium block mt-1">
-                    Arranque diário fixo + Taxas de entrega acumuladas
-                  </span>
-                </div>
-
-                {/* Breakdown Row */}
-                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                  <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-slate-400 text-[10px] font-extrabold uppercase block">🚀 Arranque Fixo</span>
-                    <strong className="text-white text-sm font-black block mt-0.5">
-                      {formattedCurrency(arranqueAmount)}
-                    </strong>
-                  </div>
-                  <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
-                    <span className="text-slate-400 text-[10px] font-extrabold uppercase block">📦 Total em Taxas</span>
-                    <strong className="text-emerald-400 text-sm font-black block mt-0.5">
-                      {formattedCurrency(deliveryFeesTotal)}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Performance / Gamification Metrics Grid */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1">
-                    <TrendingUp className="w-3.5 h-3.5 text-amber-500" /> Desempenho do Turno
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-400">Métricas pessoais</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-amber-50/80 border border-amber-200/80 p-2.5 rounded-2xl flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shrink-0">
-                      ⏱️
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-slate-500 font-extrabold uppercase block truncate">Tempo Expediente</span>
-                      <strong className="text-sm font-black text-slate-950 block leading-none">{formattedTimeInShift}</strong>
-                    </div>
-                  </div>
-
-                  <div className="bg-emerald-50/80 border border-emerald-200/80 p-2.5 rounded-2xl flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0">
-                      🚀
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-slate-500 font-extrabold uppercase block truncate">Entregas / Hora</span>
-                      <strong className="text-sm font-black text-slate-950 block leading-none">{deliveriesPerHourVal} /h</strong>
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-50/80 border border-blue-200/80 p-2.5 rounded-2xl flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold shrink-0">
-                      💸
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-slate-500 font-extrabold uppercase block truncate">Ganho / Hora</span>
-                      <strong className="text-sm font-black text-slate-950 block leading-none">{formattedCurrency(Number(earningsPerHourVal))} /h</strong>
-                    </div>
-                  </div>
-
-                  <div className="bg-purple-50/80 border border-purple-200/80 p-2.5 rounded-2xl flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold shrink-0">
-                      🏆
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[10px] text-slate-500 font-extrabold uppercase block truncate">Maior Taxa Única</span>
-                      <strong className="text-sm font-black text-slate-950 block leading-none">{formattedCurrency(highestFeeVal)}</strong>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Operational Stats Grid */}
-              <div className="grid grid-cols-3 gap-2 text-center pt-1">
-                <div className="bg-slate-50 border border-slate-200 p-2 rounded-2xl">
-                  <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Entregas</span>
-                  <strong className="text-base font-black text-slate-950 block">{completedOrders.length}</strong>
-                  <span className="text-[9px] text-slate-400 font-bold block">finalizadas</span>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 p-2 rounded-2xl">
-                  <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Km Estimado</span>
-                  <strong className="text-base font-black text-slate-950 block">~{(completedOrders.length * 6.1).toFixed(1)}</strong>
-                  <span className="text-[9px] text-slate-400 font-bold block">km rodados</span>
-                </div>
-
-                <div className="bg-slate-50 border border-slate-200 p-2 rounded-2xl">
-                  <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Tempo Rota</span>
-                  <strong className="text-base font-black text-slate-950 block">~{completedOrders.length * 17}</strong>
-                  <span className="text-[9px] text-slate-400 font-bold block">minutos</span>
-                </div>
-              </div>
-
-              {/* Itemized Order List */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                    📦 Lista de Entregas ({completedOrders.length})
-                  </h4>
-                  <span className="text-[10px] font-bold text-slate-400">Detalhamento por bairro</span>
-                </div>
-
-                {completedOrders.length === 0 ? (
-                  <div className="p-4 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-xs font-semibold">
-                    Nenhuma entrega realizada neste turno.
-                  </div>
-                ) : (
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                    {completedOrders.map((ord, idx) => (
-                      <div key={ord.id} className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex items-center justify-between text-xs">
-                        <div className="min-w-0 pr-2">
-                          <span className="font-black text-slate-900">{idx + 1}. Pedido #{ord.codeNumber}</span>
-                          <p className="text-[11px] text-slate-600 font-medium truncate">{ord.neighborhood || ord.address.split(',')[0]}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className="font-black text-emerald-700 block text-xs">
-                            +{formattedCurrency(ord.deliveryFee || activeMotoboy?.perDeliveryFee || 7.00)}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-bold">Venda: {formattedCurrency(ord.total)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="space-y-2 pt-2 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const summaryText = `*RELATÓRIO DE EXPEDIENTE - ${activeMotoboy?.name || 'ENTREGADOR'}*
-📅 Data: ${new Date().toLocaleDateString('pt-BR')}
-🔴 Status: Expediente Encerrado${shiftEndedAt ? ` às ${shiftEndedAt}` : ''}
-
-📊 *RESUMO FINANCEIRO:*
-🚀 Arranque Fixo: ${formattedCurrency(arranqueAmount)}
-🛵 Taxas de Entrega (${completedOrders.length}): ${formattedCurrency(deliveryFeesTotal)}
-💰 *SALDO TOTAL A RECEBER: ${formattedCurrency(totalEarnedDisplay)}*
-
-⚡ *PERFORMANCE DO TURNO:*
-⏱️ Tempo em Expediente: ${formattedTimeInShift}
-📦 Entregas por Hora: ${deliveriesPerHourVal} /h
-💸 Ganho por Hora: ${formattedCurrency(Number(earningsPerHourVal))} /h
-🏆 Maior Taxa Única: ${formattedCurrency(highestFeeVal)}
-
-📦 *MÉTRICAS OPERACIONAIS:*
-• Entregas Concluídas: ${completedOrders.length}
-• Distância Estimada: ~${(completedOrders.length * 6.1).toFixed(1)} km
-• Total em Vendas Transportadas: ${formattedCurrency(completedOrders.reduce((acc, o) => acc + o.total, 0))}
-
-_Gerado via RotaFácil Delivery_`;
-
-                    navigator.clipboard.writeText(summaryText);
-                    triggerSystemActionToast("📋 Relatório completo copiado! Cole no WhatsApp do gerente da loja.");
-                  }}
-                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wide border border-emerald-400/40"
-                >
-                  <span>💬 Copiar Resumo para WhatsApp</span>
-                </button>
-
-                {activeMotoboy?.status === 'offline' && onUpdateMotoboyStatus && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onUpdateMotoboyStatus(activeMotoboy.id, 'available');
-                      setAvailableSince(Date.now());
-                      setShiftStartedAt(Date.now());
-                      setShiftEndedAt(null);
-                      setIsDailyReportModalOpen(false);
-                      triggerSystemActionToast("🟢 Você reabriu o turno e entrou na fila!");
-                    }}
-                    className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-amber-300 font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-700 uppercase"
-                  >
-                    <span>🟢 Iniciar Novo Expediente</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setIsDailyReportModalOpen(false)}
-                  className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
-                >
-                  Fechar
-                </button>
-              </div>
-            </div>
+      {isDailyReportModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center"><div><h4 className="font-black text-lg">Relatório do dia</h4><p className="text-xs text-slate-500">{activeMotoboy?.name} • {new Date().toLocaleDateString('pt-BR')}</p></div><button onClick={() => setIsDailyReportModalOpen(false)}><X className="w-5 h-5" /></button></div>
+            <div className="bg-slate-950 text-white rounded-2xl p-4 text-center"><span className="text-[10px] text-amber-300 uppercase font-black">Saldo total</span><strong className="text-4xl text-emerald-400 block">{formattedCurrency(totalEarnedDisplay)}</strong></div>
+            <div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 border rounded-xl p-3"><span className="text-xs text-slate-500">Entregas</span><strong className="text-2xl block">{completedOrders.length}</strong></div><div className="bg-slate-50 border rounded-xl p-3"><span className="text-xs text-slate-500">Taxas</span><strong className="text-2xl block text-emerald-700">{formattedCurrency(deliveryFeesTotal)}</strong></div></div>
+            <div className="text-xs text-slate-500">Expediente iniciado: {new Date(shiftStartedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}{shiftEndedAt ? ` • encerrado ${shiftEndedAt}` : ''}</div>
+            <button onClick={() => setIsDailyReportModalOpen(false)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Fechar</button>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 };
