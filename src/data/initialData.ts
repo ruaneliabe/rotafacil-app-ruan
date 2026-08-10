@@ -6,9 +6,9 @@ export const INITIAL_STORE_SHIFT: StoreShift = {
   initialCash: 0,
   storeName: 'Hope Burger',
   storePhone: '(47) 99887-6655',
-  storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
-  storeLat: -26.9228,
-  storeLng: -49.1014,
+  storeAddress: 'Rua dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
+  storeLat: -26.92130,
+  storeLng: -49.09480,
   adminPassword: '123',
 };
 
@@ -21,8 +21,8 @@ export const INITIAL_MOTOBOYS: Motoboy[] = [
     plate: 'ABC-1234',
     status: 'available',
     activeOrdersCount: 0,
-    currentLat: -26.9228,
-    currentLng: -49.1014,
+    currentLat: -26.92130,
+    currentLng: -49.09480,
     fixedFee: 60.0,
     perDeliveryFee: 8.5,
     deliveriesCountToday: 2,

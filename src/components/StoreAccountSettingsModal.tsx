@@ -39,8 +39,8 @@ const StoreLocationPickerMap: React.FC<{
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const validLat = typeof lat === 'number' && !isNaN(lat) ? lat : -26.9228;
-    const validLng = typeof lng === 'number' && !isNaN(lng) ? lng : -49.1014;
+    const validLat = typeof lat === 'number' && !isNaN(lat) ? lat : -26.92130;
+    const validLng = typeof lng === 'number' && !isNaN(lng) ? lng : -49.09480;
 
     if (!mapRef.current) {
       const map = L.map(containerRef.current, {
@@ -126,7 +126,7 @@ const StoreLocationPickerMap: React.FC<{
   };
 
   const handleUseCacadoresPreset = () => {
-    onChangeCoords(-26.9228, -49.1014);
+    onChangeCoords(-26.92130, -49.09480);
   };
 
   return (

@@ -90,33 +90,44 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       polylineRef.current = null;
     }
 
-    const bounds: [number, number][] = [[origin.lat, origin.lng]];
+    const isStoreAddressConfigured = Boolean(
+      origin.address &&
+      origin.address.trim() !== '' &&
+      origin.address !== 'Endereço não cadastrado' &&
+      origin.address !== 'Aguardando cadastro em Configurar Loja'
+    );
 
-    // 1. Store Marker (Sleek Dark Pill)
-    const originIcon = L.divIcon({
-      className: 'custom-origin-pin z-50',
-      html: `
-        <div class="relative flex flex-col items-center justify-center">
-          <div class="bg-slate-900/95 text-emerald-400 px-3 py-1 rounded-xl shadow-2xl border border-emerald-500/70 flex items-center gap-1.5 font-extrabold text-xs z-50">
-            <span class="text-sm">🏪</span>
-            <span class="tracking-wide uppercase text-[11px] text-white">${origin.name || 'Hope Burger'}</span>
+    const bounds: [number, number][] = [];
+
+    // 1. Store Marker (Sleek Dark Pill) - ONLY render if store address is configured in Configurar Loja
+    if (isStoreAddressConfigured) {
+      bounds.push([origin.lat, origin.lng]);
+
+      const originIcon = L.divIcon({
+        className: 'custom-origin-pin z-50',
+        html: `
+          <div class="relative flex flex-col items-center justify-center">
+            <div class="bg-slate-900/95 text-emerald-400 px-3 py-1 rounded-xl shadow-2xl border border-emerald-500/70 flex items-center gap-1.5 font-extrabold text-xs z-50">
+              <span class="text-sm">🏪</span>
+              <span class="tracking-wide uppercase text-[11px] text-white">${origin.name || 'Minha Loja'}</span>
+            </div>
+            <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-emerald-500/80 -mt-0.5"></div>
           </div>
-          <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-emerald-500/80 -mt-0.5"></div>
-        </div>
-      `,
-      iconSize: [110, 36],
-      iconAnchor: [55, 36],
-    });
+        `,
+        iconSize: [110, 36],
+        iconAnchor: [55, 36],
+      });
 
-    const originMarker = L.marker([origin.lat, origin.lng], { icon: originIcon, zIndexOffset: 1000 })
-      .bindPopup(`
-        <div class="p-2 min-w-[210px] text-slate-100">
-          <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-950 text-emerald-400 border border-emerald-800">🏪 Estabelecimento / Loja</span>
-          <h4 class="font-extrabold text-white text-sm mt-1.5">${origin.name || 'Loja Principal'}</h4>
-          <p class="text-xs text-slate-300 mt-0.5">${origin.address}</p>
-        </div>
-      `);
-    markersGroup.addLayer(originMarker);
+      const originMarker = L.marker([origin.lat, origin.lng], { icon: originIcon, zIndexOffset: 1000 })
+        .bindPopup(`
+          <div class="p-2 min-w-[210px] text-slate-100">
+            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-950 text-emerald-400 border border-emerald-800">🏪 Estabelecimento / Loja</span>
+            <h4 class="font-extrabold text-white text-sm mt-1.5">${origin.name || 'Loja Principal'}</h4>
+            <p class="text-xs text-slate-300 mt-0.5">${origin.address}</p>
+          </div>
+        `);
+      markersGroup.addLayer(originMarker);
+    }
 
     // 2. Stops Markers
     stops.forEach((stop, idx) => {
@@ -222,27 +233,27 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
         const initial = mb.name ? mb.name.charAt(0).toUpperCase() : 'M';
         const ringColor = isReturning
-          ? 'border-amber-400 text-amber-300'
+          ? 'border-amber-400 bg-amber-500/20 text-amber-300'
           : isDelivering
-          ? 'border-blue-400 text-blue-300'
-          : 'border-emerald-400 text-emerald-300';
+          ? 'border-blue-400 bg-blue-500/20 text-blue-300'
+          : 'border-emerald-400 bg-emerald-500/20 text-emerald-300';
 
-        const statusBadgeText = isReturning ? 'Voltando' : isDelivering ? 'Em rota' : 'Na loja';
+        const statusBadgeText = isReturning ? 'Voltando' : isDelivering ? 'Em Rota' : 'Na Loja';
         const badgeBg = isReturning
-          ? 'bg-amber-950/90 text-amber-300 border-amber-600/50'
+          ? 'bg-amber-500 text-slate-950 border-amber-300 font-black'
           : isDelivering
-          ? 'bg-slate-950/90 text-blue-300 border-blue-600/50'
-          : 'bg-slate-950/90 text-emerald-300 border-emerald-600/50';
+          ? 'bg-blue-600 text-white border-blue-300 font-extrabold'
+          : 'bg-emerald-600 text-white border-emerald-300 font-extrabold';
 
         const motoboyIcon = L.divIcon({
           className: 'custom-motoboy-pin z-40',
           html: `
             <div class="relative flex flex-col items-center justify-center">
-              ${isReturning ? '<div class="absolute -inset-1.5 bg-amber-500/30 rounded-full animate-ping"></div>' : ''}
-              <div class="w-8 h-8 rounded-full bg-slate-900 border-2 ${ringColor} flex items-center justify-center font-black text-xs shadow-xl z-30">
+              ${isReturning ? '<div class="absolute -inset-1.5 bg-amber-500/40 rounded-full animate-ping"></div>' : ''}
+              <div class="w-8 h-8 rounded-full bg-slate-950 border-2 ${ringColor} flex items-center justify-center font-black text-xs shadow-2xl z-30">
                 ${initial}
               </div>
-              <div class="mt-0.5 ${badgeBg} px-2 py-0.5 rounded-md text-[10px] font-black uppercase whitespace-nowrap shadow-md border z-30">
+              <div class="mt-0.5 ${badgeBg} px-2 py-0.5 rounded-md text-[10px] uppercase whitespace-nowrap shadow-lg border z-30">
                 ${mb.name.split(' ')[0]} • ${statusBadgeText}
               </div>
             </div>
@@ -349,8 +360,12 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     // 5. Smoothly fit map bounds to fit store + stops + motoboys
     if (bounds.length > 1) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    } else if (bounds.length === 1) {
+      map.setView(bounds[0], 15, { animate: true });
+    } else if (stops.length > 0) {
+      map.setView([stops[0].lat, stops[0].lng], 14, { animate: true });
     } else {
-      map.setView([origin.lat, origin.lng], 15, { animate: true });
+      map.setView([origin.lat || -26.92130, origin.lng || -49.09480], 14);
     }
   }, [origin, stops, selectedStopId, motoboysList, showMotoboyMarker, motoboyLat, motoboyLng]);
 
@@ -359,9 +374,27 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   const deliveringCount = motoboysList?.filter((m) => m.status === 'delivering').length || 0;
   const returningCount = motoboysList?.filter((m) => m.status === 'returning_to_store' || (m as any).isReturning).length || 0;
 
+  const isStoreAddressConfigured = Boolean(
+    origin.address &&
+    origin.address.trim() !== '' &&
+    origin.address !== 'Endereço não cadastrado' &&
+    origin.address !== 'Aguardando cadastro em Configurar Loja'
+  );
+
   return (
     <div className="relative w-full h-full min-h-[350px] bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-xl">
       <div ref={mapContainerRef} className="w-full h-full" />
+
+      {/* Unconfigured Store Address Banner */}
+      {!isStoreAddressConfigured && (
+        <div className="absolute top-12 left-3 right-3 z-30 bg-slate-900/95 border-2 border-amber-500/80 rounded-xl p-2.5 shadow-2xl flex items-center gap-2.5 text-xs text-amber-200 backdrop-blur-md">
+          <span className="p-1 rounded-lg bg-amber-500/20 text-amber-400 text-base shrink-0">📍</span>
+          <div>
+            <p className="font-extrabold text-white text-xs">Endereço da loja não cadastrado!</p>
+            <p className="text-[11px] text-slate-300 font-medium">Cadastre o endereço da sua loja em <strong>Configurar Loja (⚙️)</strong> para que ela apareça no mapa.</p>
+          </div>
+        </div>
+      )}
 
       {/* Top Left Uber/Linear Style Status Badge Overlay */}
       <div className="absolute top-3 left-3 z-20 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-[11px] text-slate-300 flex items-center gap-3 font-extrabold shadow-lg">

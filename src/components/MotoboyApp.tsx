@@ -836,8 +836,8 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             <div className="font-black text-sm sm:text-base text-emerald-400 leading-tight my-0.5 truncate">
               {formattedCurrency(totalEarnedDisplay)}
             </div>
-            <span className="text-[10px] font-extrabold text-slate-300 block truncate">
-              Ver Detalhes ›
+            <span className="text-[9px] font-extrabold text-slate-300 block truncate">
+              R$ {arranqueAmount.toFixed(0)} arranque + R$ {deliveryFeesTotal.toFixed(0)} taxas
             </span>
           </button>
         </div>
@@ -886,7 +886,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           }`}
         >
           <Zap className={`w-3.5 h-3.5 ${activeTab === 'active' ? 'text-amber-400' : 'text-slate-600'}`} />
-          Minha Bolsa
+          Fila
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
             activeTab === 'active' ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 text-slate-800 border border-slate-200'
           }`}>
@@ -917,7 +917,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           }`}
         >
           <CheckCircle2 className={`w-3.5 h-3.5 ${activeTab === 'completed' ? 'text-emerald-400' : 'text-slate-600'}`} />
-          Concluídas
+          Histórico
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
             activeTab === 'completed' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-100 text-slate-800 border border-slate-200'
           }`}>
@@ -1137,21 +1137,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                               </div>
                             </div>
 
-                            {/* HIGH-CONTRAST CLEAR PAUSE BUTTON & SHIFT FINISH */}
+                            {/* HIGH-CONTRAST CLEAR SHIFT CONTROLS (ENCERRAR PRIMEIRO, PAUSAR SEGUNDO) */}
                             {onUpdateMotoboyStatus && activeMotoboy && (
                               <div className="pt-1 space-y-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onUpdateMotoboyStatus(activeMotoboy.id, 'busy');
-                                    triggerSystemActionToast("⏸️ Disponibilidade pausada.");
-                                  }}
-                                  className="w-full py-3 px-4 bg-white hover:bg-slate-50 active:scale-98 text-slate-900 font-black text-xs rounded-2xl border-2 border-slate-300 hover:border-slate-400 shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                                >
-                                  <Pause className="w-4 h-4 text-slate-700 shrink-0" />
-                                  <span>Pausar disponibilidade</span>
-                                </button>
-
                                 <button
                                   type="button"
                                   onClick={handleFinishShift}
@@ -1159,6 +1147,18 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                 >
                                   <Power className="w-4 h-4 text-rose-400 shrink-0" />
                                   <span>Encerrar Expediente</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onUpdateMotoboyStatus(activeMotoboy.id, 'busy');
+                                    triggerSystemActionToast("⏸️ Disponibilidade pausada.");
+                                  }}
+                                  className="w-full py-3 px-4 bg-white hover:bg-slate-50 active:scale-98 text-slate-800 font-bold text-xs rounded-2xl border border-slate-300 hover:border-slate-400 shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                  <Pause className="w-4 h-4 text-slate-600 shrink-0" />
+                                  <span>Pausar disponibilidade</span>
                                 </button>
                               </div>
                             )}

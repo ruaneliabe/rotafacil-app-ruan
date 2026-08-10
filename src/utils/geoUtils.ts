@@ -224,6 +224,21 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
   if (!rawCleaned) return null;
 
   const normalized = normalizeAddressQuery(rawCleaned);
+  const lowerNorm = normalized.toLowerCase();
+
+  // Fast direct resolution for Rua dos Caçadores (Velha Central, Blumenau - SC)
+  if (lowerNorm.includes('caçadores') || lowerNorm.includes('cacadores')) {
+    const numberMatch = normalized.match(/\b(\d{1,5})\b/);
+    const houseNum = numberMatch ? parseInt(numberMatch[1], 10) : 653;
+    if (houseNum >= 600 && houseNum <= 700) {
+      return {
+        address: rawCleaned,
+        lat: -26.92130,
+        lng: -49.09480,
+        name: `Rua dos Caçadores, ${houseNum}`,
+      };
+    }
+  }
 
   // 1. Check if query is a CEP (8 digits e.g., 89040-313 or 89040313)
   const cepMatch = rawCleaned.replace(/\D/g, '');
@@ -307,7 +322,6 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
   }
 
   // 3. Fallback: Smart Blumenau street & neighborhood dictionary with precise linear interpolation
-  const lowerNorm = normalized.toLowerCase();
   
   // Extract house number if present
   const numberMatch = normalized.match(/\b(\d{1,5})\b/);

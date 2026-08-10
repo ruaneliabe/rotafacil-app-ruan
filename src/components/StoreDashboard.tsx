@@ -208,6 +208,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   };
 
   const [mapFilter, setMapFilter] = useState<'all' | 'returning' | 'orders'>('all');
+  const [isSyncBannerCollapsed, setIsSyncBannerCollapsed] = useState(true);
 
   // Derived metrics matching screenshot
   const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled');
@@ -375,95 +376,137 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+        {/* Action Controls: Group Primary Dispatch separately from Secondary Toolbar */}
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-end flex-wrap">
+          {/* Primary Action: Standalone Highlighted Button */}
           <button
             type="button"
             onClick={handleCallNextMotoboy}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm rounded-xl transition-all flex items-center gap-1.5 shadow-md cursor-pointer border border-emerald-400/50 uppercase tracking-wide animate-pulse"
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/50 cursor-pointer border-2 border-emerald-400/80 uppercase tracking-wide"
             title="Sinaliza o celular do 1º motoboy da fila com aviso sonoro e vibratório para retirar o pedido no balcão"
           >
-            <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+            <Zap className="w-4 h-4 text-amber-300 fill-amber-300 shrink-0 animate-pulse" />
             <span>Despachar Próximo da Fila</span>
           </button>
 
-          <button
-            type="button"
-            onClick={onOpenNewOrderModal}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
-            title="Cadastrar um pedido manual avulso no sistema"
-          >
-            <Plus className="w-3.5 h-3.5 text-blue-400" />
-            <span>Pedido Manual</span>
-          </button>
+          {/* Vertical Divider on Desktop */}
+          <div className="hidden sm:block h-6 w-px bg-slate-800" />
 
-          <button
-            type="button"
-            onClick={() => setIsIntegrationsOpen(true)}
-            className="px-2.5 py-2 bg-purple-950/60 hover:bg-purple-900/80 text-purple-300 font-bold text-xs rounded-xl border border-purple-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-            title="Conectado com Cardápio Web, iFood, Anota AI e PDV"
-          >
-            <Webhook className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden sm:inline">🔌 Integrações</span>
-          </button>
+          {/* Secondary Actions Group */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={onOpenNewOrderModal}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Cadastrar um pedido manual avulso no sistema"
+            >
+              <Plus className="w-3.5 h-3.5 text-blue-400" />
+              <span>Pedido Manual</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setIsHistoryModalOpen(true)}
-            className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-            title="Relatórios e Histórico de Entregas"
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Relatórios</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setIsIntegrationsOpen(true)}
+              className="px-3 py-2 bg-purple-950/60 hover:bg-purple-900/80 text-purple-200 font-bold text-xs rounded-xl border border-purple-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Conectado com Cardápio Web, iFood, Anota AI e PDV"
+            >
+              <Webhook className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden sm:inline">Integrações</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={onOpenMotoboyModal}
-            className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs rounded-xl border border-slate-700/60 transition-all flex items-center gap-1.5 cursor-pointer"
-            title="Gerenciar cadastro da equipe de entregadores"
-          >
-            <Bike className="w-3.5 h-3.5 text-blue-400" />
-            <span className="hidden sm:inline">Equipe</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setIsHistoryModalOpen(true)}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Relatórios e Histórico de Entregas"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Relatórios</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={onToggleShift}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl border border-slate-700/60 transition-all cursor-pointer"
-            title={shift.isOpen ? 'Encerrar Expediente' : 'Abrir Expediente'}
-          >
-            <Power className="w-4 h-4 text-rose-400" />
-          </button>
+            <button
+              type="button"
+              onClick={onOpenMotoboyModal}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs rounded-xl border border-slate-700/60 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              title="Gerenciar cadastro da equipe de entregadores"
+            >
+              <Bike className="w-3.5 h-3.5 text-blue-400" />
+              <span className="hidden sm:inline">Equipe</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleShift}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-700/60 transition-all cursor-pointer"
+              title={shift.isOpen ? 'Encerrar Expediente' : 'Abrir Expediente'}
+            >
+              <Power className="w-4 h-4 text-rose-400" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 🔌 INTEGRATIONS VALUE POSITIONING BANNER */}
-      <div className="bg-slate-900/90 border border-purple-500/30 rounded-2xl p-3 px-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center justify-center font-bold text-sm shrink-0">
-            🔌
+      {/* 🔌 INTEGRATIONS VALUE POSITIONING BANNER (COLLAPSIBLE / COMPACT) */}
+      {isSyncBannerCollapsed ? (
+        <div className="bg-slate-900/80 border border-purple-500/30 rounded-xl p-2.5 px-3.5 flex items-center justify-between gap-2 shadow-2xs text-xs">
+          <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="font-extrabold text-white shrink-0">🔌 Sincronizado com PDV:</span>
+            <span className="text-slate-300 font-medium truncate">Cardápio Web • iFood • Anota AI • PDV (Ativo em 2º plano)</span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black text-white">Sincronizado com seu PDV / Cardápio Digital</span>
-              <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/40 uppercase">
-                Ativo em 2º Plano
-              </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsIntegrationsOpen(true)}
+              className="text-[11px] font-bold text-purple-300 hover:text-purple-200 underline cursor-pointer hidden sm:inline"
+            >
+              Ver status
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsSyncBannerCollapsed(false)}
+              className="text-[11px] font-extrabold text-slate-300 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 transition-all cursor-pointer flex items-center gap-1"
+            >
+              <span>▼ Detalhes</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-slate-900/90 border border-purple-500/30 rounded-2xl p-3 px-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center justify-center font-bold text-sm shrink-0">
+              🔌
             </div>
-            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-              Não precisa trocar de sistema. Seus pedidos continuam vindo do Cardápio Web / iFood / Anota AI e o RotaFácil despacha os motoboys.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-white">Sincronizado com seu PDV / Cardápio Digital</span>
+                <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/40 uppercase">
+                  Ativo em 2º Plano
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                Não precisa trocar de sistema. Seus pedidos continuam vindo do Cardápio Web / iFood / Anota AI e o RotaFácil despacha os motoboys.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsIntegrationsOpen(true)}
+              className="text-xs font-bold text-purple-300 hover:text-purple-200 underline shrink-0 cursor-pointer"
+            >
+              Ver status da conexão →
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsSyncBannerCollapsed(true)}
+              className="text-[11px] font-extrabold text-slate-400 hover:text-white px-2 py-0.5 rounded-xl bg-slate-800 border border-slate-700 transition-all cursor-pointer"
+            >
+              ▲ Ocultar
+            </button>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsIntegrationsOpen(true)}
-          className="text-xs font-bold text-purple-300 hover:text-purple-200 underline shrink-0 cursor-pointer"
-        >
-          Ver status da conexão →
-        </button>
-      </div>
+      )}
 
       {/* 🛎️ ACTIVE 30-SECOND COUNTER CALL BANNER (Substitui painel de senhas) */}
       {callingCounterTimer && (
@@ -527,10 +570,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           >
             <span className="w-2 h-2 rounded-full bg-blue-500"></span>
             Operação
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-              activeTab === 'operacao' ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-400'
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              unassignedOrders.length > 0
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                : activeTab === 'operacao' ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-400'
             }`}>
-              {activeOrders.length}
+              {unassignedOrders.length > 0 ? `${unassignedOrders.length} pendentes` : `${activeOrders.length} ativos`}
             </span>
           </button>
 
@@ -846,83 +891,93 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
           )}
 
-          {/* 4. STRIPE-STYLE OPERATIONAL METRICS CARDS (Dores resolvidas) */}
+          {/* 4. STRIPE-STYLE OPERATIONAL METRICS CARDS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* CARD 1: Espera Médio na Fila */}
-            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between">
+            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" /> Espera Médio Fila
+                  <Clock className="w-4 h-4 text-amber-400 shrink-0" /> Espera Médio Fila
                 </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 uppercase">
-                  -35% tempo
+                <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  ⚡ Otimizado
                 </span>
               </div>
-              <div className="mt-2.5 flex items-baseline gap-2">
-                <span className="text-3xl font-black text-amber-400 tracking-tight">~7.5 min</span>
-                <span className="text-xs text-slate-400 font-medium">aguardando balcão</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-black text-amber-400 tracking-tight">~7.5 min</span>
+                <span className="text-xs text-slate-300 font-medium">aguardando despacho</span>
               </div>
             </div>
 
             {/* CARD 2: Tempo até Retirada */}
-            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between">
+            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-emerald-400" /> Tempo até Retirada
+                  <Zap className="w-4 h-4 text-emerald-400 shrink-0" /> Tempo até Retirada
                 </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-500/15 text-blue-400 border border-blue-500/30 uppercase">
-                  Balcão ⚡
+                <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                  Balcão
                 </span>
               </div>
-              <div className="mt-2.5 flex items-baseline gap-2">
-                <span className="text-3xl font-black text-emerald-400 tracking-tight">~2.2 min</span>
-                <span className="text-xs text-slate-400 font-medium">chamar → saída</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight">~2.2 min</span>
+                <span className="text-xs text-slate-300 font-medium">chamada → saída</span>
               </div>
             </div>
 
             {/* CARD 3: Motoboys Disponíveis / Parados */}
-            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between">
+            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Bike className="w-3.5 h-3.5 text-blue-400" /> Motoboys Fila Agora
+                  <Bike className="w-4 h-4 text-blue-400 shrink-0" /> Motoboys Fila Agora
                 </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                  motoboysAvailable.length > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-800 text-slate-400'
+                <span className={`px-2 py-0.5 rounded text-[11px] font-extrabold ${
+                  motoboysAvailable.length > 0 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
                 }`}>
-                  Fila Organizada
+                  {motoboysAvailable.length} {motoboysAvailable.length === 1 ? 'disponível' : 'disponíveis'}
                 </span>
               </div>
-              <div className="mt-2.5 flex items-baseline gap-2">
-                <span className="text-3xl font-black text-white tracking-tight">
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                   {motoboysAvailable.length}/{motoboys.length}
                 </span>
-                <span className="text-xs text-slate-400 font-medium truncate">
+                <span className="text-xs text-slate-300 font-medium truncate">
                   {motoboysAvailable.length > 0 ? `1º: ${motoboysAvailable[0].name.split(' ')[0]}` : 'todos em rota'}
                 </span>
               </div>
             </div>
 
             {/* CARD 4: Faturamento & Entregas Hoje */}
-            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between">
+            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> Entregas Hoje
+                  <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" /> Entregas Hoje
                 </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-purple-500/15 text-purple-300">
+                <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                   {deliveredToday.length} concluídas
                 </span>
               </div>
-              <div className="mt-2.5 flex items-baseline gap-2">
-                <span className="text-2xl font-black text-emerald-400 tracking-tight">{formattedCurrency(totalRevenue)}</span>
-                <span className="text-xs text-slate-400 font-medium">{orders.length} pedidos</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">{formattedCurrency(totalRevenue)}</span>
+                <span className="text-xs text-slate-300 font-medium">{orders.length} pedidos</span>
               </div>
             </div>
           </div>
 
           {/* 5. DESPACHO VISUAL SECTION */}
           <div className="bg-slate-900/60 rounded-xl border border-slate-800/60 shadow-2xs p-3.5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-200 tracking-tight">Próximo despacho</h3>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h3 className="text-sm font-bold text-slate-200 tracking-tight">Próximo despacho</h3>
+                <button
+                  type="button"
+                  onClick={onOpenNewOrderModal}
+                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md border border-emerald-400/40 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 text-white shrink-0" />
+                  <span>+ Lançar Pedido</span>
+                </button>
+              </div>
 
               <span className="text-xs text-slate-400 font-medium">
                 <strong className="text-amber-400">{unassignedOrders.length}</strong> aguardando despacho
@@ -937,14 +992,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     Pedidos sem motoboy ({unassignedOrders.length})
                   </h4>
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={onOpenNewOrderModal}
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-lg transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-emerald-100" />
-                      Lançar Pedido
-                    </button>
                     {unassignedOrders.length > 1 && (
                       <button
                         type="button"
@@ -1054,13 +1101,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                 <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
                   {unassignedOrders.length === 0 ? (
-                    <div className="p-5 text-center bg-slate-900/80 rounded-xl border border-slate-700/70 my-2 space-y-2 shadow-2xs">
-                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center mx-auto text-lg font-bold">
+                    <div className="py-3 px-4 bg-slate-900/80 rounded-xl border border-slate-700/60 my-1 flex items-center gap-3 shadow-2xs">
+                      <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xs font-black shrink-0">
                         ✓
                       </div>
-                      <h5 className="text-sm font-extrabold text-white">Todos os pedidos estão em rota!</h5>
-                      <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                        Nenhum pedido pendente aguardando despacho. Novos pedidos lançados aparecerão aqui automaticamente.
+                      <p className="text-xs font-medium text-slate-300">
+                        <strong className="text-white font-bold">Todos os pedidos estão em rota.</strong> Nenhum pendente para despacho.
                       </p>
                     </div>
                   ) : (
@@ -1741,6 +1787,93 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
                     <span className="text-slate-400">Ganho acumulado hoje:</span>
                     <span className="font-black text-emerald-400">{formattedCurrency(m.totalEarnedToday)}</span>
+                  </div>
+
+                  {/* ⚡ Quick Actions per Motoboy Card */}
+                  <div className="pt-2 border-t border-slate-800 flex flex-col gap-2">
+                    {/* Action Row 1: Quick Assign Order button if unassigned orders exist */}
+                    {unassignedOrders.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const ordersToAssign = selectedOrderIds.length > 0
+                            ? selectedOrderIds
+                            : [unassignedOrders[0].id];
+                          
+                          if (onAssignBatchToMotoboy) {
+                            onAssignBatchToMotoboy(ordersToAssign, m.id);
+                          } else {
+                            ordersToAssign.forEach((id) => onAssignOrderToMotoboy(id, m.id));
+                          }
+                          setSelectedOrderIds([]);
+                          triggerActionToast(`📦 ${ordersToAssign.length} pedido(s) atribuído(s) para ${m.name.split(' ')[0]}!`);
+                        }}
+                        className="w-full py-1.5 px-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md border border-blue-400/40"
+                      >
+                        <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                        <span>
+                          {selectedOrderIds.length > 0
+                            ? `Atribuir ${selectedOrderIds.length} selecionado(s)`
+                            : `Atribuir Pedido (${unassignedOrders.length} na fila)`}
+                        </span>
+                      </button>
+                    )}
+
+                    {/* Action Row 2: Secondary buttons */}
+                    <div className="flex items-center gap-1.5">
+                      {m.status === 'available' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playNewOrderSound();
+                            saveMotoboyToCloud({ ...m, callingToCounterAt: Date.now() });
+                            setCallingCounterTimer({
+                              motoboyId: m.id,
+                              motoboyName: m.name,
+                              secondsLeft: 30,
+                            });
+                            triggerActionToast(`🛎️ Chamando ${m.name.split(' ')[0]} no balcão!`);
+                          }}
+                          className="flex-1 py-1.5 px-2 bg-emerald-600/90 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                          title="Chamar para retirar no balcão"
+                        >
+                          <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                          <span>Chamar Balcão</span>
+                        </button>
+                      ) : m.status === 'returning_to_store' && onConfirmArrivalAtStore ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onConfirmArrivalAtStore(m.id);
+                            triggerActionToast(`✅ Chegada de ${m.name.split(' ')[0]} confirmada!`);
+                          }}
+                          className="flex-1 py-1.5 px-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                        >
+                          <span>Confirmar Chegada</span>
+                        </button>
+                      ) : null}
+
+                      {m.phone && (
+                        <a
+                          href={`tel:${m.phone.replace(/\D/g, '')}`}
+                          className="p-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-white font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                          title={`Ligar para ${m.phone}`}
+                        >
+                          <Phone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                          <span className="text-[10px]">Ligar</span>
+                        </a>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleSendWhatsAppToMotoboy(m)}
+                        className="p-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer shrink-0 flex items-center gap-1"
+                        title="Enviar WhatsApp"
+                      >
+                        📱
+                        <span className="text-[10px]">Whats</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

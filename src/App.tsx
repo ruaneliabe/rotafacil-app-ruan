@@ -141,13 +141,19 @@ export default function App() {
 
     const unsubShift = subscribeToShift((cloudShift) => {
       if (cloudShift) {
-        // If stored shift has old default coords, migrate to exact Rua dos Caçadores 653
-        if (cloudShift.storeLat === -26.9153287 || !cloudShift.storeLat) {
+        // If stored shift has old default coords (e.g. Rua João Pessoa or old -26.9228), update to exact Rua dos Caçadores 653 (-26.92485, -49.09880)
+        if (
+          cloudShift.storeLat === -26.9153287 ||
+          cloudShift.storeLat === -26.9228 ||
+          cloudShift.storeLat === -26.92485 ||
+          !cloudShift.storeLat ||
+          (cloudShift.storeAddress && cloudShift.storeAddress.toLowerCase().includes('caçadores') && cloudShift.storeLat !== -26.92130)
+        ) {
           const updatedShift = {
             ...cloudShift,
-            storeLat: -26.9228,
-            storeLng: -49.1014,
-            storeAddress: cloudShift.storeAddress || 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
+            storeLat: -26.92130,
+            storeLng: -49.09480,
+            storeAddress: cloudShift.storeAddress || 'Rua dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
           };
           setShift(updatedShift);
           saveShiftToCloud(updatedShift);
