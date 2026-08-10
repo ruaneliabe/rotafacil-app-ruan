@@ -60,6 +60,7 @@ export interface Motoboy {
   totalEarnedToday: number;
   deliveriesCountToday?: number;
   joinedQueueAt?: number; // Timestamp in ms when joined queue at store
+  callingToCounterAt?: number; // Timestamp in ms when store calls motoboy to counter
 }
 
 export type UserRole = 'store_admin' | 'motoboy' | 'customer';

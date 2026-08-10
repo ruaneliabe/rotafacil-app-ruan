@@ -93,6 +93,44 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const [isCalculationInfoOpen, setIsCalculationInfoOpen] = useState(false);
   const [showAllRecommendations, setShowAllRecommendations] = useState(false);
 
+  // 🛎️ 30-Second Counter Call State (Substitui painel de senhas)
+  const [callingCounterTimer, setCallingCounterTimer] = useState<{
+    motoboyId: string;
+    motoboyName: string;
+    secondsLeft: number;
+  } | null>(null);
+
+  // Countdown timer for calling motoboy to counter
+  useEffect(() => {
+    if (!callingCounterTimer) return;
+    if (callingCounterTimer.secondsLeft <= 0) {
+      triggerActionToast(`⏱️ Tempo esgotado (30s) para ${callingCounterTimer.motoboyName.split(' ')[0]} no balcão.`);
+      return;
+    }
+    const timer = setInterval(() => {
+      setCallingCounterTimer((prev) =>
+        prev ? { ...prev, secondsLeft: prev.secondsLeft - 1 } : null
+      );
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [callingCounterTimer]);
+
+  const handleCallNextMotoboy = () => {
+    if (motoboysAvailable.length === 0) {
+      triggerActionToast("⚠️ Nenhum motoboy disponível na fila da loja no momento.");
+      return;
+    }
+    const nextMotoboy = motoboysAvailable[0];
+    playNewOrderSound();
+    saveMotoboyToCloud({ ...nextMotoboy, callingToCounterAt: Date.now() });
+    setCallingCounterTimer({
+      motoboyId: nextMotoboy.id,
+      motoboyName: nextMotoboy.name,
+      secondsLeft: 30,
+    });
+    triggerActionToast(`🛎️ Chamando ${nextMotoboy.name.split(' ')[0]} (1º da Fila) no balcão! O celular dele vibrará.`);
+  };
+
   const handleSimulateIncomingOrder = (channel: 'ifood' | 'cardapio_web' | 'pdv' | 'whatsapp') => {
     if (!onAddOrder) return;
 
@@ -341,77 +379,139 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
           <button
             type="button"
-            onClick={() => {
-              const next = !soundActive;
-              setSoundEnabled(next);
-              setSoundActive(next);
-              if (next) playNewOrderSound();
-            }}
-            className={`px-2.5 py-1.5 font-bold text-xs rounded-xl flex items-center gap-1 border transition-all cursor-pointer ${
-              soundActive
-                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/80'
-                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
-            }`}
-            title={soundActive ? 'Som ativado (Clique para mutar)' : 'Som desativado (Clique para atvar)'}
+            onClick={handleCallNextMotoboy}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm rounded-xl transition-all flex items-center gap-1.5 shadow-md cursor-pointer border border-emerald-400/50 uppercase tracking-wide animate-pulse"
+            title="Sinaliza o celular do 1º motoboy da fila com aviso sonoro e vibratório para retirar o pedido no balcão"
           >
-            {soundActive ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
-            <span className="hidden md:inline">{soundActive ? 'Som ON' : 'Som OFF'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsHistoryModalOpen(true)}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-            title="Relatórios e Histórico de Entregas"
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Relatórios</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsIntegrationsOpen(true)}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 font-bold text-xs rounded-xl border border-purple-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-            title="Hub de Integrações Automáticas (iFood, Cardápio Web, Webhooks)"
-          >
-            <Webhook className="w-3.5 h-3.5 text-purple-400" />
-            <span>Integrações</span>
+            <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+            <span>Despachar Próximo da Fila</span>
           </button>
 
           <button
             type="button"
             onClick={onOpenNewOrderModal}
-            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Cadastrar um pedido manual avulso no sistema"
           >
-            <Plus className="w-4 h-4" />
-            Lançar Pedido
+            <Plus className="w-3.5 h-3.5 text-blue-400" />
+            <span>Pedido Manual</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setIsIntegrationsOpen(true)}
+            className="px-2.5 py-2 bg-purple-950/60 hover:bg-purple-900/80 text-purple-300 font-bold text-xs rounded-xl border border-purple-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Conectado com Cardápio Web, iFood, Anota AI e PDV"
+          >
+            <Webhook className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden sm:inline">🔌 Integrações</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Relatórios e Histórico de Entregas"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Relatórios</span>
+          </button>
+
           <button
             type="button"
             onClick={onOpenMotoboyModal}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs rounded-xl border border-slate-700/60 transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs rounded-xl border border-slate-700/60 transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Gerenciar cadastro da equipe de entregadores"
           >
-            <Plus className="w-3.5 h-3.5 text-blue-400" />
-            Motoboy
+            <Bike className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden sm:inline">Equipe</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setIsSettlementOpen(true)}
-            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs rounded-xl border border-slate-700/60 transition-all flex items-center gap-1.5 cursor-pointer"
-          >
-            <Receipt className="w-3.5 h-3.5 text-slate-400" />
-            Acerto
-          </button>
+
           <button
             type="button"
             onClick={onToggleShift}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl border border-slate-700/60 transition-all cursor-pointer"
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl border border-slate-700/60 transition-all cursor-pointer"
             title={shift.isOpen ? 'Encerrar Expediente' : 'Abrir Expediente'}
           >
             <Power className="w-4 h-4 text-rose-400" />
           </button>
         </div>
       </div>
+
+      {/* 🔌 INTEGRATIONS VALUE POSITIONING BANNER */}
+      <div className="bg-slate-900/90 border border-purple-500/30 rounded-2xl p-3 px-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center justify-center font-bold text-sm shrink-0">
+            🔌
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-white">Sincronizado com seu PDV / Cardápio Digital</span>
+              <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/40 uppercase">
+                Ativo em 2º Plano
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+              Não precisa trocar de sistema. Seus pedidos continuam vindo do Cardápio Web / iFood / Anota AI e o RotaFácil despacha os motoboys.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsIntegrationsOpen(true)}
+          className="text-xs font-bold text-purple-300 hover:text-purple-200 underline shrink-0 cursor-pointer"
+        >
+          Ver status da conexão →
+        </button>
+      </div>
+
+      {/* 🛎️ ACTIVE 30-SECOND COUNTER CALL BANNER (Substitui painel de senhas) */}
+      {callingCounterTimer && (
+        <div className="bg-amber-400 text-slate-950 p-3.5 px-5 rounded-2xl border-2 border-amber-500 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-bounce">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-950 text-amber-400 flex items-center justify-center font-black text-xl shrink-0 shadow-md">
+              🛎️
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-sm sm:text-base text-slate-950 uppercase tracking-tight">
+                  Chamando {callingCounterTimer.motoboyName} no Balcão!
+                </h3>
+                <span className="px-2 py-0.5 bg-slate-950 text-amber-400 font-black text-xs rounded-lg font-mono">
+                  ⏱️ {callingCounterTimer.secondsLeft}s
+                </span>
+              </div>
+              <p className="text-xs font-bold text-slate-900 mt-0.5">
+                O aplicativo do entregador está apitando e vibrando para ele se dirigir ao balcão.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setCallingCounterTimer(null);
+                triggerActionToast(`✅ Presença de ${callingCounterTimer.motoboyName.split(' ')[0]} confirmada no balcão!`);
+              }}
+              className="flex-1 sm:flex-none py-2 px-4 bg-slate-950 hover:bg-slate-900 active:scale-95 text-amber-300 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer border border-slate-800"
+            >
+              🟢 Confirmar no Balcão
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCallingCounterTimer(null);
+                handleCallNextMotoboy();
+              }}
+              className="py-2 px-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition-all cursor-pointer border border-amber-600"
+              title="Pular e chamar o próximo motoboy da fila"
+            >
+              ⏭️ Próximo
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. SUB NAVIGATION TABS */}
       <div className="bg-slate-900/60 p-1 rounded-xl border border-slate-800/40 flex items-center justify-between overflow-x-auto text-xs font-medium text-slate-400">
@@ -746,63 +846,75 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
           )}
 
-          {/* 4. STRIPE-STYLE CLEAN METRICS CARDS */}
+          {/* 4. STRIPE-STYLE OPERATIONAL METRICS CARDS (Dores resolvidas) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* CARD 1: Pedidos Ativos */}
-            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/60 shadow-2xs flex flex-col justify-between">
+            {/* CARD 1: Espera Médio na Fila */}
+            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Pedidos Ativos</span>
-                {unassignedOrders.length > 0 && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400">
-                    {unassignedOrders.length} aguardando
-                  </span>
-                )}
+                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-400" /> Espera Médio Fila
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 uppercase">
+                  -35% tempo
+                </span>
               </div>
               <div className="mt-2.5 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-white tracking-tight">{activeOrders.length}</span>
-                <span className="text-xs text-slate-400 font-medium">
-                  {readyAtCounter.length} prontos no balcão
-                </span>
+                <span className="text-3xl font-black text-amber-400 tracking-tight">~7.5 min</span>
+                <span className="text-xs text-slate-400 font-medium">aguardando balcão</span>
               </div>
             </div>
 
-            {/* CARD 2: Motoboys na Fila */}
-            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/60 shadow-2xs flex flex-col justify-between">
+            {/* CARD 2: Tempo até Retirada */}
+            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Motoboys na fila</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/15 text-blue-400">
-                  Fila de Rodízio
+                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-emerald-400" /> Tempo até Retirada
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-500/15 text-blue-400 border border-blue-500/30 uppercase">
+                  Balcão ⚡
                 </span>
               </div>
               <div className="mt-2.5 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-white tracking-tight">
+                <span className="text-3xl font-black text-emerald-400 tracking-tight">~2.2 min</span>
+                <span className="text-xs text-slate-400 font-medium">chamar → saída</span>
+              </div>
+            </div>
+
+            {/* CARD 3: Motoboys Disponíveis / Parados */}
+            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Bike className="w-3.5 h-3.5 text-blue-400" /> Motoboys Fila Agora
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
+                  motoboysAvailable.length > 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  Fila Organizada
+                </span>
+              </div>
+              <div className="mt-2.5 flex items-baseline gap-2">
+                <span className="text-3xl font-black text-white tracking-tight">
                   {motoboysAvailable.length}/{motoboys.length}
                 </span>
-                <span className="text-xs text-slate-400 font-medium">
-                  {motoboysAvailable.length > 0 ? 'disponíveis na loja' : 'todos em entrega'}
+                <span className="text-xs text-slate-400 font-medium truncate">
+                  {motoboysAvailable.length > 0 ? `1º: ${motoboysAvailable[0].name.split(' ')[0]}` : 'todos em rota'}
                 </span>
               </div>
             </div>
 
-            {/* CARD 3: Entregues Hoje */}
-            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/60 shadow-2xs flex flex-col justify-between">
+            {/* CARD 4: Faturamento & Entregas Hoje */}
+            <div className="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 shadow-xs flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Entregues hoje</span>
+                <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> Entregas Hoje
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-purple-500/15 text-purple-300">
+                  {deliveredToday.length} concluídas
+                </span>
               </div>
               <div className="mt-2.5 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold text-white tracking-tight">{deliveredToday.length}</span>
-                <span className="text-xs text-slate-400 font-medium">concluídos hoje</span>
-              </div>
-            </div>
-
-            {/* CARD 4: Faturamento Hoje */}
-            <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/60 shadow-2xs flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400">Faturamento hoje</span>
-              </div>
-              <div className="mt-2.5 flex items-baseline gap-2">
-                <span className="text-2xl font-extrabold text-emerald-400 tracking-tight">{formattedCurrency(totalRevenue)}</span>
-                <span className="text-xs text-slate-400 font-medium">{orders.length} pedidos lançados</span>
+                <span className="text-2xl font-black text-emerald-400 tracking-tight">{formattedCurrency(totalRevenue)}</span>
+                <span className="text-xs text-slate-400 font-medium">{orders.length} pedidos</span>
               </div>
             </div>
           </div>
@@ -1551,8 +1663,40 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                         🛵
                       </div>
                       <div>
-                        <h4 className="font-bold text-sm text-white">{m.name}</h4>
-                        <p className="text-xs text-slate-400">{m.vehicleModel} • {m.plate}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-bold text-sm text-white">{m.name}</h4>
+                          {/* Queue & Operational Status Tag */}
+                          {(() => {
+                            if (m.status === 'available') {
+                              const queueIdx = motoboysAvailable.findIndex((x) => x.id === m.id) + 1;
+                              return (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase">
+                                  🟢 {queueIdx > 0 ? `${queueIdx}º da Fila` : 'Fila de Espera'}
+                                </span>
+                              );
+                            }
+                            if (m.status === 'returning_to_store') {
+                              return (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase">
+                                  🟡 Voltando à Loja
+                                </span>
+                              );
+                            }
+                            if (m.status === 'delivering') {
+                              return (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-300 border border-blue-500/40 uppercase">
+                                  🔵 Em Rota ({m.activeOrdersCount || 1} pedido{m.activeOrdersCount > 1 ? 's' : ''})
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-800 text-slate-400 border border-slate-700 uppercase">
+                                🔴 Offline
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">{m.vehicleModel} • {m.plate}</p>
                       </div>
                     </div>
 

@@ -31,7 +31,9 @@ import {
   FileText,
   X,
   Share2,
-  Copy
+  Copy,
+  TrendingUp,
+  Award
 } from 'lucide-react';
 
 interface MotoboyAppProps {
@@ -205,16 +207,19 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   const [isEarningsModalOpen, setIsEarningsModalOpen] = useState<boolean>(false);
   const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState<boolean>(false);
   const [availableSince, setAvailableSince] = useState<number>(Date.now());
+  const [shiftStartedAt, setShiftStartedAt] = useState<number>(Date.now() - 4.5 * 3600 * 1000);
+  const [shiftEndedAt, setShiftEndedAt] = useState<string | null>(null);
 
   const handleFinishShift = () => {
+    const timeStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    setShiftEndedAt(timeStr);
     if (onUpdateMotoboyStatus && activeMotoboy) {
       onUpdateMotoboyStatus(activeMotoboy.id, 'offline');
     }
     setIsDailyReportModalOpen(true);
-    triggerSystemActionToast('🏁 Expediente encerrado com sucesso! Confira o relatório do dia.');
+    triggerSystemActionToast(`🏁 Expediente encerrado às ${timeStr}! Confira seu relatório.`);
   };
 
-  // Track device GPS position in real time
   useEffect(() => {
     if (typeof window !== 'undefined' && 'geolocation' in navigator) {
       const handleSuccess = (pos: GeolocationPosition) => {
@@ -321,6 +326,21 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     // If locked to a motoboy or initial ID given, don't fallback to motoboys[0] if loading
     return isLockedToMotoboy ? undefined : motoboys[0];
   }, [motoboys, activeMotoboyId, initialMotoboyId, isLockedToMotoboy]);
+
+  // Track counter call signal from store
+  const isBeingCalledToCounter = Boolean(
+    activeMotoboy?.callingToCounterAt &&
+    Date.now() - activeMotoboy.callingToCounterAt < 60000
+  );
+
+  useEffect(() => {
+    if (isBeingCalledToCounter) {
+      playNewOrderAlert();
+      if (typeof window !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate([100, 50, 100, 50, 200]); } catch {}
+      }
+    }
+  }, [isBeingCalledToCounter]);
 
   // Sync availableSince with activeMotoboy joinedQueueAt timestamp
   useEffect(() => {
@@ -799,6 +819,37 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         </div>
       </div>
 
+      {/* 🔔 URGENT STORE COUNTER CALL BANNER (Substitui painel de senhas) */}
+      {isBeingCalledToCounter && (
+        <div className="bg-amber-400 text-slate-950 p-4 px-5 border-b-4 border-amber-600 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-bounce">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-slate-950 text-amber-400 flex items-center justify-center font-black text-2xl shrink-0 shadow-lg border border-slate-800">
+              🛎️
+            </div>
+            <div>
+              <h3 className="font-black text-base sm:text-lg text-slate-950 uppercase tracking-tight leading-tight">
+                Chamado no Balcão da Loja!
+              </h3>
+              <p className="text-xs font-bold text-slate-900 mt-0.5">
+                Dirija-se ao balcão agora para retirar o pedido e sair para entrega.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (activeMotoboy && onUpdateMotoboyStatus) {
+                saveMotoboyToCloud({ ...activeMotoboy, callingToCounterAt: undefined });
+              }
+              triggerSystemActionToast("🟢 Confirmação enviada! Você está no balcão da loja.");
+            }}
+            className="w-full sm:w-auto py-3 px-5 bg-slate-950 hover:bg-slate-900 active:scale-95 text-amber-300 font-black text-xs sm:text-sm rounded-2xl shadow-xl transition-all cursor-pointer uppercase tracking-wider border border-slate-800 shrink-0"
+          >
+            <span>🟢 Confirmar Presença no Balcão</span>
+          </button>
+        </div>
+      )}
+
       {/* BACKGROUND NOTIFICATION PERMISSION BANNER (If not granted) */}
       {notificationPermission !== 'granted' && (
         <div className="bg-amber-500 text-slate-950 px-3.5 py-2 text-xs font-bold flex items-center justify-between gap-2 shadow-xs border-b border-amber-600">
@@ -862,29 +913,29 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       {/* 2. Three Clean, Intuitive Metric Cards */}
       <div className="bg-slate-100 px-3.5 py-2.5 border-b border-slate-200">
         <div className="grid grid-cols-3 gap-2">
-          {/* Card 1: Pedidos na bolsa */}
+          {/* Card 1: Pedidos */}
           <div className="bg-white p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs text-center flex flex-col justify-between">
-            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-tight block truncate">
-              🎒 Pedidos na bolsa
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight block">
+              🎒 Pedidos
             </span>
             <div className="font-black text-xl text-slate-900 leading-tight my-0.5">
               {assignedOrders.length}
             </div>
             <span className="text-[10px] font-bold text-slate-400 block truncate">
-              {assignedOrders.length === 1 ? '1 pedido com você' : 'pedidos com você'}
+              {assignedOrders.length === 1 ? '1 na bolsa' : 'na bolsa'}
             </span>
           </div>
 
-          {/* Card 2: Entregas hoje */}
+          {/* Card 2: Entregas */}
           <div className="bg-white p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs text-center flex flex-col justify-between">
-            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-tight block truncate">
-              📦 Entregas hoje
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight block">
+              📦 Entregas
             </span>
             <div className="font-black text-xl text-emerald-600 leading-tight my-0.5">
               {completedOrders.length}
             </div>
             <span className="text-[10px] font-bold text-slate-400 block truncate">
-              concluídas hoje
+              hoje
             </span>
           </div>
 
@@ -1088,13 +1139,14 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                         if (activeMotoboy?.status === 'offline') {
                           return (
                             <div className="space-y-4 py-3 text-center">
-                              <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black bg-rose-100 text-rose-900 border border-rose-300">
-                                🔴 Expediente Encerrado (Offline)
+                              <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black bg-rose-100 text-rose-900 border border-rose-300 shadow-2xs">
+                                <Clock className="w-3.5 h-3.5 text-rose-700 shrink-0" />
+                                <span>Expediente encerrado{shiftEndedAt ? ` às ${shiftEndedAt}` : ''}</span>
                               </div>
                               <div>
                                 <h4 className="text-xl font-black text-slate-900">Seu turno está fechado</h4>
                                 <p className="text-xs text-slate-500 mt-1 font-medium">
-                                  Entre na fila da loja para começar a receber pedidos do restaurante.
+                                  Inicie o expediente para entrar na fila e começar a receber entregas.
                                 </p>
                               </div>
                               {onUpdateMotoboyStatus && activeMotoboy && (
@@ -1103,11 +1155,13 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                   onClick={() => {
                                     onUpdateMotoboyStatus(activeMotoboy.id, 'available');
                                     setAvailableSince(Date.now());
-                                    triggerSystemActionToast("🟢 Você entrou na fila da loja!");
+                                    setShiftStartedAt(Date.now());
+                                    setShiftEndedAt(null);
+                                    triggerSystemActionToast("🟢 Expediente iniciado! Você entrou na fila da loja.");
                                   }}
                                   className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-xs rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wide border border-emerald-400"
                                 >
-                                  <span>🟢 Iniciar Expediente / Entrar na Fila</span>
+                                  <span>🟢 Iniciar expediente</span>
                                 </button>
                               )}
                               <button
@@ -1913,178 +1967,250 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       )}
 
       {/* FULL RELATÓRIO DO DIA / FECHAMENTO DE EXPEDIENTE MODAL */}
-      {isDailyReportModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-3xl max-w-sm sm:max-w-md w-full p-5 space-y-4 shadow-2xl border border-slate-200 relative my-auto animate-scaleUp text-slate-900 max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-slate-950 text-amber-400 flex items-center justify-center font-black text-lg border border-slate-800 shadow-xs">
-                  📑
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="font-black text-base text-slate-950">Relatório do Dia</h3>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                      activeMotoboy?.status === 'offline' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                    }`}>
-                      {activeMotoboy?.status === 'offline' ? '🔴 Expediente Encerrado' : '🟢 Turno Ativo'}
-                    </span>
+      {isDailyReportModalOpen && (() => {
+        const shiftElapsedHours = Math.max(0.5, (Date.now() - shiftStartedAt) / (1000 * 3600));
+        const shiftHoursInt = Math.floor(shiftElapsedHours);
+        const shiftMinsInt = Math.round((shiftElapsedHours % 1) * 60);
+        const formattedTimeInShift = `${shiftHoursInt}h ${shiftMinsInt}m`;
+        const deliveriesPerHourVal = (completedOrders.length / shiftElapsedHours).toFixed(1);
+        const earningsPerHourVal = (totalEarnedDisplay / shiftElapsedHours).toFixed(2);
+        const highestFeeVal = completedOrders.length > 0
+          ? Math.max(...completedOrders.map((o) => o.deliveryFee || activeMotoboy?.perDeliveryFee || 8.0))
+          : (activeMotoboy?.perDeliveryFee || 8.0);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white rounded-3xl max-w-sm sm:max-w-md w-full p-5 space-y-4 shadow-2xl border border-slate-200 relative my-auto animate-scaleUp text-slate-900 max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-slate-950 text-amber-400 flex items-center justify-center font-black text-lg border border-slate-800 shadow-xs">
+                    📑
                   </div>
-                  <p className="text-xs text-slate-500 font-bold mt-0.5">
-                    {activeMotoboy?.name || 'Entregador'} • {new Date().toLocaleDateString('pt-BR')}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsDailyReportModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Main Financial Highlights */}
-            <div className="bg-slate-950 text-white p-4 rounded-2xl space-y-3 border border-slate-800 shadow-md">
-              <div className="text-center border-b border-slate-800 pb-3">
-                <span className="text-[11px] font-black uppercase text-amber-400 tracking-wider block">
-                  💰 Saldo Total A Receber Hoje
-                </span>
-                <strong className="text-3xl sm:text-4xl font-black text-emerald-400 block mt-1">
-                  {formattedCurrency(totalEarnedDisplay)}
-                </strong>
-                <span className="text-[10px] text-slate-400 font-medium block mt-1">
-                  Arranque diário fixo + Taxas de entrega acumuladas
-                </span>
-              </div>
-
-              {/* Breakdown Row */}
-              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-slate-400 text-[10px] font-extrabold uppercase block">🚀 Arranque Fixo</span>
-                  <strong className="text-white text-sm font-black block mt-0.5">
-                    {formattedCurrency(arranqueAmount)}
-                  </strong>
-                </div>
-                <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
-                  <span className="text-slate-400 text-[10px] font-extrabold uppercase block">📦 Total em Taxas</span>
-                  <strong className="text-emerald-400 text-sm font-black block mt-0.5">
-                    {formattedCurrency(deliveryFeesTotal)}
-                  </strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Operational Stats Grid */}
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-2xl">
-                <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Entregas</span>
-                <strong className="text-lg font-black text-slate-950 block">{completedOrders.length}</strong>
-                <span className="text-[9px] text-slate-400 font-bold block">finalizadas</span>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-2xl">
-                <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Km Estimado</span>
-                <strong className="text-lg font-black text-slate-950 block">~{(completedOrders.length * 6.1).toFixed(1)}</strong>
-                <span className="text-[9px] text-slate-400 font-bold block">quilômetros</span>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-2xl">
-                <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Tempo Rota</span>
-                <strong className="text-lg font-black text-slate-950 block">~{completedOrders.length * 17}</strong>
-                <span className="text-[9px] text-slate-400 font-bold block">minutos</span>
-              </div>
-            </div>
-
-            {/* Itemized Order List */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                  📦 Lista de Entregas ({completedOrders.length})
-                </h4>
-                <span className="text-[10px] font-bold text-slate-400">Detalhamento por bairro</span>
-              </div>
-
-              {completedOrders.length === 0 ? (
-                <div className="p-4 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-xs font-semibold">
-                  Nenhuma entrega realizada neste turno.
-                </div>
-              ) : (
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {completedOrders.map((ord, idx) => (
-                    <div key={ord.id} className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex items-center justify-between text-xs">
-                      <div className="min-w-0 pr-2">
-                        <span className="font-black text-slate-900">{idx + 1}. Pedido #{ord.codeNumber}</span>
-                        <p className="text-[11px] text-slate-600 font-medium truncate">{ord.neighborhood || ord.address.split(',')[0]}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="font-black text-emerald-700 block text-xs">
-                          +{formattedCurrency(ord.deliveryFee || activeMotoboy?.perDeliveryFee || 7.00)}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-bold">Venda: {formattedCurrency(ord.total)}</span>
-                      </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="font-black text-base text-slate-950">Relatório do Dia</h3>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        activeMotoboy?.status === 'offline' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      }`}>
+                        {activeMotoboy?.status === 'offline' ? `🔴 Encerrado${shiftEndedAt ? ` ${shiftEndedAt}` : ''}` : '🟢 Turno Ativo'}
+                      </span>
                     </div>
-                  ))}
+                    <p className="text-xs text-slate-500 font-bold mt-0.5">
+                      {activeMotoboy?.name || 'Entregador'} • {new Date().toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDailyReportModalOpen(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-2 pt-2 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => {
-                  const summaryText = `*RELATÓRIO DE EXPEDIENTE - ${activeMotoboy?.name || 'ENTREGADOR'}*
+              {/* Main Financial Highlights */}
+              <div className="bg-slate-950 text-white p-4 rounded-2xl space-y-3 border border-slate-800 shadow-md">
+                <div className="text-center border-b border-slate-800 pb-3">
+                  <span className="text-[11px] font-black uppercase text-amber-400 tracking-wider block">
+                    💰 Saldo Total A Receber Hoje
+                  </span>
+                  <strong className="text-3xl sm:text-4xl font-black text-emerald-400 block mt-1">
+                    {formattedCurrency(totalEarnedDisplay)}
+                  </strong>
+                  <span className="text-[10px] text-slate-400 font-medium block mt-1">
+                    Arranque diário fixo + Taxas de entrega acumuladas
+                  </span>
+                </div>
+
+                {/* Breakdown Row */}
+                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                  <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-slate-400 text-[10px] font-extrabold uppercase block">🚀 Arranque Fixo</span>
+                    <strong className="text-white text-sm font-black block mt-0.5">
+                      {formattedCurrency(arranqueAmount)}
+                    </strong>
+                  </div>
+                  <div className="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-slate-400 text-[10px] font-extrabold uppercase block">📦 Total em Taxas</span>
+                    <strong className="text-emerald-400 text-sm font-black block mt-0.5">
+                      {formattedCurrency(deliveryFeesTotal)}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance / Gamification Metrics Grid */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5 text-amber-500" /> Desempenho do Turno
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">Métricas pessoais</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-amber-50/80 border border-amber-200/80 p-2.5 rounded-2xl flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shrink-0">
+                      ⏱️
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-500 font-extrabold uppercase block truncate">Tempo Expediente</span>
+                      <strong className="text-sm font-black text-slate-950 block leading-none">{formattedTimeInShift}</strong>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-50/80 border border-emerald-200/80 p-2.5 rounded-2xl flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0">
+                      🚀
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-500 font-extrabold uppercase block truncate">Entregas / Hora</span>
+                      <strong className="text-sm font-black text-slate-950 block leading-none">{deliveriesPerHourVal} /h</strong>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50/80 border border-blue-200/80 p-2.5 rounded-2xl flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold shrink-0">
+                      💸
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-500 font-extrabold uppercase block truncate">Ganho / Hora</span>
+                      <strong className="text-sm font-black text-slate-950 block leading-none">{formattedCurrency(Number(earningsPerHourVal))} /h</strong>
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-50/80 border border-purple-200/80 p-2.5 rounded-2xl flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold shrink-0">
+                      🏆
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-500 font-extrabold uppercase block truncate">Maior Taxa Única</span>
+                      <strong className="text-sm font-black text-slate-950 block leading-none">{formattedCurrency(highestFeeVal)}</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Operational Stats Grid */}
+              <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                <div className="bg-slate-50 border border-slate-200 p-2 rounded-2xl">
+                  <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Entregas</span>
+                  <strong className="text-base font-black text-slate-950 block">{completedOrders.length}</strong>
+                  <span className="text-[9px] text-slate-400 font-bold block">finalizadas</span>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-2 rounded-2xl">
+                  <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Km Estimado</span>
+                  <strong className="text-base font-black text-slate-950 block">~{(completedOrders.length * 6.1).toFixed(1)}</strong>
+                  <span className="text-[9px] text-slate-400 font-bold block">km rodados</span>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-2 rounded-2xl">
+                  <span className="text-[10px] text-slate-500 font-extrabold uppercase block">Tempo Rota</span>
+                  <strong className="text-base font-black text-slate-950 block">~{completedOrders.length * 17}</strong>
+                  <span className="text-[9px] text-slate-400 font-bold block">minutos</span>
+                </div>
+              </div>
+
+              {/* Itemized Order List */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                    📦 Lista de Entregas ({completedOrders.length})
+                  </h4>
+                  <span className="text-[10px] font-bold text-slate-400">Detalhamento por bairro</span>
+                </div>
+
+                {completedOrders.length === 0 ? (
+                  <div className="p-4 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-xs font-semibold">
+                    Nenhuma entrega realizada neste turno.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {completedOrders.map((ord, idx) => (
+                      <div key={ord.id} className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex items-center justify-between text-xs">
+                        <div className="min-w-0 pr-2">
+                          <span className="font-black text-slate-900">{idx + 1}. Pedido #{ord.codeNumber}</span>
+                          <p className="text-[11px] text-slate-600 font-medium truncate">{ord.neighborhood || ord.address.split(',')[0]}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-black text-emerald-700 block text-xs">
+                            +{formattedCurrency(ord.deliveryFee || activeMotoboy?.perDeliveryFee || 7.00)}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-bold">Venda: {formattedCurrency(ord.total)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const summaryText = `*RELATÓRIO DE EXPEDIENTE - ${activeMotoboy?.name || 'ENTREGADOR'}*
 📅 Data: ${new Date().toLocaleDateString('pt-BR')}
-🔴 Status: Expediente Encerrado
+🔴 Status: Expediente Encerrado${shiftEndedAt ? ` às ${shiftEndedAt}` : ''}
 
 📊 *RESUMO FINANCEIRO:*
 🚀 Arranque Fixo: ${formattedCurrency(arranqueAmount)}
 🛵 Taxas de Entrega (${completedOrders.length}): ${formattedCurrency(deliveryFeesTotal)}
 💰 *SALDO TOTAL A RECEBER: ${formattedCurrency(totalEarnedDisplay)}*
 
-📦 *MÉTRICAS:*
+⚡ *PERFORMANCE DO TURNO:*
+⏱️ Tempo em Expediente: ${formattedTimeInShift}
+📦 Entregas por Hora: ${deliveriesPerHourVal} /h
+💸 Ganho por Hora: ${formattedCurrency(Number(earningsPerHourVal))} /h
+🏆 Maior Taxa Única: ${formattedCurrency(highestFeeVal)}
+
+📦 *MÉTRICAS OPERACIONAIS:*
 • Entregas Concluídas: ${completedOrders.length}
 • Distância Estimada: ~${(completedOrders.length * 6.1).toFixed(1)} km
 • Total em Vendas Transportadas: ${formattedCurrency(completedOrders.reduce((acc, o) => acc + o.total, 0))}
 
 _Gerado via RotaFácil Delivery_`;
 
-                  navigator.clipboard.writeText(summaryText);
-                  triggerSystemActionToast("📋 Relatório copiado! Cole no WhatsApp do gerente da loja.");
-                }}
-                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wide border border-emerald-400/40"
-              >
-                <span>💬 Copiar Resumo para WhatsApp</span>
-              </button>
+                    navigator.clipboard.writeText(summaryText);
+                    triggerSystemActionToast("📋 Relatório completo copiado! Cole no WhatsApp do gerente da loja.");
+                  }}
+                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wide border border-emerald-400/40"
+                >
+                  <span>💬 Copiar Resumo para WhatsApp</span>
+                </button>
 
-              {activeMotoboy?.status === 'offline' && onUpdateMotoboyStatus && (
+                {activeMotoboy?.status === 'offline' && onUpdateMotoboyStatus && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUpdateMotoboyStatus(activeMotoboy.id, 'available');
+                      setAvailableSince(Date.now());
+                      setShiftStartedAt(Date.now());
+                      setShiftEndedAt(null);
+                      setIsDailyReportModalOpen(false);
+                      triggerSystemActionToast("🟢 Você reabriu o turno e entrou na fila!");
+                    }}
+                    className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-amber-300 font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-700 uppercase"
+                  >
+                    <span>🟢 Iniciar Novo Expediente</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={() => {
-                    onUpdateMotoboyStatus(activeMotoboy.id, 'available');
-                    setAvailableSince(Date.now());
-                    setIsDailyReportModalOpen(false);
-                    triggerSystemActionToast("🟢 Você reabriu o turno e entrou na fila!");
-                  }}
-                  className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-amber-300 font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer border border-slate-700 uppercase"
+                  onClick={() => setIsDailyReportModalOpen(false)}
+                  className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
                 >
-                  <span>🟢 Reabrir Turno / Entrar na Fila</span>
+                  Fechar
                 </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setIsDailyReportModalOpen(false)}
-                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
-              >
-                Fechar
-              </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
