@@ -47,7 +47,6 @@ function cleanForFirestore(obj: any): any {
 async function isolateHistoricalOrdersFromNewDriver(motoboy: Motoboy) {
   const normalizedName = (motoboy.name || '').trim().toLowerCase();
   if (!normalizedName) return;
-
   const ordersSnapshot = await getDocs(collection(db, 'orders'));
   const fixes = ordersSnapshot.docs
     .filter((orderDoc) => {
@@ -59,7 +58,6 @@ async function isolateHistoricalOrdersFromNewDriver(motoboy: Motoboy) {
       const order = orderDoc.data() as Order;
       return setDoc(orderDoc.ref, { historicalMotoboyName: order.assignedMotoboyName || null, assignedMotoboyName: null }, { merge: true });
     });
-
   if (fixes.length > 0) await Promise.all(fixes);
 }
 
@@ -92,7 +90,6 @@ export function subscribeToMotoboys(callback: (motoboys: Motoboy[]) => void) {
         setDoc(docSnap.ref, cleanForFirestore(reset), { merge: true }).catch(() => {});
       } else list.push(raw);
     });
-
     if (typeof window !== 'undefined') {
       try {
         const saved = window.localStorage.getItem('rota_facil_session');
@@ -118,7 +115,6 @@ export async function saveOrderToCloud(order: Order) {
     const today = localDateKey();
     const payload: Order = { ...order, createdDate: order.createdDate || today, ...(order.status === 'delivered' ? { deliveredDate: order.deliveredDate || today, deliveredTimestamp: order.deliveredTimestamp || Date.now() } : {}) };
     await setDoc(doc(db, 'orders', payload.id), cleanForFirestore(payload), { merge: true });
-
     if (payload.status === 'delivered' && payload.assignedMotoboyId) {
       const allOrders = await getDocs(collection(db, 'orders'));
       const hasRemaining = allOrders.docs.some((snap) => {
@@ -145,13 +141,11 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
     let payload: Motoboy = isNewDriver
       ? { ...dailyBase, status: 'offline', activeOrdersCount: 0, totalEarnedToday: 0, deliveriesCountToday: 0, statsDate: today, joinedQueueAt: undefined, callingToCounterAt: undefined }
       : dailyBase;
-
     if (existingData?.status === 'returning_to_store' && payload.status !== 'returning_to_store') {
       const queueTimestamp = Number(payload.joinedQueueAt || 0);
       const isFreshArrivalConfirmation = payload.status === 'available' && payload.activeOrdersCount === 0 && queueTimestamp > 0 && Math.abs(Date.now() - queueTimestamp) <= 15000;
       if (!isFreshArrivalConfirmation) payload = { ...payload, status: 'returning_to_store', activeOrdersCount: 0, joinedQueueAt: undefined, callingToCounterAt: undefined };
     }
-
     await setDoc(ref, cleanForFirestore(payload), { merge: true });
   } catch (err) { console.error('Error saving motoboy to cloud:', err); }
 }
@@ -171,7 +165,7 @@ export async function deleteAllMotoboysFromCloud() {
   if (snapshot.empty) return;
   const revokedAt = Date.now();
   await Promise.all(snapshot.docs.map((d) => setDoc(d.ref, { status: 'offline', accessRevokedAt: revokedAt, joinedQueueAt: null, callingToCounterAt: null }, { merge: true })));
-  await wait(1500);
+  await wait(400);
   await Promise.all(snapshot.docs.map((d) => deleteDoc(d.ref)));
 }
 
@@ -180,21 +174,33 @@ export async function deleteAllOrdersFromCloud() {
   await Promise.all(snapshot.docs.map((d) => deleteDoc(d.ref)));
 }
 
-export async function clearAllDatabaseData() { await Promise.all([deleteAllOrdersFromCloud(), deleteAllMotoboysFromCloud()]); }
+export async function clearAllDatabaseData() {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await Promise.all([deleteAllOrdersFromCloud(), deleteAllMotoboysFromCloud()]);
+    await wait(250);
+    const [ordersLeft, motoboysLeft] = await Promise.all([
+      getDocs(collection(db, 'orders')),
+      getDocs(collection(db, 'motoboys')),
+    ]);
+    if (ordersLeft.empty && motoboysLeft.empty) return;
+  }
+  throw new Error('RESET_FAILED: ainda existem pedidos ou motoboys no Firestore após 3 tentativas.');
+}
+
 export async function saveShiftToCloud(shift: StoreShift) { await setDoc(doc(db, 'shifts', 'current_shift'), shift, { merge: true }); }
 
 async function resetOperationalDataOnceForStorePilot() {
-  // v3 intentionally uses a fresh marker: v2 could race with realtime listeners and old state.
-  const markerRef = doc(db, 'system_flags', 'store_pilot_reset_2026_08_10_v3');
+  const markerRef = doc(db, 'system_flags', 'store_pilot_reset_2026_08_10_v4_verified');
   if ((await getDoc(markerRef)).exists()) return;
-
   const shiftRef = doc(db, 'shifts', 'current_shift');
   const snap = await getDoc(shiftRef);
   const current = snap.exists() ? (snap.data() as StoreShift) : null;
   const preservedPassword = current?.adminPassword || INITIAL_STORE_SHIFT.adminPassword || 'hope2026';
 
   await clearAllDatabaseData();
-  await setDoc(shiftRef, {
+
+  const cleanShift = {
+    ...INITIAL_STORE_SHIFT,
     isOpen: false,
     openedAt: '',
     initialCash: 0,
@@ -204,8 +210,16 @@ async function resetOperationalDataOnceForStorePilot() {
     storeLat: -26.91530418395996,
     storeLng: -49.1146354675293,
     adminPassword: preservedPassword,
-  });
-  await setDoc(markerRef, { completed: true, resetAt: Date.now(), preservedStoreAccess: true });
+  };
+  await setDoc(shiftRef, cleanForFirestore(cleanShift));
+
+  const [ordersAfter, motoboysAfter] = await Promise.all([
+    getDocs(collection(db, 'orders')),
+    getDocs(collection(db, 'motoboys')),
+  ]);
+  if (!ordersAfter.empty || !motoboysAfter.empty) throw new Error('RESET_VERIFY_FAILED');
+
+  await setDoc(markerRef, { completed: true, resetAt: Date.now(), orders: 0, motoboys: 0, verified: true });
 }
 
 export async function seedInitialDataIfEmpty() {
@@ -216,7 +230,7 @@ export async function seedInitialDataIfEmpty() {
       await setDoc(ref, { ...INITIAL_STORE_SHIFT, storeName: 'Hope Burger', storePhone: '(47) 99153-9855', storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313', storeLat: -26.91530418395996, storeLng: -49.1146354675293, adminPassword: 'hope2026' });
     }
   } catch (err) {
-    console.warn('Could not seed/reset initial data:', err);
+    console.error('RESET OPERACIONAL FALHOU:', err);
     throw err;
   }
 }
