@@ -25,6 +25,70 @@ export function RuntimeCorrections() {
       window.location.replace(`${window.location.origin}${window.location.pathname}?login=1&t=${Date.now()}`);
     };
 
+    // Give the store's main section navigation enough visual weight to read as navigation,
+    // rather than as a tiny secondary filter bar.
+    const style = document.createElement('style');
+    style.id = 'rota-facil-runtime-navigation';
+    style.textContent = `
+      .runtime-primary-tabs {
+        width: 100%;
+        gap: 8px !important;
+        padding: 4px !important;
+      }
+
+      .runtime-primary-tab {
+        min-height: 46px !important;
+        padding: 0 18px !important;
+        border-radius: 10px !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.01em;
+        gap: 8px !important;
+        white-space: nowrap;
+      }
+
+      .runtime-primary-tab::before {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 7px;
+        background: rgba(51, 65, 85, 0.75);
+        font-size: 12px;
+        line-height: 1;
+        flex: 0 0 auto;
+      }
+
+      .runtime-primary-tab[data-runtime-tab='operacao']::before { content: '⚡'; }
+      .runtime-primary-tab[data-runtime-tab='equipe']::before { content: '👥'; }
+      .runtime-primary-tab[data-runtime-tab='financeiro']::before { content: '💰'; }
+      .runtime-primary-tab[data-runtime-tab='historico']::before { content: '◷'; }
+
+      .runtime-primary-tab.bg-slate-800 {
+        box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.28), 0 4px 12px rgba(0, 0, 0, 0.18) !important;
+      }
+
+      .runtime-primary-tab.bg-slate-800::before {
+        background: rgba(59, 130, 246, 0.18);
+      }
+
+      @media (min-width: 900px) {
+        .runtime-primary-tabs {
+          max-width: 610px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .runtime-primary-tab {
+          min-height: 44px !important;
+          padding: 0 13px !important;
+          font-size: 12px !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
     // Global access guard. This runs independently from App/MotoboyApp rendering.
     // If a logged-in driver is removed (individually or via "Remover todos"),
     // Firestore is authoritative and the stale phone session is destroyed immediately.
@@ -59,6 +123,31 @@ export function RuntimeCorrections() {
       const arrivalButtons = buttons.filter(
         (button) => button.textContent?.trim().toLowerCase() === 'cheguei ao local'
       );
+
+      // Upgrade the store dashboard section navigation.
+      const tabDefinitions = [
+        { label: 'Operação', key: 'operacao' },
+        { label: 'Equipe', key: 'equipe' },
+        { label: 'Financeiro', key: 'financeiro' },
+        { label: 'Histórico', key: 'historico' },
+      ];
+      const tabButtons = tabDefinitions
+        .map(({ label, key }) => {
+          const button = buttons.find((candidate) => candidate.textContent?.trim().startsWith(label));
+          if (button) {
+            button.classList.add('runtime-primary-tab');
+            button.setAttribute('data-runtime-tab', key);
+          }
+          return button;
+        })
+        .filter(Boolean) as HTMLButtonElement[];
+
+      if (tabButtons.length === tabDefinitions.length) {
+        const parent = tabButtons[0].parentElement;
+        if (parent && tabButtons.every((button) => button.parentElement === parent)) {
+          parent.classList.add('runtime-primary-tabs');
+        }
+      }
 
       // Keep only the sticky one-handed CTA when both copies are rendered.
       if (arrivalButtons.length > 1) {
@@ -111,6 +200,7 @@ export function RuntimeCorrections() {
       unsubscribeSessionGuard();
       observer.disconnect();
       window.clearTimeout(midnightTimer);
+      style.remove();
     };
   }, []);
 
