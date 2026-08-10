@@ -195,11 +195,8 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   const [manualExpandedId, setManualExpandedId] = useState<string | null>(null);
   const [arrivedOrderIds, setArrivedOrderIds] = useState<Record<string, boolean>>({});
 
-  const triggerSystemActionToast = (msg: string) => {
-    setActionToast(msg);
-    setTimeout(() => {
-      setActionToast(null);
-    }, 2500);
+  const triggerSystemActionToast = (_msg: string) => {
+    // Disabled to prevent intrusive toast popups on motoboy screen
   };
 
   useEffect(() => {
@@ -1651,6 +1648,20 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                 >
                                   <MapPin className="w-3.5 h-3.5 text-sky-400" />
                                   <span>Google Maps</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const url = `${window.location.origin}/?rastreio=${order.trackingCode || order.id}`;
+                                    navigator.clipboard.writeText(url);
+                                    triggerSystemActionToast("🔗 Link de rastreio copiado!");
+                                  }}
+                                  className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-amber-300 font-extrabold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-700"
+                                  title="Copiar link de rastreio em tempo real"
+                                >
+                                  <Copy className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>Link de Rastreio</span>
                                 </button>
                               </div>
 

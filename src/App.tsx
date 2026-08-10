@@ -654,8 +654,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col selection:bg-slate-700 selection:text-white">
-      {/* Toast Notification - Clean, professional neutral badge */}
-      {toastMessage && (
+      {/* Toast Notification - Clean, professional neutral badge (Store Admin only) */}
+      {toastMessage && session?.role === 'store_admin' && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-800/95 border border-slate-700 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-2.5 animate-fadeIn">
           <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />

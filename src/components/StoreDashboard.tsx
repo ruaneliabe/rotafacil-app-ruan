@@ -1740,6 +1740,69 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                               </div>
                             </div>
 
+                            {/* Live Tracking Quick Banner for Driver in Transit */}
+                            {mOrders.length > 0 && (m.status === 'delivering' || mOrders.some((o) => o.status === 'in_transit')) && (
+                              <div className="bg-sky-950/80 border border-sky-500/50 p-2.5 rounded-xl flex flex-col gap-1.5 text-xs text-sky-200">
+                                <div className="flex items-center justify-between font-black text-sky-300">
+                                  <span className="flex items-center gap-1.5">
+                                    <MapPin className="w-4 h-4 text-sky-400 animate-pulse" />
+                                    <span>Rastreamento em Tempo Real</span>
+                                  </span>
+                                  <span className="text-[10px] bg-sky-900/90 text-sky-200 px-2 py-0.5 rounded-md border border-sky-600/50 uppercase font-black">
+                                    📡 Sinal Ativo
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const activeOrder = mOrders.find((o) => o.status === 'in_transit') || mOrders[0];
+                                      if (activeOrder) onSelectOrderForTracking(activeOrder);
+                                    }}
+                                    className="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-extrabold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs uppercase"
+                                  >
+                                    <MapPin className="w-3 h-3 text-sky-200" />
+                                    <span>Mapa ao Vivo</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const activeOrder = mOrders.find((o) => o.status === 'in_transit') || mOrders[0];
+                                      if (activeOrder) {
+                                        const url = `${window.location.origin}/?rastreio=${activeOrder.trackingCode || activeOrder.id}`;
+                                        navigator.clipboard.writeText(url);
+                                        triggerActionToast(`🔗 Link de rastreio de ${m.name.split(' ')[0]} copiado!`);
+                                      }
+                                    }}
+                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 font-extrabold text-[11px] rounded-lg border border-slate-700 transition-all flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Copy className="w-3 h-3 text-amber-400" />
+                                    <span>Copiar Link</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const activeOrder = mOrders.find((o) => o.status === 'in_transit') || mOrders[0];
+                                      if (activeOrder) {
+                                        const trackingUrl = `${window.location.origin}/?rastreio=${activeOrder.trackingCode || activeOrder.id}`;
+                                        const cleanPhone = activeOrder.clientPhone ? activeOrder.clientPhone.replace(/\D/g, '') : '';
+                                        const msg = `Olá *${activeOrder.clientName}*! 🛵 O motoboy *${m.name}* está a caminho com seu pedido *#${activeOrder.codeNumber}*!\n\n📍 *Acompanhe no mapa em tempo real:* ${trackingUrl}`;
+                                        const url = cleanPhone
+                                          ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msg)}`
+                                          : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                                        window.open(url, '_blank');
+                                      }
+                                    }}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-[11px] rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                                  >
+                                    <span>💬 Enviar Whats</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
                             {/* Order Items List inside Driver Card */}
                             {mOrders.length > 0 && (
                               <div className="space-y-1.5 pt-1">
@@ -1778,43 +1841,68 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                         </div>
                                       </div>
 
-                                      {/* Up/Down reorder arrows if >1 orders */}
-                                      {mOrders.length > 1 && onReorderMotoboyRoute && (
-                                        <div className="flex items-center gap-0.5 shrink-0 bg-slate-950 p-0.5 rounded border border-slate-800">
-                                          {idx > 0 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const reordered = [...mOrders];
-                                                const temp = reordered[idx];
-                                                reordered[idx] = reordered[idx - 1];
-                                                reordered[idx - 1] = temp;
-                                                onReorderMotoboyRoute(reordered.map((o) => o.id));
-                                              }}
-                                              className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer text-[10px]"
-                                              title="Mover para cima"
-                                            >
-                                              ▲
-                                            </button>
-                                          )}
-                                          {idx < mOrders.length - 1 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const reordered = [...mOrders];
-                                                const temp = reordered[idx];
-                                                reordered[idx] = reordered[idx + 1];
-                                                reordered[idx + 1] = temp;
-                                                onReorderMotoboyRoute(reordered.map((o) => o.id));
-                                              }}
-                                              className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer text-[10px]"
-                                              title="Mover para baixo"
-                                            >
-                                              ▼
-                                            </button>
-                                          )}
-                                        </div>
-                                      )}
+                                      {/* Order Action Buttons */}
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => onSelectOrderForTracking(ord)}
+                                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-md border border-slate-700 transition-colors cursor-pointer"
+                                          title="Abrir mapa de rastreio em tempo real"
+                                        >
+                                          <MapPin className="w-3.5 h-3.5" />
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const url = `${window.location.origin}/?rastreio=${ord.trackingCode || ord.id}`;
+                                            navigator.clipboard.writeText(url);
+                                            triggerActionToast(`🔗 Link do pedido #${ord.codeNumber} copiado!`);
+                                          }}
+                                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-md border border-slate-700 transition-colors cursor-pointer"
+                                          title="Copiar Link de Rastreio do Cliente"
+                                        >
+                                          <Copy className="w-3.5 h-3.5" />
+                                        </button>
+
+                                        {/* Up/Down reorder arrows if >1 orders */}
+                                        {mOrders.length > 1 && onReorderMotoboyRoute && (
+                                          <div className="flex items-center gap-0.5 shrink-0 bg-slate-950 p-0.5 rounded border border-slate-800">
+                                            {idx > 0 && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const reordered = [...mOrders];
+                                                  const temp = reordered[idx];
+                                                  reordered[idx] = reordered[idx - 1];
+                                                  reordered[idx - 1] = temp;
+                                                  onReorderMotoboyRoute(reordered.map((o) => o.id));
+                                                }}
+                                                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer text-[10px]"
+                                                title="Mover para cima"
+                                              >
+                                                ▲
+                                              </button>
+                                            )}
+                                            {idx < mOrders.length - 1 && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const reordered = [...mOrders];
+                                                  const temp = reordered[idx];
+                                                  reordered[idx] = reordered[idx + 1];
+                                                  reordered[idx + 1] = temp;
+                                                  onReorderMotoboyRoute(reordered.map((o) => o.id));
+                                                }}
+                                                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer text-[10px]"
+                                                title="Mover para baixo"
+                                              >
+                                                ▼
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   );
                                 })}

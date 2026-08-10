@@ -56,11 +56,24 @@ export function analyzeOperationalBrain(
     (o) => !o.assignedMotoboyId && (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready_at_counter')
   );
 
-  // Active motoboys (available or returning) - sorted by queue time (FIFO)
+  const hasAssignedActiveOrders = (m: Motoboy): boolean => {
+    return orders.some(
+      (o) =>
+        o.status !== 'delivered' &&
+        o.status !== 'cancelled' &&
+        (o.assignedMotoboyId === m.id ||
+          (m.username && o.assignedMotoboyId?.toLowerCase() === m.username.toLowerCase()) ||
+          (m.name && o.assignedMotoboyId?.toLowerCase() === m.name.toLowerCase()))
+    );
+  };
+
+  // Active motoboys (available or returning) without assigned active orders - sorted by queue time (FIFO)
   const availableMotoboys = [...motoboys]
-    .filter((m) => m.status === 'available')
+    .filter((m) => m.status === 'available' && !hasAssignedActiveOrders(m))
     .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
-  const returningMotoboys = motoboys.filter((m) => m.status === 'returning_to_store');
+  const returningMotoboys = motoboys.filter(
+    (m) => m.status === 'returning_to_store' && !hasAssignedActiveOrders(m)
+  );
 
   const recommendations: DispatchRecommendation[] = [];
   const alerts: OperationalAlert[] = [];
