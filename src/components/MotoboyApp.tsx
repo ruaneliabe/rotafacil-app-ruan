@@ -649,13 +649,21 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                   ? 'text-rose-300'
                   : activeMotoboy?.status === 'busy'
                   ? 'text-amber-300'
+                  : assignedOrders.length > 0
+                  ? 'text-emerald-300'
                   : 'text-emerald-300'
               }`}>
                 {activeMotoboy?.status === 'offline'
                   ? 'Offline'
                   : activeMotoboy?.status === 'busy'
                   ? 'Pausado'
-                  : 'Online na Fila'}
+                  : assignedOrders.length > 0
+                  ? assignedOrders.some((o) => o.status === 'in_transit')
+                    ? `🛵 Em Rota (${assignedOrders.length})`
+                    : `🎒 Retirando Pedidos (${assignedOrders.length})`
+                  : activeMotoboy?.status === 'returning_to_store'
+                  ? '🏢 Voltando p/ Loja'
+                  : '🟢 Na Fila da Loja'}
               </span>
             </div>
           </div>
@@ -915,7 +923,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           }`}
         >
           <Zap className={`w-3.5 h-3.5 ${activeTab === 'active' ? 'text-amber-400' : 'text-slate-600'}`} />
-          Fila
+          {assignedOrders.length > 0 ? 'Minha Rota' : 'Fila'}
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
             activeTab === 'active' ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 text-slate-800 border border-slate-200'
           }`}>
@@ -972,35 +980,114 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                     Entrega {assignedOrders.findIndex(o => o.status === 'in_transit') >= 0 ? assignedOrders.findIndex(o => o.status === 'in_transit') + 1 : 1} de {assignedOrders.length}
                   </span>
                 </div>
-              ) : (
-                /* BATCH CONFIRM ALL PICKED UP & START ROUTE BUTTON */
-                <button
-                  type="button"
-                  onClick={() => {
-                    const firstOrder = assignedOrders[0];
-                    if (firstOrder) {
-                      onUpdateOrderStatus(firstOrder.id, 'in_transit');
-                    }
-                    assignedOrders.slice(1).forEach((o) => {
-                      if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
-                        onUpdateOrderStatus(o.id, 'picked_up');
+              ) : (() => {
+                const kitchenPendingOrders = assignedOrders.filter((o) => o.status === 'preparing' || o.status === 'pending');
+                const readyOrdersCount = assignedOrders.length - kitchenPendingOrders.length;
+                const isAllReady = kitchenPendingOrders.length === 0;
+
+                if (!isAllReady) {
+                  return (
+                    <div className="w-full bg-slate-900 border-2 border-amber-500/80 p-3.5 rounded-2xl text-white shadow-xl space-y-2.5">
+                      <div className="flex items-center justify-between text-xs font-black">
+                        <div className="flex items-center gap-2 text-amber-300">
+                          <Clock className="w-4 h-4 text-amber-400 animate-spin shrink-0" />
+                          <span className="uppercase tracking-wide">
+                            Conferência no Balcão ({readyOrdersCount} de {assignedOrders.length} prontos)
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-black bg-amber-950 text-amber-300 px-2.5 py-0.5 rounded-md border border-amber-600/60 uppercase">
+                          ⏳ Aguardando Cozinha
+                        </span>
+                      </div>
+
+                      {/* Checklist Breakdown */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {assignedOrders.map((o) => {
+                          const isReady = o.status === 'ready_at_counter' || o.status === 'picked_up';
+                          return (
+                            <div
+                              key={o.id}
+                              className={`p-2 rounded-xl flex items-center justify-between border transition-all ${
+                                isReady
+                                  ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
+                                  : 'bg-amber-950/60 border-amber-500/40 text-amber-200 font-medium'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 truncate pr-1">
+                                <span className="font-extrabold">{isReady ? '✓' : '⏳'}</span>
+                                <span className="font-black text-white">#{o.codeNumber}</span>
+                                <span className="truncate text-[11px] text-slate-300">({o.neighborhood || 'Centro'})</span>
+                              </div>
+                              <span
+                                className={`text-[10px] font-black uppercase px-2 py-0.5 rounded shrink-0 ${
+                                  isReady ? 'bg-emerald-900 text-emerald-300 border border-emerald-500/40' : 'bg-amber-900 text-amber-300 border border-amber-600/40'
+                                }`}
+                              >
+                                {isReady ? 'Pronto' : 'Em Preparo'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const firstOrder = assignedOrders[0];
+                          if (firstOrder) {
+                            onUpdateOrderStatus(firstOrder.id, 'in_transit');
+                          }
+                          assignedOrders.slice(1).forEach((o) => {
+                            if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
+                              onUpdateOrderStatus(o.id, 'picked_up');
+                            }
+                          });
+                          if (onUpdateMotoboyStatus && activeMotoboy) {
+                            onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
+                          }
+                          triggerSystemActionToast(`🚀 Rota iniciada! Siga para a 1ª parada.`);
+                        }}
+                        className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center justify-center gap-2 uppercase transition-all cursor-pointer border border-emerald-400/50"
+                      >
+                        <ShoppingBag className="w-4 h-4 text-amber-300 fill-amber-300 shrink-0" />
+                        <span>
+                          ✓ Peguei os Pedidos Prontos e Iniciar Rota ({readyOrdersCount}/{assignedOrders.length})
+                        </span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  /* BATCH CONFIRM ALL PICKED UP & START ROUTE BUTTON */
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const firstOrder = assignedOrders[0];
+                      if (firstOrder) {
+                        onUpdateOrderStatus(firstOrder.id, 'in_transit');
                       }
-                    });
-                    if (onUpdateMotoboyStatus && activeMotoboy) {
-                      onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
-                    }
-                    triggerSystemActionToast(
-                      `🚀 Rota iniciada! Siga para a 1ª parada: #${firstOrder?.codeNumber} (${firstOrder?.neighborhood || 'Centro'})`
-                    );
-                  }}
-                  className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer animate-pulse border border-emerald-300"
-                >
-                  <ShoppingBag className="w-5 h-5 fill-current text-slate-950 shrink-0" />
-                  <span>
-                    ✓ Peguei todos os pedidos - Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'Entrega' : 'Entregas'})
-                  </span>
-                </button>
-              )
+                      assignedOrders.slice(1).forEach((o) => {
+                        if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
+                          onUpdateOrderStatus(o.id, 'picked_up');
+                        }
+                      });
+                      if (onUpdateMotoboyStatus && activeMotoboy) {
+                        onUpdateMotoboyStatus(activeMotoboy.id, 'delivering');
+                      }
+                      triggerSystemActionToast(
+                        `🚀 Rota iniciada! Siga para a 1ª parada: #${firstOrder?.codeNumber} (${firstOrder?.neighborhood || 'Centro'})`
+                      );
+                    }}
+                    className="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2 uppercase transition-all cursor-pointer animate-pulse border border-emerald-300"
+                  >
+                    <ShoppingBag className="w-5 h-5 fill-current text-slate-950 shrink-0" />
+                    <span>
+                      ✓ Todos Prontos na Bag - Iniciar Rota ({assignedOrders.length} {assignedOrders.length === 1 ? 'Entrega' : 'Entregas'})
+                    </span>
+                  </button>
+                );
+              })()
             )}
 
             {/* Empty State or Active Orders */}
@@ -1438,33 +1525,47 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                           </div>
                         )}
 
-                        {/* 2. PAGAMENTO (COMPACTO QUANDO PAGO, GIGANTE QUANDO COBRAR) */}
+                        {/* 2. PAGAMENTO (DESTACADO E SEM AMBIGUIDADE) */}
                         {order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web' ? (
-                          <div className="bg-emerald-950/80 border border-emerald-500/40 px-3 py-2 rounded-xl flex items-center justify-between text-emerald-200 text-xs font-bold shadow-2xs">
-                            <div className="flex items-center gap-1.5">
+                          <div className="bg-emerald-950/90 border border-emerald-500/50 p-3 rounded-xl flex items-center justify-between text-emerald-200 text-xs shadow-2xs">
+                            <div className="flex items-center gap-2 min-w-0">
                               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                              <span>✓ Já pago • {order.paymentMethod === 'pix' ? 'PIX' : order.originChannel === 'ifood' ? 'iFood' : 'ONLINE'}</span>
+                              <div className="min-w-0">
+                                <span className="block text-[10px] font-black uppercase text-emerald-400 tracking-wider">
+                                  ✓ JÁ PAGO PELO CLIENTE (NÃO COBRAR)
+                                </span>
+                                <span className="text-xs text-emerald-200 font-extrabold truncate block">
+                                  Forma: {order.paymentMethod === 'pix' ? 'PIX' : order.originChannel === 'ifood' ? 'iFood' : 'Cartão Online'}
+                                </span>
+                              </div>
                             </div>
-                            <span className="font-extrabold text-emerald-300 text-sm">{formattedCurrency(order.total)}</span>
+                            <div className="text-right shrink-0">
+                              <span className="text-[9px] font-bold text-emerald-400 uppercase block">Valor do Pedido</span>
+                              <span className="font-black text-emerald-300 text-sm">{formattedCurrency(order.total)}</span>
+                              <span className="text-[9px] font-extrabold text-amber-300 block">Sua taxa: +{formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 8.50)}</span>
+                            </div>
                           </div>
                         ) : (
                           <div className="bg-amber-950 border-2 border-amber-500 p-3 rounded-xl text-white flex items-center justify-between shadow-md">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-black">
-                                {order.paymentMethod === 'dinheiro' ? <DollarSign className="w-5 h-5 stroke-[2.5]" /> : <CreditCard className="w-5 h-5 stroke-[2.5]" />}
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-black">
+                                {order.paymentMethod === 'dinheiro' ? <DollarSign className="w-6 h-6 stroke-[2.5]" /> : <CreditCard className="w-6 h-6 stroke-[2.5]" />}
                               </div>
-                              <div>
+                              <div className="min-w-0">
                                 <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider block">
-                                  🚨 COBRAR NO LOCAL
+                                  🚨 COBRAR CLIENTE NO LOCAL
                                 </span>
-                                <span className="font-black text-xs text-amber-100 uppercase block">
-                                  {order.paymentMethod === 'dinheiro' ? '💵 DINHEIRO' : '💳 CARTÃO (MAQUININHA)'}
+                                <span className="font-black text-xs text-amber-100 uppercase block truncate">
+                                  {order.paymentMethod === 'dinheiro' ? '💵 DINHEIRO NA ENTREGA' : '💳 CARTÃO (MAQUININHA)'}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-300 block">
+                                  Sua taxa: +{formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 8.50)}
                                 </span>
                               </div>
                             </div>
 
-                            <div className="text-right">
-                              <span className="text-[10px] font-extrabold text-amber-200 uppercase block">Cobrar</span>
+                            <div className="text-right shrink-0">
+                              <span className="text-[10px] font-extrabold text-amber-200 uppercase block">Cobrar Pedido</span>
                               <span className="font-black text-2xl text-amber-300 leading-none block">{formattedCurrency(order.total)}</span>
                             </div>
                           </div>
@@ -1823,10 +1924,18 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       {/* 5. Footer Summary Bar */}
       <div className="bg-white px-4 py-3 border-t border-slate-200 flex flex-col gap-2">
         <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
-          <span>📍 Blumenau - SC</span>
-          <span className="text-slate-900 font-black">
-            {completedOrders.length} {completedOrders.length === 1 ? 'entrega finalizada' : 'entregas finalizadas'}
+          <span className="flex items-center gap-1 text-slate-600">
+            <MapPin className="w-3.5 h-3.5 text-emerald-600" /> Blumenau - SC
           </span>
+          <button
+            type="button"
+            onClick={() => setIsDailyReportModalOpen(true)}
+            className="text-slate-900 hover:text-emerald-700 font-black cursor-pointer flex items-center gap-1 hover:underline transition-all"
+            title="Clique para abrir o Relatório do Dia"
+          >
+            <span>{completedOrders.length} {completedOrders.length === 1 ? 'entrega finalizada' : 'entregas finalizadas'}</span>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          </button>
         </div>
       </div>
 
