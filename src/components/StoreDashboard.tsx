@@ -2425,7 +2425,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
             <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-700">
               <span className="text-xs font-bold text-slate-400 block">Total de Vendas (Pedidos)</span>
-              <span className="text-2xl font-black text-white">{orders.length} pedidos</span>
+              <span className="text-2xl font-black text-white">{todayOrders.length} pedidos</span>
             </div>
             <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-800/60">
               <span className="text-xs font-bold text-amber-300 block">Comissão Motoboys (A pagar)</span>

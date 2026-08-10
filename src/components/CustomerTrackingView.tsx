@@ -24,7 +24,9 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
   const hasLiveGps = Boolean(
     motoboy &&
     typeof motoboy.currentLat === 'number' && motoboy.currentLat !== 0 &&
-    typeof motoboy.currentLng === 'number' && motoboy.currentLng !== 0
+    typeof motoboy.currentLng === 'number' && motoboy.currentLng !== 0 &&
+    typeof motoboy.locationUpdatedAt === 'number' &&
+    Date.now() - motoboy.locationUpdatedAt <= 30000
   );
 
   const estimatedETA = useMemo(() => {
@@ -44,8 +46,7 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
   const motoboyOrders = (allOrders || [])
     .filter(
       (o) =>
-        (o.assignedMotoboyId && motoboy?.id && o.assignedMotoboyId === motoboy.id) ||
-        (o.assignedMotoboyName && motoboy?.name && o.assignedMotoboyName.toLowerCase() === motoboy.name.toLowerCase())
+        o.assignedMotoboyId && motoboy?.id && o.assignedMotoboyId === motoboy.id
     )
     .filter((o) => o.status !== 'delivered' && o.status !== 'cancelled')
     .sort((a, b) => (a.routeSequence || 99) - (b.routeSequence || 99));

@@ -199,10 +199,6 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
 
     // New account with a reused name must start from an isolated identity.
     // Run before publishing it so the first realtime render already sees clean history.
-    if (isNewDriver) {
-      await isolateHistoricalOrdersFromNewDriver(payload);
-    }
-
     await setDoc(ref, cleanForFirestore(payload), { merge: true });
   } catch (err) { console.error('Error saving motoboy to cloud:', err); }
 }
