@@ -193,8 +193,8 @@ export async function seedInitialDataIfEmpty() {
         storeName: 'Hope Burger',
         storePhone: '(47) 99153-9855',
         storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
-        storeLat: -26.92130,
-        storeLng: -49.09480,
+        storeLat: -26.91530418395996,
+        storeLng: -49.1146354675293,
         adminPassword: 'hope2026',
       };
       await setDoc(doc(db, 'shifts', 'current_shift'), hopeShift);

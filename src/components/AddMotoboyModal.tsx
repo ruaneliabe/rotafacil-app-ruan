@@ -40,8 +40,8 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
       plate: plate.trim().toUpperCase(),
       fixedFee: parsedArranque,
       perDeliveryFee: 0,
-      currentLat: -26.92130,
-      currentLng: -49.09480,
+      currentLat: -26.91530418395996,
+      currentLng: -49.1146354675293,
     });
 
     setName('');

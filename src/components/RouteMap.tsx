@@ -518,7 +518,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     } else if (stops.length > 0) {
       map.setView([stops[0].lat, stops[0].lng], 14, { animate: true });
     } else {
-      map.setView([origin.lat || -26.92130, origin.lng || -49.09480], 14);
+      map.setView([origin.lat || -26.91530418395996, origin.lng || -49.1146354675293], 14);
     }
   }, [origin, stops, selectedStopId, motoboysList, showMotoboyMarker, motoboyLat, motoboyLng, selectedMotoboyId]);
 

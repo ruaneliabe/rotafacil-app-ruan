@@ -196,8 +196,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const handleSimulateIncomingOrder = (channel: 'ifood' | 'cardapio_web' | 'pdv' | 'whatsapp') => {
     if (!onAddOrder) return;
 
-    const baseLat = shift.storeLat || -26.92130;
-    const baseLng = shift.storeLng || -49.09480;
+    const baseLat = shift.storeLat || -26.91530418395996;
+    const baseLng = shift.storeLng || -49.1146354675293;
 
     let clientName = 'Cliente iFood';
     let address = 'Rua XV de Novembro, 1200';
@@ -516,17 +516,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               ONLINE
             </span>
-            <span className="font-extrabold text-white shrink-0">🔌 Sincronizado com PDV:</span>
-            <span className="text-slate-300 font-medium truncate">Cardápio Web • iFood • Anota AI • PDV (Ativo em 2º plano)</span>
+            <span className="font-extrabold text-white shrink-0">☁️ Dados sincronizados:</span>
+            <span className="text-slate-300 font-medium truncate">Pedidos, motoboys e rastreio em tempo real</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsIntegrationsOpen(true)}
-              className="text-[11px] font-bold text-purple-300 hover:text-purple-200 underline cursor-pointer hidden sm:inline"
-            >
-              Ver status
-            </button>
+            <span className="text-[11px] font-bold text-slate-500 hidden sm:inline">Nuvem ativa</span>
             <button
               type="button"
               onClick={() => setIsSyncBannerCollapsed(false)}
@@ -544,24 +538,18 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-white">Sincronizado com seu PDV / Cardápio Digital</span>
+                <span className="text-xs font-black text-white">Sincronização em tempo real</span>
                 <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/40 uppercase">
-                  Ativo em 2º Plano
+                  Firebase Online
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                Não precisa trocar de sistema. Seus pedidos continuam vindo do Cardápio Web / iFood / Anota AI e o RotaFácil despacha os motoboys.
+                Pedidos, equipe, status e localização são sincronizados entre os dispositivos conectados à loja.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsIntegrationsOpen(true)}
-              className="text-xs font-bold text-purple-300 hover:text-purple-200 underline shrink-0 cursor-pointer"
-            >
-              Ver status da conexão →
-            </button>
+            <span className="text-xs font-bold text-slate-400 shrink-0">Integrações externas: não configuradas</span>
             <button
               type="button"
               onClick={() => setIsSyncBannerCollapsed(true)}

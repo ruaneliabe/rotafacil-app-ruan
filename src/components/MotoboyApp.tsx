@@ -332,7 +332,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
     return matchesDriver(o);
   });
 
-  const arranqueAmount = activeMotoboy?.fixedFee && activeMotoboy.fixedFee > 0 ? (activeMotoboy.fixedFee === 50 ? 60 : activeMotoboy.fixedFee) : 60;
+  const arranqueAmount = activeMotoboy?.fixedFee && activeMotoboy.fixedFee > 0 ? activeMotoboy.fixedFee : 0;
   const deliveryFeesTotal = completedOrders.reduce(
     (acc, o) => acc + (o.deliveryFee && o.deliveryFee > 0 ? o.deliveryFee : (activeMotoboy?.perDeliveryFee || 7.00)),
     0
@@ -1051,10 +1051,14 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                       {/* DYNAMIC HUMAN-CENTERED QUEUE POSITION */}
                       {(() => {
                         const availableDrivers = [...motoboys]
-                          .filter((m) => m.status === 'available')
+                          .filter((m) =>
+                            m.status === 'available' ||
+                            (m.id === activeMotoboy?.id && !['offline', 'busy', 'delivering', 'returning_to_store'].includes(m.status))
+                          )
                           .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
                         const driverIndex = availableDrivers.findIndex((m) => m.id === activeMotoboy?.id);
-                        const queuePos = driverIndex >= 0 ? driverIndex + 1 : availableDrivers.length + 1;
+                        const queuePos = driverIndex >= 0 ? driverIndex + 1 : 1;
+                        const otherAvailableDrivers = availableDrivers.filter((m) => m.id !== activeMotoboy?.id);
                         const initialQueueTimestamp = activeMotoboy?.joinedQueueAt || availableSince;
                         const initialMinutesInQueue = Math.max(0, Math.floor((Date.now() - initialQueueTimestamp) / 60000));
                         const formattedQueueTime = String(initialMinutesInQueue).padStart(2, '0');
@@ -1233,16 +1237,16 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                             <div className="mt-5 pt-4 border-t border-slate-200/90 text-left">
                               <div className="flex items-center justify-between mb-2 px-1">
                                 <h6 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                                  <Users className="w-4 h-4 text-amber-500" /> Fila da Loja ({availableDrivers.length})
+                                  <Users className="w-4 h-4 text-amber-500" /> Outros na fila ({otherAvailableDrivers.length})
                                 </h6>
                                 <span className="text-[10px] font-bold text-slate-400">Ordem em tempo real</span>
                               </div>
 
                               <div className="space-y-1.5">
-                                {availableDrivers.length === 0 ? (
-                                  <p className="text-xs text-slate-400 text-center py-2">Nenhum motoboy na fila</p>
+                                {otherAvailableDrivers.length === 0 ? (
+                                  <p className="text-xs text-slate-400 text-center py-2">Nenhum motoboy atrás de você</p>
                                 ) : (
-                                  availableDrivers.map((driver, idx) => {
+                                  otherAvailableDrivers.map((driver, idx) => {
                                     const isMe = driver.id === activeMotoboy?.id;
                                     const driverInQueueMin = driver.joinedQueueAt
                                       ? Math.max(0, Math.floor((Date.now() - driver.joinedQueueAt) / 60000))
@@ -1261,7 +1265,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                                           <span className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
                                             isMe ? 'bg-amber-400 text-slate-950 border border-amber-500' : 'bg-slate-200 text-slate-700'
                                           }`}>
-                                            {idx + 1}º
+                                            {availableDrivers.findIndex((m) => m.id === driver.id) + 1}º
                                           </span>
                                           <span className="truncate">
                                             {driver.name} {isMe && <span className="text-amber-800 font-black ml-1">(Você)</span>}

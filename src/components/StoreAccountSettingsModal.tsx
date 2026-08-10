@@ -39,8 +39,8 @@ const StoreLocationPickerMap: React.FC<{
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const validLat = typeof lat === 'number' && !isNaN(lat) ? lat : -26.92130;
-    const validLng = typeof lng === 'number' && !isNaN(lng) ? lng : -49.09480;
+    const validLat = typeof lat === 'number' && !isNaN(lat) ? lat : -26.91530418395996;
+    const validLng = typeof lng === 'number' && !isNaN(lng) ? lng : -49.1146354675293;
 
     if (!mapRef.current) {
       const map = L.map(containerRef.current, {
@@ -126,7 +126,7 @@ const StoreLocationPickerMap: React.FC<{
   };
 
   const handleUseCacadoresPreset = () => {
-    onChangeCoords(-26.92130, -49.09480);
+    onChangeCoords(-26.91530418395996, -49.1146354675293);
   };
 
   return (
@@ -172,8 +172,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   const [storeName, setStoreName] = useState(shift.storeName || '');
   const [storePhone, setStorePhone] = useState(shift.storePhone || '');
   const [storeAddress, setStoreAddress] = useState(shift.storeAddress || '');
-  const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.92130);
-  const [storeLng, setStoreLng] = useState<number>(shift.storeLng || -49.09480);
+  const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.91530418395996);
+  const [storeLng, setStoreLng] = useState<number>(shift.storeLng || -49.1146354675293);
   const [adminPassword, setAdminPassword] = useState(shift.adminPassword || 'hope2026');
 
   const [showPassword, setShowPassword] = useState(false);
@@ -186,8 +186,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       setStoreName(shift.storeName || '');
       setStorePhone(shift.storePhone || '');
       setStoreAddress(shift.storeAddress || '');
-      setStoreLat(shift.storeLat || -26.92130);
-      setStoreLng(shift.storeLng || -49.09480);
+      setStoreLat(shift.storeLat || -26.91530418395996);
+      setStoreLng(shift.storeLng || -49.1146354675293);
       setAdminPassword(shift.adminPassword || 'hope2026');
       setIsSaved(false);
       setGeocodeSuccess(false);
@@ -218,7 +218,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
     e.preventDefault();
     if (!storeName.trim()) return;
 
-    let finalLat = Number(storeLat) || -26.92130;
+    let finalLat = Number(storeLat) || -26.91530418395996;
     let finalLng = Number(storeLng) || -49.1082;
 
     // If storeAddress was provided and coordinates haven't been geocoded yet, try geocoding
@@ -374,7 +374,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
                   type="number"
                   step="any"
                   value={storeLat}
-                  onChange={(e) => setStoreLat(parseFloat(e.target.value) || -26.92130)}
+                  onChange={(e) => setStoreLat(parseFloat(e.target.value) || -26.91530418395996)}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
                 />
               </div>

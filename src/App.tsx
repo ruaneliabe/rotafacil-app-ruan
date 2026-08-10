@@ -175,12 +175,12 @@ export default function App() {
           cloudShift.storeLat === -26.9228 ||
           cloudShift.storeLat === -26.92485 ||
           !cloudShift.storeLat ||
-          (cloudShift.storeAddress && cloudShift.storeAddress.toLowerCase().includes('caçadores') && cloudShift.storeLat !== -26.92130)
+          (cloudShift.storeAddress && cloudShift.storeAddress.toLowerCase().includes('caçadores') && cloudShift.storeLat !== -26.91530418395996)
         ) {
           const updatedShift = {
             ...cloudShift,
-            storeLat: -26.92130,
-            storeLng: -49.09480,
+            storeLat: -26.91530418395996,
+            storeLng: -49.1146354675293,
             storeAddress: cloudShift.storeAddress || 'Rua dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
           };
           setShift(updatedShift);

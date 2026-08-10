@@ -233,8 +233,8 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
     if (houseNum >= 600 && houseNum <= 700) {
       return {
         address: rawCleaned,
-        lat: -26.92130,
-        lng: -49.09480,
+        lat: -26.91530418395996,
+        lng: -49.1146354675293,
         name: `Rua dos Caçadores, ${houseNum}`,
       };
     }
