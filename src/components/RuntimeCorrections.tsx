@@ -73,6 +73,27 @@ export function RuntimeCorrections() {
         background: rgba(59, 130, 246, 0.18);
       }
 
+      .runtime-inline-complete-delivery {
+        width: 100%;
+        min-height: 52px;
+        margin-top: 10px;
+        margin-bottom: 8px;
+        border-radius: 16px;
+        border: 1px solid rgb(110 231 183);
+        background: rgb(16 185 129);
+        color: rgb(2 6 23);
+        font-size: 14px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .01em;
+        box-shadow: 0 8px 20px rgba(16, 185, 129, .18);
+        cursor: pointer;
+      }
+
+      .runtime-inline-complete-delivery:active {
+        transform: scale(.98);
+      }
+
       @media (min-width: 900px) {
         .runtime-primary-tabs {
           max-width: 610px;
@@ -149,13 +170,48 @@ export function RuntimeCorrections() {
         }
       }
 
-      // Keep only the sticky one-handed CTA when both copies are rendered.
+      // Keep only the sticky one-handed arrival CTA when both arrival copies are rendered.
       if (arrivalButtons.length > 1) {
         arrivalButtons.forEach((button) => {
           if (!button.closest('.fixed')) {
             (button as HTMLElement).style.display = 'none';
           }
         });
+      }
+
+      // "Concluir entrega" belongs to the order card, not to a detached floating card.
+      // We keep React's original handler as the source of truth and forward the inline
+      // button click to it. This avoids duplicating delivery business logic.
+      const floatingCompleteButton = buttons.find(
+        (button) =>
+          button.textContent?.trim().toLowerCase() === 'concluir entrega' &&
+          Boolean(button.closest('.fixed'))
+      ) as HTMLButtonElement | undefined;
+
+      const existingInlineComplete = document.querySelector<HTMLButtonElement>('[data-runtime-inline-complete-delivery="1"]');
+
+      if (floatingCompleteButton) {
+        const floatingContainer = floatingCompleteButton.closest('.fixed') as HTMLElement | null;
+        if (floatingContainer) floatingContainer.style.display = 'none';
+
+        const detailsButton = buttons.find((button) => {
+          const text = button.textContent?.trim().toLowerCase() || '';
+          return text.includes('ver detalhes') || text.includes('ocultar detalhes');
+        });
+        const detailsWrapper = detailsButton?.parentElement;
+        const orderContent = detailsWrapper?.parentElement;
+
+        if (orderContent && detailsWrapper && !existingInlineComplete) {
+          const inlineButton = document.createElement('button');
+          inlineButton.type = 'button';
+          inlineButton.setAttribute('data-runtime-inline-complete-delivery', '1');
+          inlineButton.className = 'runtime-inline-complete-delivery';
+          inlineButton.innerHTML = '✓ &nbsp; Concluir entrega';
+          inlineButton.onclick = () => floatingCompleteButton.click();
+          orderContent.insertBefore(inlineButton, detailsWrapper);
+        }
+      } else if (existingInlineComplete) {
+        existingInlineComplete.remove();
       }
 
       // Paid orders: make it explicit that the delivery fee is the driver's earning,
