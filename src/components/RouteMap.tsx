@@ -104,6 +104,13 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     const bounds: [number, number][] = [];
 
+    // When the dashboard passes a fleet list, this map is an operational fleet overview.
+    // In this mode we intentionally hide every customer/order stop and route polyline,
+    // otherwise multiple riders with multiple orders create a misleading spaghetti map.
+    // Customer tracking and the driver's own route map do not pass motoboysList, so they
+    // continue to show their delivery destination normally.
+    const fleetOverviewOnly = Boolean(motoboysList);
+
     // 1. Store Marker (Sleek Dark Pill) - ONLY render if store address is configured in Configurar Loja
     if (isStoreAddressConfigured) {
       bounds.push([origin.lat, origin.lng]);
@@ -134,81 +141,83 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       markersGroup.addLayer(originMarker);
     }
 
-    // 2. Stops Markers
-    stops.forEach((stop, idx) => {
-      bounds.push([stop.lat, stop.lng]);
+    // 2. Stops Markers (hidden on store/fleet overview)
+    if (!fleetOverviewOnly) {
+      stops.forEach((stop, idx) => {
+        bounds.push([stop.lat, stop.lng]);
 
-      const isSelected = stop.id === selectedStopId;
-      let bgColor = 'bg-slate-800 text-slate-200 border-slate-600';
-      let badgeHtml = `${idx + 1}`;
+        const isSelected = stop.id === selectedStopId;
+        let bgColor = 'bg-slate-800 text-slate-200 border-slate-600';
+        let badgeHtml = `${idx + 1}`;
 
-      if (stop.status === 'delivered') {
-        bgColor = 'bg-emerald-600 text-white border-emerald-400';
-        badgeHtml = '✓';
-      } else if (stop.status === 'in_transit') {
-        bgColor = 'bg-blue-600 text-white border-blue-400';
-      } else if (stop.status === 'failed') {
-        bgColor = 'bg-rose-600 text-white border-rose-400';
-        badgeHtml = '✕';
-      }
+        if (stop.status === 'delivered') {
+          bgColor = 'bg-emerald-600 text-white border-emerald-400';
+          badgeHtml = '✓';
+        } else if (stop.status === 'in_transit') {
+          bgColor = 'bg-blue-600 text-white border-blue-400';
+        } else if (stop.status === 'failed') {
+          bgColor = 'bg-rose-600 text-white border-rose-400';
+          badgeHtml = '✕';
+        }
 
-      const ringClass = isSelected ? 'ring-4 ring-indigo-500/60 scale-110 z-30' : '';
+        const ringClass = isSelected ? 'ring-4 ring-indigo-500/60 scale-110 z-30' : '';
 
-      const stopIcon = L.divIcon({
-        className: 'custom-stop-pin',
-        html: `
-          <div class="relative flex flex-col items-center justify-center transition-all duration-200 ${ringClass}">
-            <div class="w-8 h-8 ${bgColor} rounded-full shadow-lg border-2 flex items-center justify-center font-bold text-xs z-30">
-              ${badgeHtml}
+        const stopIcon = L.divIcon({
+          className: 'custom-stop-pin',
+          html: `
+            <div class="relative flex flex-col items-center justify-center transition-all duration-200 ${ringClass}">
+              <div class="w-8 h-8 ${bgColor} rounded-full shadow-lg border-2 flex items-center justify-center font-bold text-xs z-30">
+                ${badgeHtml}
+              </div>
+              <div class="mt-0.5 bg-slate-900/95 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap border border-emerald-500/60 shadow-md z-30">
+                ${stop.title?.includes('Seu Endereço') ? '📍 Seu Endereço' : (stop.neighborhood || 'Centro')}
+              </div>
             </div>
-            <div class="mt-0.5 bg-slate-900/95 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap border border-emerald-500/60 shadow-md z-30">
-              ${stop.title?.includes('Seu Endereço') ? '📍 Seu Endereço' : (stop.neighborhood || 'Centro')}
+          `,
+          iconSize: [70, 48],
+          iconAnchor: [35, 24],
+        });
+
+        const marker = L.marker([stop.lat, stop.lng], { icon: stopIcon });
+
+        marker.on('click', () => {
+          if (onSelectStop) onSelectStop(stop);
+        });
+
+        marker.bindPopup(`
+          <div class="p-2 min-w-[220px] text-slate-100">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="font-semibold text-xs text-indigo-400">Parada #${idx + 1}</span>
+              <span class="text-[10px] px-1.5 py-0.5 rounded uppercase font-bold ${
+                stop.status === 'delivered' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' :
+                stop.status === 'in_transit' ? 'bg-blue-950 text-blue-300 border border-blue-700' :
+                stop.status === 'failed' ? 'bg-rose-950 text-rose-300 border border-rose-700' : 'bg-slate-800 text-slate-300 border border-slate-700'
+              }">${
+                stop.status === 'delivered' ? 'Entregue' :
+                stop.status === 'in_transit' ? 'Em trânsito' :
+                stop.status === 'failed' ? 'Não entregue' : 'Pendente'
+              }</span>
+            </div>
+            <h4 class="font-extrabold text-white text-sm">${stop.title}</h4>
+            <div class="inline-flex items-center gap-1 my-1 px-2 py-0.5 bg-emerald-950/80 text-emerald-300 font-extrabold text-xs rounded border border-emerald-700/60">
+              📍 Bairro: ${stop.neighborhood || 'Centro'}
+            </div>
+            <p class="text-xs text-slate-300 font-medium">${stop.address}</p>
+            ${stop.recipientName ? `<p class="text-xs text-slate-400 mt-1">👤 ${stop.recipientName}</p>` : ''}
+            <div class="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between gap-1">
+              <a href="https://waze.com/ul?ll=${stop.lat},${stop.lng}&navigate=yes" target="_blank" class="px-2 py-1 bg-indigo-950 text-indigo-300 border border-indigo-700 rounded text-xs font-semibold hover:bg-indigo-900 inline-block">
+                Waze 🧭
+              </a>
+              <a href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}" target="_blank" class="px-2 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 rounded text-xs font-semibold hover:bg-emerald-900 inline-block">
+                Google Maps 🗺️
+              </a>
             </div>
           </div>
-        `,
-        iconSize: [70, 48],
-        iconAnchor: [35, 24],
+        `);
+
+        markersGroup.addLayer(marker);
       });
-
-      const marker = L.marker([stop.lat, stop.lng], { icon: stopIcon });
-
-      marker.on('click', () => {
-        if (onSelectStop) onSelectStop(stop);
-      });
-
-      marker.bindPopup(`
-        <div class="p-2 min-w-[220px] text-slate-100">
-          <div class="flex items-center justify-between gap-2 mb-1">
-            <span class="font-semibold text-xs text-indigo-400">Parada #${idx + 1}</span>
-            <span class="text-[10px] px-1.5 py-0.5 rounded uppercase font-bold ${
-              stop.status === 'delivered' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' :
-              stop.status === 'in_transit' ? 'bg-blue-950 text-blue-300 border border-blue-700' :
-              stop.status === 'failed' ? 'bg-rose-950 text-rose-300 border border-rose-700' : 'bg-slate-800 text-slate-300 border border-slate-700'
-            }">${
-              stop.status === 'delivered' ? 'Entregue' :
-              stop.status === 'in_transit' ? 'Em trânsito' :
-              stop.status === 'failed' ? 'Não entregue' : 'Pendente'
-            }</span>
-          </div>
-          <h4 class="font-extrabold text-white text-sm">${stop.title}</h4>
-          <div class="inline-flex items-center gap-1 my-1 px-2 py-0.5 bg-emerald-950/80 text-emerald-300 font-extrabold text-xs rounded border border-emerald-700/60">
-            📍 Bairro: ${stop.neighborhood || 'Centro'}
-          </div>
-          <p class="text-xs text-slate-300 font-medium">${stop.address}</p>
-          ${stop.recipientName ? `<p class="text-xs text-slate-400 mt-1">👤 ${stop.recipientName}</p>` : ''}
-          <div class="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between gap-1">
-            <a href="https://waze.com/ul?ll=${stop.lat},${stop.lng}&navigate=yes" target="_blank" class="px-2 py-1 bg-indigo-950 text-indigo-300 border border-indigo-700 rounded text-xs font-semibold hover:bg-indigo-900 inline-block">
-              Waze 🧭
-            </a>
-            <a href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}" target="_blank" class="px-2 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 rounded text-xs font-semibold hover:bg-emerald-900 inline-block">
-              Google Maps 🗺️
-            </a>
-          </div>
-        </div>
-      `);
-
-      markersGroup.addLayer(marker);
-    });
+    }
 
     // 3. Draw Motoboy Markers on Map (Sleek Scalable Cluster + Focus System)
     if (motoboysList && motoboysList.length > 0) {
@@ -487,8 +496,9 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       }
     }
 
-    // 4. Draw Route Polyline ONLY IF an active route/delivery is happening
-    const activeStops = stops.filter((s) => s.status === 'in_transit');
+    // 4. Draw Route Polyline ONLY IF an active route/delivery is happening.
+    // Fleet overview intentionally never draws customer-to-customer lines.
+    const activeStops = fleetOverviewOnly ? [] : stops.filter((s) => s.status === 'in_transit');
 
     if (activeStops.length > 0) {
       const hasLiveMotoboyGps =
@@ -510,12 +520,12 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       }).addTo(map);
     }
 
-    // 5. Smoothly fit map bounds to fit store + stops + motoboys
+    // 5. Smoothly fit map bounds to fit store + visible motoboys/stops
     if (bounds.length > 1) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
     } else if (bounds.length === 1) {
       map.setView(bounds[0], 15, { animate: true });
-    } else if (stops.length > 0) {
+    } else if (!fleetOverviewOnly && stops.length > 0) {
       map.setView([stops[0].lat, stops[0].lng], 14, { animate: true });
     } else {
       map.setView([origin.lat || -26.91530418395996, origin.lng || -49.1146354675293], 14);
