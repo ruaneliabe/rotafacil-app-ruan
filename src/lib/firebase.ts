@@ -132,10 +132,36 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
     const today = localDateKey();
     const ref = doc(db, 'motoboys', motoboy.id);
     const existing = await getDoc(ref);
+    const existingData = existing.exists() ? ({ id: existing.id, ...existing.data() } as Motoboy) : null;
     const dailyBase = motoboy.statsDate === today ? motoboy : { ...motoboy, deliveriesCountToday: 0, totalEarnedToday: 0, statsDate: today };
-    const payload: Motoboy = !existing.exists()
+    let payload: Motoboy = !existing.exists()
       ? { ...dailyBase, status: 'offline', activeOrdersCount: 0, totalEarnedToday: 0, deliveriesCountToday: 0, statsDate: today, joinedQueueAt: undefined, callingToCounterAt: undefined }
       : dailyBase;
+
+    // returning_to_store is a protected operational state. Several realtime effects may still
+    // hold an older copy of the driver and try to write `available`/`delivering` after the
+    // last delivery. Those stale writes must never put the driver back in the queue.
+    // The only valid exit is an explicit "Cheguei à Loja", which creates a brand-new
+    // joinedQueueAt timestamp at the moment of confirmation.
+    if (existingData?.status === 'returning_to_store' && payload.status !== 'returning_to_store') {
+      const queueTimestamp = Number(payload.joinedQueueAt || 0);
+      const isFreshArrivalConfirmation =
+        payload.status === 'available' &&
+        payload.activeOrdersCount === 0 &&
+        queueTimestamp > 0 &&
+        Math.abs(Date.now() - queueTimestamp) <= 15000;
+
+      if (!isFreshArrivalConfirmation) {
+        payload = {
+          ...payload,
+          status: 'returning_to_store',
+          activeOrdersCount: 0,
+          joinedQueueAt: undefined,
+          callingToCounterAt: undefined,
+        };
+      }
+    }
+
     await setDoc(ref, cleanForFirestore(payload), { merge: true });
   } catch (err) { console.error('Error saving motoboy to cloud:', err); }
 }
