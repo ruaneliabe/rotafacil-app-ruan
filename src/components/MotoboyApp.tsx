@@ -94,15 +94,42 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   const [availableSince, setAvailableSince] = useState<number>(Date.now());
   const [shiftStartedAt, setShiftStartedAt] = useState<number>(Date.now() - 4.5 * 3600 * 1000);
   const [shiftEndedAt, setShiftEndedAt] = useState<string | null>(null);
+  const [isWakeLockActive, setIsWakeLockActive] = useState<boolean>(false);
+  const wakeLockRef = useRef<any>(null);
+
+  const requestWakeLock = async () => {
+    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        setIsWakeLockActive(true);
+        wakeLockRef.current.addEventListener('release', () => {
+          setIsWakeLockActive(false);
+        });
+      } catch (err) {
+        console.warn('Wake Lock error:', err);
+      }
+    }
+  };
+
+  useEffect(() => {
+    requestWakeLock();
+    return () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+      }
+    };
+  }, []);
 
   const handleFinishShift = () => {
-    const timeStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    setShiftEndedAt(timeStr);
-    if (onUpdateMotoboyStatus && activeMotoboy) {
-      onUpdateMotoboyStatus(activeMotoboy.id, 'offline');
+    if (window.confirm('Tem certeza que deseja encerrar o expediente de hoje? Seus dados serão salvos no relatório do dia.')) {
+      const timeStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      setShiftEndedAt(timeStr);
+      if (onUpdateMotoboyStatus && activeMotoboy) {
+        onUpdateMotoboyStatus(activeMotoboy.id, 'offline');
+      }
+      setIsDailyReportModalOpen(true);
+      triggerSystemActionToast(`🏁 Expediente encerrado às ${timeStr}! Confira seu relatório.`);
     }
-    setIsDailyReportModalOpen(true);
-    triggerSystemActionToast(`🏁 Expediente encerrado às ${timeStr}! Confira seu relatório.`);
   };
 
   useEffect(() => {
@@ -635,16 +662,16 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
         </div>
 
         {/* Right Action Icons: Report, Sound Test, Dev GPS, Logout/Switch */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {/* Relatório do Dia Quick Access */}
           <button
             type="button"
             onClick={() => setIsDailyReportModalOpen(true)}
             title="Abrir Relatório do Dia"
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1 text-xs font-black cursor-pointer"
+            className="p-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1 text-[11px] font-extrabold cursor-pointer"
           >
-            <FileText className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="hidden sm:inline">Relatório</span>
+            <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>Relatório</span>
           </button>
           {/* Sound / Notification Test Button */}
           <button
@@ -657,10 +684,10 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               triggerSystemActionToast('Sinal sonoro de entrega testado!');
             }}
             title="Testar sinal sonoro de entregas"
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+            className="p-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all flex items-center gap-1 text-[11px] font-extrabold cursor-pointer"
           >
-            <Volume2 className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline text-slate-200">Testar Som</span>
+            <Volume2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>Som</span>
           </button>
 
           {/* Dev GPS Toggle (Discrete Tool) */}
@@ -668,13 +695,14 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             type="button"
             onClick={() => setShowDevGpsPanel(!showDevGpsPanel)}
             title="Painel de Testes GPS"
-            className={`p-2 rounded-xl transition-all cursor-pointer ${
+            className={`p-1.5 px-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-[11px] font-extrabold ${
               showDevGpsPanel
                 ? 'bg-amber-400 text-slate-950 font-black'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
             }`}
           >
-            <Zap className="w-4 h-4" />
+            <Zap className="w-3.5 h-3.5 shrink-0" />
+            <span>GPS</span>
           </button>
 
           {/* Profile Switcher or Logout Button */}
@@ -683,20 +711,21 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
               type="button"
               onClick={handleLogoutAccount}
               title="Sair da Conta de Entregador"
-              className="p-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 transition-all cursor-pointer"
+              className="p-1.5 px-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 transition-all cursor-pointer flex items-center gap-1 text-[11px] font-extrabold"
             >
-              <LogOut className="w-4 h-4 text-rose-300" />
+              <LogOut className="w-3.5 h-3.5 text-rose-300 shrink-0" />
+              <span>Sair</span>
             </button>
           ) : (
             <select
               value={activeMotoboyId}
               onChange={(e) => setActiveMotoboyId(e.target.value)}
               title="Alternar Perfil de Entregador"
-              className="bg-slate-800 text-slate-200 font-bold text-xs py-1.5 px-2 rounded-xl border border-slate-700 focus:outline-none max-w-[100px] truncate cursor-pointer"
+              className="bg-slate-800 text-slate-200 font-bold text-xs py-1.5 px-2 rounded-xl border border-slate-700 focus:outline-none max-w-[90px] truncate cursor-pointer"
             >
               {motoboys.map((m) => (
                 <option key={m.id} value={m.id}>
-                  ⚙️ {m.name.split(' ')[0]}
+                  👤 {m.name.split(' ')[0]}
                 </option>
               ))}
             </select>
@@ -798,16 +827,16 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       {/* 2. Three Clean, Intuitive Metric Cards */}
       <div className="bg-slate-100 px-3.5 py-2.5 border-b border-slate-200">
         <div className="grid grid-cols-3 gap-2">
-          {/* Card 1: Minha Bolsa */}
+          {/* Card 1: Na Bag */}
           <div className="bg-white p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs text-center flex flex-col justify-between">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight block truncate">
-              🎒 Minha Bolsa
+              🎒 Na Bag
             </span>
             <div className="font-black text-xl text-slate-900 leading-tight my-0.5">
               {assignedOrders.length}
             </div>
             <span className="text-[10px] font-bold text-slate-400 block truncate">
-              {assignedOrders.length === 1 ? '1 pedido ativo' : 'pedidos ativos'}
+              {assignedOrders.length === 1 ? '1 pedido ativo' : 'pedidos na bag'}
             </span>
           </div>
 
@@ -824,20 +853,20 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
             </span>
           </div>
 
-          {/* Card 3: Ganhos hoje (Clickable -> opens extrato modal) */}
+          {/* Card 3: Ganhos hoje (High contrast black-on-yellow for direct sunlight) */}
           <button
             type="button"
             onClick={() => setIsEarningsModalOpen(true)}
-            className="bg-slate-900 hover:bg-slate-800 active:scale-98 p-2.5 rounded-2xl text-center flex flex-col justify-between transition-all cursor-pointer shadow-xs border border-slate-800 group"
+            className="bg-amber-400 hover:bg-amber-300 active:scale-98 p-2.5 rounded-2xl text-center flex flex-col justify-between transition-all cursor-pointer shadow-xs border border-amber-500 group text-slate-950"
           >
-            <span className="text-[10px] font-extrabold text-amber-300 uppercase tracking-tight flex items-center justify-center gap-0.5 truncate">
-              💰 Ganhos hoje <ChevronRight className="w-3 h-3 text-amber-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+            <span className="text-[10px] font-black text-slate-950 uppercase tracking-tight flex items-center justify-center gap-0.5 truncate">
+              💰 Ganhos hoje <ChevronRight className="w-3 h-3 text-slate-950 group-hover:translate-x-0.5 transition-transform shrink-0" />
             </span>
-            <div className="font-black text-sm sm:text-base text-emerald-400 leading-tight my-0.5 truncate">
+            <div className="font-black text-base text-slate-950 leading-tight my-0.5 truncate">
               {formattedCurrency(totalEarnedDisplay)}
             </div>
-            <span className="text-[9px] font-extrabold text-slate-300 block truncate">
-              R$ {arranqueAmount.toFixed(0)} arranque + R$ {deliveryFeesTotal.toFixed(0)} taxas
+            <span className="text-[9px] font-bold text-slate-900 block truncate">
+              R$ {arranqueAmount.toFixed(0)} fixo + R$ {deliveryFeesTotal.toFixed(0)} taxas
             </span>
           </button>
         </div>
@@ -1017,9 +1046,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                           .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
                         const driverIndex = availableDrivers.findIndex((m) => m.id === activeMotoboy?.id);
                         const queuePos = driverIndex >= 0 ? driverIndex + 1 : availableDrivers.length + 1;
-                        const effectiveTimestamp = activeMotoboy?.joinedQueueAt || availableSince;
-                        const minutesInQueue = Math.max(0, Math.floor((Date.now() - effectiveTimestamp) / 60000));
-                        const formattedQueueTime = String(minutesInQueue).padStart(2, '0');
+                        const initialQueueTimestamp = activeMotoboy?.joinedQueueAt || availableSince;
+                        const initialMinutesInQueue = Math.max(0, Math.floor((Date.now() - initialQueueTimestamp) / 60000));
+                        const formattedQueueTime = String(initialMinutesInQueue).padStart(2, '0');
 
                         if (activeMotoboy?.status === 'offline') {
                           return (
@@ -1102,63 +1131,91 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                         }
 
                         const estCallTimeMin = Math.max(2, queuePos * 2);
+                        const effectiveTimestamp = activeMotoboy?.joinedQueueAt || availableSince;
+                        const minutesInQueue = Math.max(0, Math.floor((Date.now() - effectiveTimestamp) / 60000));
+                        const humanQueueTimeText = minutesInQueue === 0 ? 'Acabou de entrar' : `${minutesInQueue} min`;
 
                         return (
-                          <div className="space-y-4 py-1 text-center">
-                            {/* DISPONÍVEL NA LOJA BADGE */}
-                            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                              <span className="uppercase tracking-wider">Disponível na loja</span>
+                          <div className="space-y-3 py-1 text-center">
+                            {/* DISPONÍVEL NA LOJA & TELA SEMPRE LIGADA BADGES */}
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                                <span className="uppercase tracking-wider">Disponível na loja</span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={requestWakeLock}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold transition-all cursor-pointer ${
+                                  isWakeLockActive
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                                }`}
+                                title="Evita que o celular apague a tela enquanto estiver no suporte da moto"
+                              >
+                                <span>📱 Tela Ligada:</span>
+                                <strong className={isWakeLockActive ? 'text-blue-700 font-black' : 'text-slate-500'}>
+                                  {isWakeLockActive ? 'Ativada' : 'Ativar'}
+                                </strong>
+                              </button>
                             </div>
 
-                            {/* MAIN QUEUE POSITION HERO */}
-                            <div className="bg-slate-50 border border-slate-200/90 p-4 rounded-2xl space-y-1 text-center shadow-2xs">
-                              <strong className="text-4xl sm:text-5xl font-black text-slate-950 block tracking-tight">
-                                {queuePos}º da fila
-                              </strong>
-                              <span className="text-emerald-700 font-extrabold text-sm block">
-                                {queuePos === 1
-                                  ? 'Próximo a receber um pedido'
-                                  : `${queuePos - 1} ${queuePos - 1 === 1 ? 'motoboy antes de você' : 'motoboys antes de você'}`}
-                              </span>
-                            </div>
-
-                            {/* AGUARDANDO E AVISO + ESTIMATIVA */}
-                            <div className="bg-white border border-slate-200/80 p-3 rounded-2xl space-y-1.5 text-xs text-slate-600 font-medium">
-                              <div className="flex items-center justify-between text-slate-700 font-bold border-b border-slate-100 pb-1.5">
-                                <span>⚡ Tempo estimado até chamada:</span>
-                                <span className="text-emerald-700 font-black bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                                  ~{estCallTimeMin} min
+                            {/* COMPACT HIGH-IMPACT QUEUE POSITION HERO */}
+                            <div className="bg-white border border-slate-200/90 p-3.5 rounded-2xl shadow-2xs space-y-2 text-center">
+                              <div>
+                                <strong className="text-3xl sm:text-4xl font-black text-slate-950 block tracking-tight">
+                                  {queuePos}º da fila
+                                </strong>
+                                <span className="text-emerald-700 font-extrabold text-xs block mt-0.5">
+                                  {queuePos === 1
+                                    ? '🚀 Próximo a receber um pedido!'
+                                    : `${queuePos - 1} ${queuePos - 1 === 1 ? 'motoboy à sua frente' : 'motoboys à sua frente'}`}
                                 </span>
                               </div>
-                              <div className="flex items-center justify-between text-slate-500 font-semibold pt-0.5">
-                                <span>⏱️ Tempo decorrido na fila:</span>
-                                <strong className="text-slate-800">{formattedQueueTime} min</strong>
+
+                              <div className="w-full grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
+                                <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/80 text-center">
+                                  <span className="text-[10px] font-bold text-slate-500 block">⚡ Estimativa chamada</span>
+                                  <strong className="text-emerald-700 font-black text-sm">~{estCallTimeMin} min</strong>
+                                </div>
+                                <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/80 text-center">
+                                  <span className="text-[10px] font-bold text-slate-500 block">⏱️ Na fila desde</span>
+                                  <strong className="text-slate-900 font-black text-sm">{humanQueueTimeText}</strong>
+                                </div>
                               </div>
                             </div>
 
-                            {/* HIGH-CONTRAST CLEAR SHIFT CONTROLS (ENCERRAR PRIMEIRO, PAUSAR SEGUNDO) */}
+                            {/* HIGH-CONTRAST CLEAR SHIFT CONTROLS (PAUSAR PRIMEIRO, ENCERRAR SEGUNDO) */}
                             {onUpdateMotoboyStatus && activeMotoboy && (
                               <div className="pt-1 space-y-2">
-                                <button
-                                  type="button"
-                                  onClick={handleFinishShift}
-                                  className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-950 active:scale-98 text-white font-black text-xs rounded-2xl border border-rose-500/70 shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
-                                >
-                                  <Power className="w-4 h-4 text-rose-400 shrink-0" />
-                                  <span>Encerrar Expediente</span>
-                                </button>
-
+                                {/* PRIMARY ACTION: PAUSAR DISPONIBILIDADE */}
                                 <button
                                   type="button"
                                   onClick={() => {
                                     onUpdateMotoboyStatus(activeMotoboy.id, 'busy');
                                     triggerSystemActionToast("⏸️ Disponibilidade pausada.");
                                   }}
-                                  className="w-full py-3 px-4 bg-white hover:bg-slate-50 active:scale-98 text-slate-800 font-bold text-xs rounded-2xl border border-slate-300 hover:border-slate-400 shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                  className="w-full py-2.5 px-3 bg-white hover:bg-slate-50 active:scale-98 text-slate-900 font-extrabold text-xs rounded-2xl border border-slate-300 shadow-2xs transition-all flex flex-col items-center justify-center cursor-pointer group"
                                 >
-                                  <Pause className="w-4 h-4 text-slate-600 shrink-0" />
-                                  <span>Pausar disponibilidade</span>
+                                  <div className="flex items-center gap-1.5 font-black text-slate-900">
+                                    <Pause className="w-4 h-4 text-amber-500 shrink-0" />
+                                    <span>Pausar disponibilidade</span>
+                                  </div>
+                                  <span className="text-[10px] text-slate-500 font-medium">Sair da fila temporariamente (abastecer / almoçar)</span>
+                                </button>
+
+                                {/* SECONDARY DESTRUCTIVE ACTION: ENCERRAR EXPEDIENTE */}
+                                <button
+                                  type="button"
+                                  onClick={handleFinishShift}
+                                  className="w-full py-2 px-3 bg-slate-900/90 hover:bg-slate-950 active:scale-98 text-rose-300 font-bold text-xs rounded-2xl border border-rose-500/40 transition-all flex flex-col items-center justify-center cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-1.5 font-extrabold">
+                                    <Power className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                    <span>Encerrar Expediente</span>
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-normal">Finalizar o dia de trabalho e ver relatório</span>
                                 </button>
                               </div>
                             )}
