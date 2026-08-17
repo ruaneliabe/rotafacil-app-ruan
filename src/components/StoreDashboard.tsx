@@ -288,6 +288,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   ];
   const completedOnboardingSteps = onboardingSteps.filter((step) => step.done).length;
   const showOnboarding = completedOnboardingSteps < onboardingSteps.length;
+  const nextOnboardingStepIndex = onboardingSteps.findIndex((step) => !step.done);
+  const isOperationEmpty = orders.length === 0 && motoboys.length === 0;
   const readyAtCounter = orders.filter((o) => o.status === 'ready_at_counter');
   const unassignedOrders = activeOrders.filter((o) => !o.assignedMotoboyId);
   const todayDateKey = (() => {
@@ -570,9 +572,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     if (index === 2) onToggleShift();
                     if (index === 3) onOpenNewOrderModal();
                   }}
-                  className={`text-left px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${step.done ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300 cursor-default' : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-white cursor-pointer'}`}
+                  className={`relative text-left px-3 py-2 rounded-xl border text-xs font-bold transition-all ${step.done ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300 cursor-default' : index === nextOnboardingStepIndex ? 'bg-blue-500/15 border-blue-400 text-white ring-2 ring-blue-500/20 shadow-md shadow-blue-950/40 cursor-pointer' : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300 cursor-pointer'}`}
                 >
+                  {index === nextOnboardingStepIndex && <span className="absolute -top-2 right-2 bg-blue-500 text-white text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full">Próximo</span>}
                   <span className="mr-1.5">{step.done ? '✓' : index + 1}</span>{step.label}
+                  {index === nextOnboardingStepIndex && <ChevronRight className="w-3.5 h-3.5 inline ml-1 text-blue-300" />}
                 </button>
               ))}
             </div>
@@ -1651,7 +1655,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 {/* Middle & Right Column: Map + Rotas Disponíveis (Dynamic Full Span when empty) */}
                 <div className={`${unassignedOrders.length > 0 ? 'lg:col-span-7' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-12 gap-3`}>
                   {/* Map Panel with Sleek Filter Controls */}
-                  <div id="dashboard-map-section" className="md:col-span-8 h-[430px] md:h-auto min-h-[380px] flex flex-col bg-slate-950/45 rounded-2xl border border-slate-800/80 p-2.5 space-y-2 shadow-sm">
+                  <div id="dashboard-map-section" className={`md:col-span-8 flex flex-col bg-slate-950/45 rounded-2xl border border-slate-800/80 p-2.5 space-y-2 shadow-sm ${isOperationEmpty ? 'min-h-[190px]' : 'h-[430px] md:h-auto min-h-[380px]'}`}>
                   {/* Clean Toolbar Header */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1 pt-0.5">
                     {/* Left: Title & GPS Sync Button */}
@@ -1781,6 +1785,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   </div>
 
                   <div className="flex-1 rounded-xl overflow-hidden border border-slate-800">
+                    {isOperationEmpty ? (
+                      <div className="h-full min-h-[125px] bg-slate-900/70 flex flex-col items-center justify-center text-center p-5">
+                        <MapPin className="w-7 h-7 text-slate-500 mb-2" />
+                        <p className="text-sm font-black text-white">O mapa será ativado durante a operação</p>
+                        <p className="text-xs text-slate-300 mt-1 max-w-sm">Cadastre um motoboy ou crie o primeiro pedido para acompanhar a operação em tempo real.</p>
+                      </div>
+                    ) : (
                     <RouteMap
                       origin={{
                         name: shift.storeName,
@@ -1824,6 +1835,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                               }))
                       }
                     />
+                    )}
                   </div>
                 </div>
 
@@ -1852,6 +1864,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     </div>
 
                     <div className="space-y-2 max-h-[455px] overflow-y-auto pr-1">
+                      {motoboys.length === 0 && (
+                        <div className="border border-dashed border-slate-700 bg-slate-900/60 rounded-xl p-4 text-center space-y-2">
+                          <Bike className="w-7 h-7 text-blue-300 mx-auto" />
+                          <p className="text-xs font-black text-white">Nenhum motoboy cadastrado</p>
+                          <p className="text-[11px] text-slate-300">Adicione a equipe para começar a despachar.</p>
+                          <button type="button" onClick={onOpenMotoboyModal} className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-black cursor-pointer">
+                            Cadastrar motoboy
+                          </button>
+                        </div>
+                      )}
                       {motoboys.map((m) => {
                         const availableMotoboys = [...motoboys]
                           .filter((x) => x.status === 'available')
