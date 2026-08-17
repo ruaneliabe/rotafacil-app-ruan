@@ -319,7 +319,7 @@ export default function App() {
       ...targetOrder,
       assignedMotoboyId: motoboyId,
       assignedMotoboyName: targetMotoboy.name,
-      status: 'ready_at_counter',
+      status: 'preparing',
       routeSequence: (targetMotoboy.activeOrdersCount || 0) + 1,
     };
 
@@ -328,12 +328,11 @@ export default function App() {
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
       activeOrdersCount: (targetMotoboy.activeOrdersCount || 0) + 1,
-      callingToCounterAt: Date.now(),
     };
     saveMotoboyToCloud(updatedMotoboy);
 
     playNewOrderSound();
-    showToast(`Pedido #${targetOrder.codeNumber} vinculado a ${targetMotoboy.name}! 📦 Pronto no balcão`);
+    showToast(`Pedido #${targetOrder.codeNumber} vinculado a ${targetMotoboy.name}! 🍳 Em preparo (Aguardando ficar pronto)`);
   };
 
   const handleAssignBatchToMotoboy = (orderIds: string[], motoboyId: string) => {
@@ -347,7 +346,7 @@ export default function App() {
           ...order,
           assignedMotoboyId: motoboyId,
           assignedMotoboyName: targetMotoboy.name,
-          status: 'ready_at_counter',
+          status: 'preparing',
           routeSequence: (targetMotoboy.activeOrdersCount || 0) + idx + 1,
         });
       }
@@ -356,12 +355,11 @@ export default function App() {
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
       activeOrdersCount: (targetMotoboy.activeOrdersCount || 0) + orderIds.length,
-      callingToCounterAt: Date.now(),
     };
     saveMotoboyToCloud(updatedMotoboy);
 
     playNewOrderSound();
-    showToast(`${orderIds.length} pedidos vinculados a ${targetMotoboy.name} e prontos no balcão! 📦`);
+    showToast(`${orderIds.length} pedidos vinculados a ${targetMotoboy.name}! 🍳 Em preparo`);
   };
 
   const handleReorderMotoboyRoute = (motoboyId: string, reorderedOrderIds: string[]) => {

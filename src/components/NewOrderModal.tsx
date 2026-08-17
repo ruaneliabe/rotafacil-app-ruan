@@ -69,6 +69,24 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const handleResetForm = () => {
+    setPastedText('');
+    setClientName('');
+    setClientPhone('');
+    setAddress('');
+    setStreet('');
+    setHouseNumber('');
+    setComplement('');
+    setNeighborhood('');
+    setSelectedItems([]);
+    setPaymentMethod('pix');
+    setChangeFor(undefined);
+    setDeliveryFee(7.0);
+    setSearchProduct('');
+    setImportSuccessMsg(null);
+    setSubmitError(null);
+  };
+
   if (!isOpen) return null;
 
   const handleParsePastedText = async () => {
@@ -340,6 +358,7 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
     setSelectedItems(itemsFound);
 
     setIsParsing(false);
+    setPastedText(''); // Clear the paste area so the next paste is clean
     setHighlightFields(true);
 
     const totalQty = itemsFound.reduce((a, b) => a + b.quantity, 0);
@@ -484,6 +503,7 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
         kitchenReadyInMin,
       });
 
+      handleResetForm();
       onClose();
     } catch (err) {
       console.error('Error submitting order:', err);
@@ -516,7 +536,10 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              handleResetForm();
+              onClose();
+            }}
             className="w-9 h-9 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center font-bold transition-all cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -601,7 +624,20 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
                   </div>
 
                   {/* Action button */}
-                  <div className="flex items-center justify-end gap-2 pt-1">
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    {pastedText ? (
+                      <button
+                        type="button"
+                        onClick={() => setPastedText('')}
+                        className="py-2 px-3 bg-slate-800 hover:bg-red-950/60 hover:border-red-500/50 text-slate-300 hover:text-red-300 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-red-400" />
+                        <span>Limpar texto</span>
+                      </button>
+                    ) : (
+                      <div />
+                    )}
+
                     <button
                       type="button"
                       onClick={handleParsePastedText}

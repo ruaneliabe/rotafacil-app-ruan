@@ -1692,7 +1692,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                         title={`Despachar imediatamente para 1º da fila: ${firstAvailable.name}`}
                                       >
                                         <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                                        <span className="truncate">Despachar 1º ({firstName})</span>
+                                        <span className="truncate">Vincular 1º ({firstName})</span>
                                       </button>
                                     );
                                   }
