@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Order, Motoboy, StoreShift, OrderStatus } from '../types';
+import { Order, Motoboy, StoreShift, OrderStatus, StoreIntegrations } from '../types';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -60,6 +60,7 @@ interface StoreDashboardProps {
   onDeleteMotoboy?: (motoboyId: string) => void;
   onDeleteAllMotoboys?: () => void;
   onAddOrder?: (newOrder: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'>) => void;
+  onSaveIntegrations?: (integrations: StoreIntegrations) => void;
 }
 
 export const StoreDashboard: React.FC<StoreDashboardProps> = ({
@@ -79,6 +80,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   onDeleteMotoboy,
   onDeleteAllMotoboys,
   onAddOrder,
+  onSaveIntegrations,
 }) => {
   const [activeTab, setActiveTab] = useState<'operacao' | 'equipe' | 'financeiro' | 'historico'>('operacao');
   const [selectedMotoboyId, setSelectedMotoboyId] = useState<string | null>(motoboys[0]?.id || null);
@@ -272,6 +274,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   // Derived metrics matching screenshot
   const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled');
+  const activeIntegrationsCount = [shift.integrations?.ifood, shift.integrations?.cardapioWeb]
+    .filter((item) => item?.enabled).length;
   const readyAtCounter = orders.filter((o) => o.status === 'ready_at_counter');
   const unassignedOrders = activeOrders.filter((o) => !o.assignedMotoboyId);
   const todayDateKey = (() => {
@@ -570,7 +574,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <span className="text-xs font-bold text-slate-400 shrink-0">Integrações externas: não configuradas</span>
+            <span className="text-xs font-bold text-slate-400 shrink-0">
+              Integrações externas: {activeIntegrationsCount === 0 ? 'nenhuma ativa' : `${activeIntegrationsCount} ${activeIntegrationsCount === 1 ? 'ativa' : 'ativas'}`}
+            </span>
             <button
               type="button"
               onClick={() => setIsSyncBannerCollapsed(true)}
@@ -2521,6 +2527,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       <IntegrationsModal
         isOpen={isIntegrationsOpen}
         onClose={() => setIsIntegrationsOpen(false)}
+        storeName={shift.storeName}
+        integrations={shift.integrations}
+        onSave={(integrations) => {
+          onSaveIntegrations?.(integrations);
+          triggerActionToast('Configurações de integração atualizadas para esta loja.');
+        }}
         onSimulateIncomingOrder={handleSimulateIncomingOrder}
       />
 
@@ -2642,3 +2654,4 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     </div>
   );
 };
+
