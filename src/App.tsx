@@ -138,8 +138,10 @@ export default function App() {
   }, []);
 
   const handleSaveStoreSettings = (updatedShift: StoreShift) => {
-    setShift(updatedShift);
-    saveShiftToCloud(updatedShift);
+    const configuredShift = { ...updatedShift, setupRequired: false, pilotMode: true, demoDataDisabled: true };
+    setShift(configuredShift);
+    saveShiftToCloud(configuredShift);
+    setIsAccountSettingsOpen(false);
     showToast(`Configurações da loja "${updatedShift.storeName}" salvas com sucesso! 🏢`);
   };
 
@@ -182,25 +184,7 @@ export default function App() {
         shiftReady = true;
         markCloudReady();
         if (cloudShift) {
-        // If stored shift has old default coords (e.g. Rua João Pessoa or old -26.9228), update to exact Rua dos Caçadores 653 (-26.92485, -49.09880)
-        if (
-          cloudShift.storeLat === -26.9153287 ||
-          cloudShift.storeLat === -26.9228 ||
-          cloudShift.storeLat === -26.92485 ||
-          !cloudShift.storeLat ||
-          (cloudShift.storeAddress && cloudShift.storeAddress.toLowerCase().includes('caçadores') && cloudShift.storeLat !== -26.91530418395996)
-        ) {
-          const updatedShift = {
-            ...cloudShift,
-            storeLat: -26.91530418395996,
-            storeLng: -49.1146354675293,
-            storeAddress: cloudShift.storeAddress || 'Rua dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
-          };
-          setShift(updatedShift);
-          saveShiftToCloud(updatedShift);
-        } else {
           setShift(cloudShift);
-        }
         }
       });
     };
@@ -655,6 +639,7 @@ export default function App() {
       showToast(`Bem-vindo, entregador ${userSession.motoboyName}! 🛵`);
     } else {
       setActiveViewMode('store');
+      if (shift.setupRequired) setIsAccountSettingsOpen(true);
       showToast(`Bem-vindo ao Painel Rota Fácil! 🛵`);
     }
   };
@@ -874,12 +859,13 @@ export default function App() {
       />
 
       <StoreAccountSettingsModal
-        isOpen={isAccountSettingsOpen}
-        onClose={() => setIsAccountSettingsOpen(false)}
+        isOpen={isAccountSettingsOpen || Boolean(shift.setupRequired && session.role === 'store_admin')}
+        onClose={() => { if (!shift.setupRequired) setIsAccountSettingsOpen(false); }}
         shift={shift}
         onSaveSettings={handleSaveStoreSettings}
-        onClearAllData={handleClearAllData}
-        onActivateRealPilot={handleActivateRealPilot}
+        onClearAllData={shift.setupRequired ? undefined : handleClearAllData}
+        onActivateRealPilot={shift.setupRequired ? undefined : handleActivateRealPilot}
+        firstSetup={Boolean(shift.setupRequired)}
       />
     </div>
   );

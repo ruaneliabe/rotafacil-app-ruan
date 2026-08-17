@@ -34,14 +34,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const handleStoreLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    const expectedPassword = shift?.adminPassword || 'hope2026';
+    const expectedPassword = shift?.adminPassword || 'admin123';
     const isUserValid = storeUser.trim().toLowerCase() === 'admin';
     const isPassValid = storePass === expectedPassword;
 
     if (isUserValid && isPassValid) {
       onLoginSuccess({
         role: 'store_admin',
-        storeName: shift?.storeName || 'Hope Burger',
+        storeName: shift?.storeName || 'Configure sua loja',
         username: storeUser,
       });
       if (onClose) onClose();
@@ -91,11 +91,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         <div className="text-center space-y-1.5">
           <div className="w-14 h-14 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-3xl font-black mx-auto shadow-md">🛵</div>
           <div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">{shift?.storeName || 'Hope Burger'}</h2>
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">{shift?.storeName || 'Configure sua loja'}</h2>
             <p className="text-xs font-extrabold text-slate-600 tracking-wide uppercase">Sistema de Entregas & Balcão</p>
           </div>
           <p className="text-xs text-slate-500 font-medium pt-1">Tudo o que sua operação precisa em um único sistema.</p>
         </div>
+
+        {shift?.setupRequired && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+            <p className="font-black">Primeiro acesso da empresa</p>
+            <p className="mt-1">Entre como <strong>admin</strong> usando a senha temporária <strong>admin123</strong>. O cadastro completo e a troca de senha serão obrigatórios.</p>
+          </div>
+        )}
 
         <div className="bg-slate-100 p-1 rounded-xl border border-slate-200 flex text-xs font-semibold">
           <button type="button" onClick={() => { setActiveRole('store_admin'); setErrorMsg(null); setStoreUser(''); setStorePass(''); }} className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${activeRole === 'store_admin' ? 'bg-slate-900 text-white shadow-xs font-bold' : 'text-slate-600 hover:text-slate-900'}`}>

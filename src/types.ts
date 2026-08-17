@@ -111,6 +111,8 @@ export interface StoreShift {
   pilotMode?: boolean;
   pilotActivatedAt?: number;
   demoDataDisabled?: boolean;
+  setupRequired?: boolean;
+  installationVersion?: string;
 }
 
 export interface OperationalMetrics {

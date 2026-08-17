@@ -1,15 +1,18 @@
 import { Order, Motoboy, StoreShift } from '../types';
 
 export const INITIAL_STORE_SHIFT: StoreShift = {
-  isOpen: true,
-  openedAt: '18:00',
+  isOpen: false,
+  openedAt: '',
   initialCash: 0,
-  storeName: 'Hope Burger',
-  storePhone: '(47) 99153-9855',
-  storeAddress: 'Rua dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
-  storeLat: -26.91530418395996,
-  storeLng: -49.1146354675293,
-  adminPassword: 'hope2026',
+  storeName: 'Configure sua loja',
+  storePhone: '',
+  storeAddress: '',
+  storeLat: -26.9194,
+  storeLng: -49.0661,
+  adminPassword: 'admin123',
+  setupRequired: true,
+  pilotMode: true,
+  demoDataDisabled: true,
   integrations: {
     ifood: { enabled: false, accountId: '', webhookUrl: '' },
     cardapioWeb: { enabled: false, accountId: '', webhookUrl: '' },

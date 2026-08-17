@@ -25,6 +25,7 @@ interface StoreAccountSettingsModalProps {
   onSaveSettings: (updatedShift: StoreShift) => void;
   onClearAllData?: () => void;
   onActivateRealPilot?: () => void;
+  firstSetup?: boolean;
 }
 
 const StoreLocationPickerMap: React.FC<{
@@ -170,13 +171,14 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   onSaveSettings,
   onClearAllData,
   onActivateRealPilot,
+  firstSetup = false,
 }) => {
   const [storeName, setStoreName] = useState(shift.storeName || '');
   const [storePhone, setStorePhone] = useState(shift.storePhone || '');
   const [storeAddress, setStoreAddress] = useState(shift.storeAddress || '');
   const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.91530418395996);
   const [storeLng, setStoreLng] = useState<number>(shift.storeLng || -49.1146354675293);
-  const [adminPassword, setAdminPassword] = useState(shift.adminPassword || 'hope2026');
+  const [adminPassword, setAdminPassword] = useState(shift.adminPassword || 'admin123');
 
   const [showPassword, setShowPassword] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -190,7 +192,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       setStoreAddress(shift.storeAddress || '');
       setStoreLat(shift.storeLat || -26.91530418395996);
       setStoreLng(shift.storeLng || -49.1146354675293);
-      setAdminPassword(shift.adminPassword || 'hope2026');
+      setAdminPassword(shift.adminPassword || 'admin123');
       setIsSaved(false);
       setGeocodeSuccess(false);
     }
@@ -218,7 +220,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!storeName.trim()) return;
+    if (!storeName.trim() || !storePhone.trim() || !storeAddress.trim()) return;
+    if (firstSetup && (adminPassword.trim().length < 6 || adminPassword.trim() === 'admin123')) return;
 
     let finalLat = Number(storeLat) || -26.91530418395996;
     let finalLng = Number(storeLng) || -49.1082;
@@ -245,7 +248,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       storeAddress: storeAddress.trim(),
       storeLat: finalLat,
       storeLng: finalLng,
-      adminPassword: adminPassword.trim() || shift.adminPassword || 'hope2026',
+      adminPassword: adminPassword.trim() || shift.adminPassword || 'admin123',
+      setupRequired: false,
     };
 
     onSaveSettings(updated);
@@ -268,20 +272,20 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
             </div>
             <div>
               <h3 className="font-extrabold text-white text-base tracking-tight flex items-center gap-2">
-                Configurações da Conta & Loja
+                {firstSetup ? 'Primeiro acesso: configure a loja' : 'Configurações da Conta & Loja'}
               </h3>
               <p className="text-xs text-slate-400">
-                Personalize os dados da sua empresa, endereço e senha
+                {firstSetup ? 'Preencha os dados obrigatórios antes de iniciar a operação' : 'Personalize os dados da sua empresa, endereço e senha'}
               </p>
             </div>
           </div>
-          <button
+          {!firstSetup && <button
             type="button"
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
           >
             <X className="w-5 h-5" />
-          </button>
+          </button>}
         </div>
 
         {/* Form Body */}
@@ -325,6 +329,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
               <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
+                required
                 value={storePhone}
                 onChange={(e) => setStorePhone(e.target.value)}
                 placeholder="Ex: (47) 99887-6655"
@@ -434,7 +439,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
               </button>
             </div>
             <p className="text-[11px] text-slate-400">
-              Esta senha será exigida no login do perfil Loja (Admin).
+              {firstSetup ? 'Crie uma nova senha com pelo menos 6 caracteres. A senha temporária não pode continuar.' : 'Esta senha será exigida no login do perfil Loja (Admin).'}
             </p>
           </div>
 
@@ -474,19 +479,19 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
 
           {/* Footer Actions */}
           <div className="pt-4 border-t border-slate-700 flex items-center justify-end gap-3">
-            <button
+            {!firstSetup && <button
               type="button"
               onClick={onClose}
               className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
             >
               Cancelar
-            </button>
+            </button>}
             <button
               type="submit"
               className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-xl transition-all shadow-2xs flex items-center gap-2 cursor-pointer"
             >
               <Save className="w-4 h-4" />
-              Salvar Alterações
+              {firstSetup ? 'Concluir cadastro da loja' : 'Salvar Alterações'}
             </button>
           </div>
 

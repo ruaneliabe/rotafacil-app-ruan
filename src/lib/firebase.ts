@@ -29,6 +29,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 const localDateKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const STORE_PILOT_RESET_VERSION = 'hope_store_pilot_2026_08_17_v5';
+const FRESH_INSTALL_VERSION = 'fresh_company_setup_2026_08_17_v1';
 
 function forceMotoboyLogout() {
   if (typeof window === 'undefined') return;
@@ -241,9 +242,23 @@ export async function activateRealPilotMode() {
 export async function seedInitialDataIfEmpty() {
   try {
     const ref = doc(db, 'shifts', 'current_shift');
-    if (!(await getDoc(ref)).exists()) {
-      await setDoc(ref, { ...INITIAL_STORE_SHIFT, isOpen: false, openedAt: '', demoDataDisabled: true });
+    const snapshot = await getDoc(ref);
+    const current = snapshot.exists() ? (snapshot.data() as StoreShift) : null;
+    if (current?.installationVersion === FRESH_INSTALL_VERSION) return;
+    if (current?.installationVersion === `${FRESH_INSTALL_VERSION}:resetting`) {
+      await wait(1200);
+      return;
     }
+
+    await setDoc(ref, { installationVersion: `${FRESH_INSTALL_VERSION}:resetting`, isOpen: false }, { merge: true });
+    await clearAllDatabaseData();
+    await setDoc(ref, {
+      ...INITIAL_STORE_SHIFT,
+      installationVersion: FRESH_INSTALL_VERSION,
+      operationalResetVersion: STORE_PILOT_RESET_VERSION,
+      operationalResetAt: Date.now(),
+      pilotActivatedAt: Date.now(),
+    });
   } catch (err) {
     console.error('INICIALIZAÇÃO DO PILOTO FALHOU:', err);
     throw err;
