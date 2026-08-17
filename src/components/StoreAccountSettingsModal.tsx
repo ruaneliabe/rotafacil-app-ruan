@@ -23,7 +23,6 @@ interface StoreAccountSettingsModalProps {
   onClose: () => void;
   shift: StoreShift;
   onSaveSettings: (updatedShift: StoreShift) => void;
-  onClearAllData?: () => void;
   onActivateRealPilot?: () => void;
   firstSetup?: boolean;
 }
@@ -169,7 +168,6 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   onClose,
   shift,
   onSaveSettings,
-  onClearAllData,
   onActivateRealPilot,
   firstSetup = false,
 }) => {
@@ -484,24 +482,6 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
           {formError && (
             <div role="alert" className="bg-rose-500/15 border border-rose-500/40 text-rose-200 p-3.5 rounded-2xl text-xs font-bold">
               ⚠️ {formError}
-            </div>
-          )}
-
-          {onClearAllData && (
-            <div className="pt-3 border-t border-slate-700">
-              <div className="bg-rose-950/40 border border-rose-800/60 p-3.5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div>
-                  <span className="font-extrabold text-xs text-rose-300 block">🧹 Zerar Todo o Banco de Dados</span>
-                  <span className="text-[11px] text-slate-400">Apaga todos os pedidos e motoboys salvos para começar do zero.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={onClearAllData}
-                  className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs rounded-xl shadow-2xs transition-all shrink-0 cursor-pointer"
-                >
-                  Limpar Dados (Reset 100%)
-                </button>
-              </div>
             </div>
           )}
 

@@ -239,12 +239,38 @@ export async function activateRealPilotMode() {
   return pilotShift;
 }
 
+async function removeSyntheticScaleData() {
+  const [ordersSnapshot, motoboysSnapshot] = await Promise.all([
+    getDocs(collection(db, 'orders')),
+    getDocs(collection(db, 'motoboys')),
+  ]);
+  const syntheticDocs = [
+    ...ordersSnapshot.docs.filter((item) => item.id.startsWith('scale-order-') || String(item.data().trackingCode || '').startsWith('ESCALA-')),
+    ...motoboysSnapshot.docs.filter((item) => item.id.startsWith('scale-driver-') || String(item.data().plate || '').startsWith('TST-')),
+  ];
+  if (syntheticDocs.length === 0) return;
+  await Promise.all(syntheticDocs.map((item) => deleteDoc(item.ref)));
+  await wait(300);
+  const [ordersAfter, motoboysAfter] = await Promise.all([
+    getDocs(collection(db, 'orders')),
+    getDocs(collection(db, 'motoboys')),
+  ]);
+  const leftovers = [
+    ...ordersAfter.docs.filter((item) => item.id.startsWith('scale-order-') || String(item.data().trackingCode || '').startsWith('ESCALA-')),
+    ...motoboysAfter.docs.filter((item) => item.id.startsWith('scale-driver-') || String(item.data().plate || '').startsWith('TST-')),
+  ];
+  if (leftovers.length > 0) throw new Error(`SYNTHETIC_CLEANUP_FAILED: ${leftovers.length} registros restantes.`);
+}
+
 export async function seedInitialDataIfEmpty() {
   try {
     const ref = doc(db, 'shifts', 'current_shift');
     const snapshot = await getDoc(ref);
     const current = snapshot.exists() ? (snapshot.data() as StoreShift) : null;
-    if (current?.installationVersion === FRESH_INSTALL_VERSION) return;
+    if (current?.installationVersion === FRESH_INSTALL_VERSION) {
+      await removeSyntheticScaleData();
+      return;
+    }
     if (current?.installationVersion === `${FRESH_INSTALL_VERSION}:resetting`) {
       await wait(1200);
       return;
@@ -252,6 +278,7 @@ export async function seedInitialDataIfEmpty() {
 
     await setDoc(ref, { installationVersion: `${FRESH_INSTALL_VERSION}:resetting`, isOpen: false }, { merge: true });
     await clearAllDatabaseData();
+    await removeSyntheticScaleData();
     await setDoc(ref, {
       ...INITIAL_STORE_SHIFT,
       installationVersion: FRESH_INSTALL_VERSION,

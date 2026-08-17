@@ -22,7 +22,6 @@ import {
   deleteMotoboyFromCloud,
   deleteAllMotoboysFromCloud,
   deleteAllOrdersFromCloud,
-  clearAllDatabaseData,
   activateRealPilotMode,
   saveShiftToCloud,
   seedInitialDataIfEmpty,
@@ -406,21 +405,6 @@ export default function App() {
       showToast(`Motoboy ${targetMotoboy.name} saiu da fila de espera e pausou atendimento. ⏸️`);
     } else if (status === 'available') {
       showToast(`Motoboy ${targetMotoboy.name} entrou na fila de rodízio da loja! 🏁🛵`);
-    }
-  };
-
-  const handleClearAllData = async () => {
-    if (
-      window.confirm(
-        '⚠️ Tem certeza que deseja APAGAR TODOS OS DADOS (pedidos e motoboys)? O sistema será zerado para você começar do zero.'
-      )
-    ) {
-      await clearAllDatabaseData();
-      setOrders([]);
-      setMotoboys([]);
-      localStorage.removeItem('rota_facil_orders');
-      localStorage.removeItem('rota_facil_motoboys');
-      showToast('🧹 Todos os dados foram apagados! Banco zerado para você começar do zero. 🚀', 5000);
     }
   };
 
@@ -863,10 +847,10 @@ export default function App() {
         onClose={() => { if (!shift.setupRequired) setIsAccountSettingsOpen(false); }}
         shift={shift}
         onSaveSettings={handleSaveStoreSettings}
-        onClearAllData={shift.setupRequired ? undefined : handleClearAllData}
         onActivateRealPilot={shift.setupRequired ? undefined : handleActivateRealPilot}
         firstSetup={Boolean(shift.setupRequired)}
       />
     </div>
   );
 }
+
