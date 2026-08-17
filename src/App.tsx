@@ -266,6 +266,20 @@ export default function App() {
 
     saveOrderToCloud(updatedOrder);
 
+    // If dispatched and has motoboy, make sure motoboy is in delivering status
+    if (newStatus === 'dispatched' && target.assignedMotoboyId) {
+      const driver = motoboys.find((m) => m.id === target.assignedMotoboyId);
+      if (driver && driver.status !== 'delivering') {
+        saveMotoboyToCloud({
+          ...driver,
+          status: 'delivering',
+          activeOrdersCount: (driver.activeOrdersCount || 0) + 1,
+          joinedQueueAt: undefined,
+          callingToCounterAt: undefined,
+        });
+      }
+    }
+
     // If order was delivered or cancelled, check motoboy status
     if (newStatus === 'delivered' || newStatus === 'cancelled') {
       const driverId = target.assignedMotoboyId;
@@ -304,8 +318,8 @@ export default function App() {
     const updatedOrder: Order = {
       ...targetOrder,
       assignedMotoboyId: motoboyId,
-      status: 'dispatched',
-      dispatchedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      assignedMotoboyName: targetMotoboy.name,
+      status: 'ready_at_counter',
       routeSequence: (targetMotoboy.activeOrdersCount || 0) + 1,
     };
 
@@ -313,22 +327,18 @@ export default function App() {
 
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
-      status: 'delivering',
       activeOrdersCount: (targetMotoboy.activeOrdersCount || 0) + 1,
-      joinedQueueAt: undefined,
-      callingToCounterAt: undefined,
+      callingToCounterAt: Date.now(),
     };
     saveMotoboyToCloud(updatedMotoboy);
 
-    playDispatchSound();
-    showToast(`Pedido #${targetOrder.codeNumber} despachado com ${targetMotoboy.name}! 🚀`);
+    playNewOrderSound();
+    showToast(`Pedido #${targetOrder.codeNumber} vinculado a ${targetMotoboy.name}! 📦 Pronto no balcão`);
   };
 
   const handleAssignBatchToMotoboy = (orderIds: string[], motoboyId: string) => {
     const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
     if (!targetMotoboy || orderIds.length === 0) return;
-
-    const dispatchTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
     orderIds.forEach((id, idx) => {
       const order = orders.find((o) => o.id === id);
@@ -336,8 +346,8 @@ export default function App() {
         saveOrderToCloud({
           ...order,
           assignedMotoboyId: motoboyId,
-          status: 'dispatched',
-          dispatchedAt: dispatchTime,
+          assignedMotoboyName: targetMotoboy.name,
+          status: 'ready_at_counter',
           routeSequence: (targetMotoboy.activeOrdersCount || 0) + idx + 1,
         });
       }
@@ -345,15 +355,13 @@ export default function App() {
 
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
-      status: 'delivering',
       activeOrdersCount: (targetMotoboy.activeOrdersCount || 0) + orderIds.length,
-      joinedQueueAt: undefined,
-      callingToCounterAt: undefined,
+      callingToCounterAt: Date.now(),
     };
     saveMotoboyToCloud(updatedMotoboy);
 
-    playDispatchSound();
-    showToast(`Rota otimizada com ${orderIds.length} pedidos despachada para ${targetMotoboy.name}! 🚀`);
+    playNewOrderSound();
+    showToast(`${orderIds.length} pedidos vinculados a ${targetMotoboy.name} e prontos no balcão! 📦`);
   };
 
   const handleReorderMotoboyRoute = (motoboyId: string, reorderedOrderIds: string[]) => {

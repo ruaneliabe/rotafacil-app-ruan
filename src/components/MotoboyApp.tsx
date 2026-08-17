@@ -415,8 +415,33 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                       {isFirstOrder && isInTransit && !hasArrived && <button onClick={() => { setArrivedOrderIds((prev) => ({ ...prev, [order.id]: true })); onSimulateArrival(order); }} className="w-full py-4 bg-slate-900 text-white font-black text-base rounded-2xl border border-slate-700 flex items-center justify-center gap-2"><MapPin className="w-5 h-5 text-emerald-400" /> Cheguei ao local</button>}
                       {isFirstOrder && isInTransit && hasArrived && <button onClick={() => { onUpdateOrderStatus(order.id, 'delivered'); setArrivedOrderIds((prev) => { const next = { ...prev }; delete next[order.id]; return next; }); setManualExpandedId(null); }} className="w-full py-4 bg-emerald-600 text-white font-black text-base rounded-2xl flex items-center justify-center gap-2"><CheckCircle2 className="w-5 h-5" /> Concluir entrega #{order.codeNumber}</button>}
-                      {order.status === 'ready_at_counter' && <button onClick={() => onUpdateOrderStatus(order.id, 'picked_up')} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl">Confirmar retirada</button>}
-                      {order.status === 'picked_up' && isFirstOrder && <button onClick={() => { onUpdateOrderStatus(order.id, 'in_transit'); onUpdateMotoboyStatus?.(activeMotoboy.id, 'delivering'); }} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl">Iniciar rota</button>}
+                      {order.status === 'ready_at_counter' && (
+                        <button
+                          type="button"
+                          onClick={() => onUpdateOrderStatus(order.id, 'picked_up')}
+                          className="w-full py-4 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-base rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all"
+                        >
+                          <span>🎒</span>
+                          <span>Confirmar Retirada #{order.codeNumber}</span>
+                        </button>
+                      )}
+                      {order.status === 'picked_up' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            assignedOrders.forEach((o) => {
+                              if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
+                                onUpdateOrderStatus(o.id, 'in_transit');
+                              }
+                            });
+                            onUpdateMotoboyStatus?.(activeMotoboy.id, 'delivering');
+                          }}
+                          className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-base rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all"
+                        >
+                          <span>🚀</span>
+                          <span>Iniciar Rota de Entrega</span>
+                        </button>
+                      )}
 
                       <button onClick={() => setExpandedExtraOrderIds((prev) => ({ ...prev, [order.id]: !prev[order.id] }))} className="w-full py-2.5 bg-slate-100 border border-slate-300 rounded-xl text-slate-700 font-black text-xs">{expandedExtraOrderIds[order.id] ? 'Ocultar detalhes' : 'Ver detalhes (Itens, Rastreio, Maps)'}</button>
                       {expandedExtraOrderIds[order.id] && <div className="bg-slate-900 text-white rounded-2xl p-3.5 space-y-3 text-xs"><strong className="text-amber-300">👤 {order.clientName}</strong>{order.items?.length ? <div className="bg-slate-950 rounded-xl p-2 space-y-1">{order.items.map((item, i) => <div key={i} className="flex justify-between"><span>{item.quantity}x {item.name}</span><span>{formattedCurrency(item.price * item.quantity)}</span></div>)}</div> : null}{order.notes && <div className="bg-amber-950 border border-amber-600/40 rounded-xl p-2.5 text-amber-200">📝 {order.notes}</div>}<div className="grid grid-cols-2 gap-2"><button onClick={() => handleOpenGoogleMaps(order.address, order.lat, order.lng)} className="py-2 bg-slate-800 rounded-lg font-black">Google Maps</button><button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/?rastreio=${order.trackingCode || order.id}`)} className="py-2 bg-slate-800 rounded-lg font-black text-amber-300 flex justify-center gap-1"><Copy className="w-3.5 h-3.5" /> Rastreio</button></div></div>}
