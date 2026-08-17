@@ -28,8 +28,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 const localDateKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const STORE_PILOT_RESET_VERSION = 'hope_store_pilot_2026_08_17_v6';
-const FRESH_INSTALL_VERSION = 'fresh_company_setup_2026_08_17_v2';
+const STORE_PILOT_RESET_VERSION = 'zeroed_store_pilot_2026_08_17_v10';
+const FRESH_INSTALL_VERSION = 'zeroed_company_setup_2026_08_17_v10';
 
 function forceMotoboyLogout() {
   if (typeof window === 'undefined') return;
