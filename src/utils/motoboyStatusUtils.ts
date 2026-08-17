@@ -21,6 +21,12 @@ export const MOTOBOY_STATUS_PRESENTATION: Record<Motoboy['status'], MotoboyStatu
     badgeClass: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
   },
   busy: {
+    label: 'Ocupado',
+    dotClass: 'bg-amber-400',
+    textClass: 'text-amber-300',
+    badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  },
+  paused: {
     label: 'Pausado',
     dotClass: 'bg-amber-400',
     textClass: 'text-amber-300',

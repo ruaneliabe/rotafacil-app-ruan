@@ -362,7 +362,54 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
 
                       {isKitchenWaiting && <div className="bg-amber-50 border border-amber-200 rounded-2xl px-3.5 py-3 flex items-center justify-between gap-3"><div><strong className="text-amber-900 text-sm block">🍳 Aguardando cozinha</strong><span className="text-[11px] text-amber-700 font-semibold">Você já está vinculado a este pedido. Aguarde a loja avisar quando estiver pronto.</span></div><Clock className="w-5 h-5 text-amber-600 shrink-0" /></div>}
 
-                      {(order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web') ? <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center justify-between"><span className="text-slate-700 font-black text-sm">✓ Pago • Não cobrar</span><span className="bg-amber-50 border border-amber-200 text-amber-900 px-2.5 py-1 rounded-xl font-black text-xs">Ganho: + {formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}</span></div> : <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-slate-800 flex justify-between"><span className="font-black flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-rose-500" /> Cobrar no local</span><strong>{formattedCurrency(order.total)}</strong></div>}
+                      {(order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web') ? (
+                        <div className="bg-emerald-950/90 border border-emerald-500/50 p-3 rounded-2xl flex items-center justify-between text-emerald-100 shadow-xs">
+                          <span className="text-emerald-300 font-black text-xs sm:text-sm flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                            ✓ Pago via {order.paymentMethod === 'pix' ? 'PIX' : order.originChannel === 'ifood' ? 'iFood' : 'Online'} • Não cobrar
+                          </span>
+                          <span className="bg-slate-900 border border-slate-800 text-amber-300 px-2.5 py-1 rounded-xl font-black text-xs shrink-0">
+                            Ganho: + {formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="bg-amber-950 border-2 border-amber-500 p-3 rounded-2xl text-white space-y-2 shadow-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-black">
+                                {order.paymentMethod === 'dinheiro' ? <DollarSign className="w-5 h-5 stroke-[2.5]" /> : <CreditCard className="w-5 h-5 stroke-[2.5]" />}
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider block">
+                                  🚨 COBRAR NO LOCAL ({order.paymentMethod === 'dinheiro' ? 'DINHEIRO' : 'MAQUININHA'})
+                                </span>
+                                <span className="font-bold text-xs text-amber-100 block">
+                                  {order.paymentMethod === 'dinheiro' ? '💵 Receber em dinheiro' : '💳 Passar cartão na maquininha'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0 bg-slate-950 px-2.5 py-1 rounded-xl border border-amber-500/40">
+                              <span className="text-[9px] font-black text-amber-300 uppercase block">Cobrar</span>
+                              <span className="font-black text-xl text-amber-400 leading-tight block">{formattedCurrency(order.total)}</span>
+                            </div>
+                          </div>
+
+                          <div className="pt-1.5 border-t border-amber-800/60 flex items-center justify-between text-xs gap-2 flex-wrap">
+                            {order.paymentMethod === 'dinheiro' && order.changeFor && order.changeFor > order.total ? (
+                              <span className="bg-amber-900/80 text-amber-100 px-2 py-0.5 rounded-lg border border-amber-700 font-bold text-[11px]">
+                                ⚠️ Troco p/ <strong>{formattedCurrency(order.changeFor)}</strong> (Devolver <strong>{formattedCurrency(order.changeFor - order.total)}</strong>)
+                              </span>
+                            ) : (
+                              <span className="text-amber-200 text-[11px] font-semibold">
+                                {order.paymentMethod === 'dinheiro' ? '✓ Valor exato (sem troco)' : '✓ Levar maquininha de cartão'}
+                              </span>
+                            )}
+                            <span className="text-[11px] font-black text-emerald-400 bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800 shrink-0">
+                              Sua taxa: +{formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       {(isInTransit || order.status === 'picked_up') && <div className="grid grid-cols-2 gap-2"><button onClick={() => handleOpenWaze(order.address, order.lat, order.lng)} className="py-3.5 bg-sky-600 text-white rounded-2xl font-black flex items-center justify-center gap-2"><Navigation className="w-5 h-5" /> Navegar</button>{order.clientPhone ? <a href={`tel:${order.clientPhone.replace(/\D/g, '')}`} className="py-3.5 bg-slate-800 text-white rounded-2xl font-black flex items-center justify-center gap-2"><Phone className="w-5 h-5 text-slate-300" /> Ligar</a> : <div className="py-3.5 bg-slate-200 rounded-2xl text-center text-slate-500 font-black">Sem telefone</div>}</div>}
 

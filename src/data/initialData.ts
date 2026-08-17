@@ -1,15 +1,22 @@
 import { Order, Motoboy, StoreShift } from '../types';
 
 export const INITIAL_STORE_SHIFT: StoreShift = {
+  id: 'current_shift',
   isOpen: false,
   openedAt: '',
   initialCash: 0,
+  currentCash: 0,
+  totalOrdersCount: 0,
+  totalDeliveriesValue: 0,
   storeName: 'Configure sua loja',
   storePhone: '',
   storeAddress: '',
   storeLat: -26.9194,
   storeLng: -49.0661,
-  adminPassword: 'admin123',
+  storeUsername: '',
+  adminPassword: '',
+  masterUsername: 'ruan',
+  masterPassword: 'ruan123',
   setupRequired: true,
   pilotMode: true,
   demoDataDisabled: true,

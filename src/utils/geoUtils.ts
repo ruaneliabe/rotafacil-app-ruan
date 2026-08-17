@@ -277,14 +277,15 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
 
   // 2. Try OpenStreetMap Nominatim with normalized query variations
   const searchQueries = [
-    `street=${encodeURIComponent(normalized.split(',')[0])}&city=Blumenau&state=SC&country=Brasil`,
+    `${normalized}, Brasil`,
+    `street=${encodeURIComponent(normalized.split(',')[0])}&country=Brasil`,
     `${normalized}, Blumenau, SC, Brasil`,
   ];
 
   for (const sq of searchQueries) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
 
       const url = sq.startsWith('street=')
         ? `https://nominatim.openstreetmap.org/search?format=json&${sq}&limit=1`
@@ -303,10 +304,8 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
           const lat = parseFloat(item.lat);
           const lng = parseFloat(item.lon);
           
-          // Only accept if it's not a generic neighborhood administrative boundary (like "Velha") when searching a specific street
-          const isGenericBoundary = (item.class === 'boundary' || item.type === 'administrative') && (normalized.includes('rua') || normalized.includes('r.') || normalized.match(/\d+/));
-
-          if (!isGenericBoundary && lat < -26.7 && lat > -27.2 && lng < -48.8 && lng > -49.3) {
+          // Verify valid Brazilian bounding coordinates
+          if (!isNaN(lat) && !isNaN(lng) && lat >= -34.0 && lat <= 5.5 && lng >= -74.0 && lng <= -34.0) {
             return {
               address: rawCleaned,
               lat,
@@ -318,6 +317,38 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
       }
     } catch (err) {
       console.warn('Nominatim geocode attempt failed:', err);
+    }
+  }
+
+  // Fallback: if query contains street and number, try searching just the street + city/state
+  const streetOnly = normalized.split(',')[0].replace(/\d+/g, '').trim();
+  if (streetOnly && streetOnly.length > 4) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(streetOnly + ', Brasil')}&limit=1`, {
+        headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          const item = data[0];
+          const lat = parseFloat(item.lat);
+          const lng = parseFloat(item.lon);
+          if (!isNaN(lat) && !isNaN(lng) && lat >= -34.0 && lat <= 5.5 && lng >= -74.0 && lng <= -34.0) {
+            return {
+              address: rawCleaned,
+              lat,
+              lng,
+              name: item.display_name ? item.display_name.split(',')[0] : rawCleaned,
+            };
+          }
+        }
+      }
+    } catch {
+      // ignore
     }
   }
 

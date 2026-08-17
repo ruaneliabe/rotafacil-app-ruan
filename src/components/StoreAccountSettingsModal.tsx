@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Sparkles,
   Search,
+  User,
 } from 'lucide-react';
 
 interface StoreAccountSettingsModalProps {
@@ -102,32 +103,28 @@ const StoreLocationPickerMap: React.FC<{
       if (markerRef.current) {
         markerRef.current.setLatLng([validLat, validLng]);
       }
-      setTimeout(() => {
-        mapRef.current?.invalidateSize();
-      }, 100);
     }
-  }, [lat, lng]);
+  }, [lat, lng, onChangeCoords]);
 
   const handleUseCurrentGps = () => {
-    if (!navigator.geolocation) return;
+    if (!('geolocation' in navigator)) return;
     setIsGettingGps(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const userLat = Number(pos.coords.latitude.toFixed(6));
-        const userLng = Number(pos.coords.longitude.toFixed(6));
-        onChangeCoords(userLat, userLng);
         setIsGettingGps(false);
+        const { latitude, longitude } = pos.coords;
+        onChangeCoords(latitude, longitude);
+        if (mapRef.current && markerRef.current) {
+          mapRef.current.setView([latitude, longitude], 17);
+          markerRef.current.setLatLng([latitude, longitude]);
+        }
       },
       (err) => {
-        console.warn('Geolocation failed:', err);
         setIsGettingGps(false);
+        console.warn('GPS store location error:', err);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 8000 }
     );
-  };
-
-  const handleUseCacadoresPreset = () => {
-    onChangeCoords(-26.91530418395996, -49.1146354675293);
   };
 
   return (
@@ -137,13 +134,6 @@ const StoreLocationPickerMap: React.FC<{
           <MapPin className="w-3.5 h-3.5" /> Pino da Loja no Mapa (Clique ou Arraste)
         </span>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={handleUseCacadoresPreset}
-            className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[10px] font-bold rounded border border-slate-700 transition-all cursor-pointer"
-          >
-            🎯 R. dos Caçadores, 653
-          </button>
           <button
             type="button"
             onClick={handleUseCurrentGps}
@@ -177,7 +167,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   const [storeAddress, setStoreAddress] = useState(shift.storeAddress || '');
   const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.91530418395996);
   const [storeLng, setStoreLng] = useState<number>(shift.storeLng || -49.1146354675293);
-  const [adminPassword, setAdminPassword] = useState(shift.adminPassword || 'admin123');
+  const [storeUsername, setStoreUsername] = useState(shift.storeUsername || '');
+  const [adminPassword, setAdminPassword] = useState(shift.adminPassword || '');
 
   const [showPassword, setShowPassword] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -192,7 +183,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       setStoreAddress(shift.storeAddress || '');
       setStoreLat(shift.storeLat || -26.91530418395996);
       setStoreLng(shift.storeLng || -49.1146354675293);
-      setAdminPassword(shift.adminPassword || 'admin123');
+      setStoreUsername(shift.storeUsername || '');
+      setAdminPassword(shift.adminPassword || '');
       setIsSaved(false);
       setGeocodeSuccess(false);
       setFormError('');
@@ -234,19 +226,14 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       setFormError('Informe o endereço completo da loja.');
       return;
     }
-    if (firstSetup && adminPassword.trim() === 'admin123') {
-      setFormError('Troque a senha temporária admin123 por uma senha nova.');
-      return;
-    }
-    if (adminPassword.trim().length < 6) {
-      setFormError('A nova senha precisa ter pelo menos 6 caracteres.');
+    if (adminPassword.trim() && adminPassword.trim().length < 4) {
+      setFormError('A senha precisa ter pelo menos 4 caracteres.');
       return;
     }
 
     let finalLat = Number(storeLat) || -26.91530418395996;
     let finalLng = Number(storeLng) || -49.1082;
 
-    // If storeAddress was provided and coordinates haven't been geocoded yet, try geocoding
     if (storeAddress.trim() && (!storeLat || storeLat === -26.9388)) {
       try {
         const geoRes = await geocodeAddress(storeAddress);
@@ -268,7 +255,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       storeAddress: storeAddress.trim(),
       storeLat: finalLat,
       storeLng: finalLng,
-      adminPassword: adminPassword.trim() || shift.adminPassword || 'admin123',
+      storeUsername: storeUsername.trim().toLowerCase().replace(/\s+/g, '') || shift.storeUsername || '',
+      adminPassword: adminPassword.trim() || shift.adminPassword || '',
       setupRequired: false,
     };
 
@@ -281,31 +269,33 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-slate-800 text-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-700 overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto selection:bg-emerald-600 selection:text-white">
+      <div className="bg-slate-900 text-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-800 overflow-hidden my-8">
         
         {/* Header */}
-        <div className="p-5 bg-slate-900 border-b border-slate-700 flex items-center justify-between">
+        <div className="p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-slate-800 text-white border border-slate-700 flex items-center justify-center font-bold shadow-2xs">
-              <Building2 className="w-5 h-5 text-emerald-400" />
+            <div className="w-10 h-10 rounded-2xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold shadow-sm">
+              <Building2 className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-extrabold text-white text-base tracking-tight flex items-center gap-2">
-                {firstSetup ? 'Primeiro acesso: configure a loja' : 'Configurações da Conta & Loja'}
+                Configurações da Conta & Loja
               </h3>
               <p className="text-xs text-slate-400">
-                {firstSetup ? 'Preencha os dados obrigatórios antes de iniciar a operação' : 'Personalize os dados da sua empresa, endereço e senha'}
+                Personalize os dados da sua empresa, endereço e credenciais de acesso
               </p>
             </div>
           </div>
-          {!firstSetup && <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>}
+          {!firstSetup && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Form Body */}
@@ -331,8 +321,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
                 required
                 value={storeName}
                 onChange={(e) => setStoreName(e.target.value)}
-                placeholder="Ex: Hope Burger"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
+                placeholder="Ex: Hope Burger, Pizzaria do Zé..."
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
               />
             </div>
             <p className="text-[11px] text-slate-400">
@@ -353,7 +343,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
                 value={storePhone}
                 onChange={(e) => setStorePhone(e.target.value)}
                 placeholder="Ex: (47) 99887-6655"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
               />
             </div>
           </div>
@@ -368,7 +358,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
                 type="button"
                 onClick={handleGeocodeStore}
                 disabled={isGeocoding || !storeAddress.trim()}
-                className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 active:scale-95 text-emerald-400 font-bold text-[10px] rounded-lg border border-slate-600 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-emerald-400 font-bold text-[10px] rounded-lg border border-slate-700 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
               >
                 <Search className="w-3 h-3" />
                 <span>{isGeocoding ? 'Localizando...' : 'Localizar no Mapa'}</span>
@@ -382,7 +372,7 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
                 value={storeAddress}
                 onChange={(e) => setStoreAddress(e.target.value)}
                 placeholder="Ex: Rua dos Caçadores, 653, Blumenau - SC"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
               />
             </div>
             <p className="text-[11px] text-slate-400">
@@ -392,33 +382,6 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
 
           {/* Latitude & Longitude + Map Picker */}
           <div className="space-y-3 pt-1">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-400">
-                  Latitude
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={storeLat}
-                  onChange={(e) => setStoreLat(parseFloat(e.target.value) || -26.91530418395996)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-400">
-                  Longitude
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={storeLng}
-                  onChange={(e) => setStoreLng(parseFloat(e.target.value) || -49.1082)}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-
             <StoreLocationPickerMap
               lat={storeLat}
               lng={storeLng}
@@ -429,55 +392,59 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
             />
           </div>
 
-          {/* Senha de Administrador da Loja */}
-          <div className="space-y-1.5 pt-2 border-t border-slate-700">
+          {/* Credenciais de Acesso da Loja (Usuário e Senha) */}
+          <div className="space-y-3 pt-3 border-t border-slate-800">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-extrabold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                Senha de Acesso (Admin)
+                Credenciais de Acesso da Loja
               </label>
-              <span className="text-[10px] text-amber-300 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
-                Login Padrão: admin
-              </span>
             </div>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder="Informe a nova senha de acesso da loja"
-                className="w-full pl-10 pr-10 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-slate-400 hover:text-slate-200 transition-colors"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              {firstSetup ? 'Crie uma nova senha com pelo menos 6 caracteres. A senha temporária não pode continuar.' : 'Esta senha será exigida no login do perfil Loja (Admin).'}
-            </p>
-          </div>
 
-          {/* Danger Zone: Clear Data */}
-          {onActivateRealPilot && !shift.pilotMode && (
-            <div className="pt-3 border-t border-slate-700">
-              <div className="bg-emerald-950/40 border border-emerald-700/60 p-4 rounded-2xl space-y-3">
-                <div>
-                  <span className="font-extrabold text-sm text-emerald-300 block">🚀 Ativar Piloto Real</span>
-                  <span className="text-[11px] text-slate-300">Remove a massa de demonstração, preserva esta loja e limita o teste a 5 pedidos simultâneos.</span>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-slate-300">
+                  Usuário da Loja
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={storeUsername}
+                    onChange={(e) => setStoreUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                    placeholder="Ex: hopeburger"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
                 </div>
-                <button type="button" onClick={onActivateRealPilot} className="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl cursor-pointer">
-                  Preparar banco para pedidos reais
-                </button>
-                {adminPassword === 'hope2026' && <p className="text-[11px] font-bold text-amber-300">Troque e salve a senha padrão antes de ativar.</p>}
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-slate-300">
+                  Senha da Loja
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="Nova senha"
+                    className="w-full pl-9 pr-8 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-200 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
             </div>
-          )}
+            <p className="text-[11px] text-slate-400">
+              Esses serão os dados usados para acessar o painel da sua loja.
+            </p>
+          </div>
 
           {formError && (
             <div role="alert" className="bg-rose-500/15 border border-rose-500/40 text-rose-200 p-3.5 rounded-2xl text-xs font-bold">
@@ -486,17 +453,19 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
           )}
 
           {/* Footer Actions */}
-          <div className="pt-4 border-t border-slate-700 flex items-center justify-end gap-3">
-            {!firstSetup && <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
-            >
-              Cancelar
-            </button>}
+          <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
+            {!firstSetup && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+            )}
             <button
               type="submit"
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-xl transition-all shadow-2xs flex items-center gap-2 cursor-pointer"
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white text-xs font-extrabold rounded-xl transition-all shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
             >
               <Save className="w-4 h-4" />
               {firstSetup ? 'Concluir cadastro da loja' : 'Salvar Alterações'}

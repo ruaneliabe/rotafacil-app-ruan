@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StoreShift, Order, Motoboy, OrderStatus, UserSession } from './types';
-import {
-  INITIAL_STORE_SHIFT,
-} from './data/initialData';
+import { StoreShift, Order, Motoboy, UserSession } from './types';
+import { INITIAL_STORE_SHIFT } from './data/initialData';
 import { StoreDashboard } from './components/StoreDashboard';
 import { MotoboyApp } from './components/MotoboyApp';
 import { CustomerTrackingView } from './components/CustomerTrackingView';
@@ -27,19 +25,12 @@ import {
   seedInitialDataIfEmpty,
 } from './lib/firebase';
 import {
-  Store,
-  Bike,
-  Smartphone,
-  LogIn,
-  LogOut,
-  UserCheck,
-  Cloud,
-  Sparkles,
   Settings,
   Building2,
   CheckCircle2,
+  LogOut,
+  Crown,
 } from 'lucide-react';
-
 
 const logoImg = '/hope-burger-logo.jpg';
 
@@ -94,7 +85,7 @@ export default function App() {
       localStorage.setItem('rota_facil_session', JSON.stringify(session));
       if (session.role === 'motoboy') {
         setActiveViewMode('motoboy');
-      } else if (session.role === 'store_admin') {
+      } else if (session.role === 'store_admin' || session.role === 'master_admin') {
         setActiveViewMode('store');
       }
     } else {
@@ -110,8 +101,6 @@ export default function App() {
   const [cloudSynced, setCloudSynced] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(() => navigator.onLine);
 
-  // Remove legacy operational data from older browser-only builds.
-  // Operational state must always come from Firestore so every device sees the same data.
   useEffect(() => {
     const legacyOperationalKeys = [
       'rota_facil_orders',
@@ -144,474 +133,257 @@ export default function App() {
     showToast(`Configurações da loja "${updatedShift.storeName}" salvas com sucesso! 🏢`);
   };
 
-  // 1. Firebase Cloud Sync initialization & snapshot listeners
+  const handleActivateRealPilot = async () => {
+    try {
+      const pilotShift = await activateRealPilotMode();
+      setShift(pilotShift);
+      setIsAccountSettingsOpen(false);
+      showToast('Piloto real ativado com sucesso! Pronto para pedidos reais.');
+    } catch (err: any) {
+      console.error('Falha ao ativar piloto real:', err);
+      showToast(err?.message || 'Falha ao ativar piloto real. Tente novamente.');
+    }
+  };
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // 1. Initial Firestore Setup & Realtime Subscriptions
   useEffect(() => {
-    // Firestore is the single source of truth for all operational data.
-    // We only consider the app synced after the first snapshots arrive.
-    let ordersReady = false;
-    let motoboysReady = false;
-    let shiftReady = false;
-    const markCloudReady = () => {
-      if (ordersReady && motoboysReady && shiftReady) setCloudSynced(true);
-    };
+    seedInitialDataIfEmpty().catch((err) => console.warn('Erro ao inicializar Firestore:', err));
 
-    let disposed = false;
-    let unsubOrders = () => {};
-    let unsubMotoboys = () => {};
-    let unsubShift = () => {};
-
-    const startCloudSync = async () => {
-      // Finish and verify the reset before listeners or reconciliation effects can write.
-      await seedInitialDataIfEmpty();
-      if (disposed) return;
-      setOrders([]);
-      setMotoboys([]);
-
-      unsubOrders = subscribeToOrders((cloudOrders) => {
-        setOrders(cloudOrders);
-        ordersReady = true;
-        markCloudReady();
-      });
-
-      unsubMotoboys = subscribeToMotoboys((cloudMotoboys) => {
-        setMotoboys(cloudMotoboys);
-        motoboysReady = true;
-        markCloudReady();
-      });
-
-      unsubShift = subscribeToShift((cloudShift) => {
-        shiftReady = true;
-        markCloudReady();
-        if (cloudShift) {
-          setShift(cloudShift);
+    const unsubOrders = subscribeToOrders((cloudOrders) => {
+      setOrders((prev) => {
+        if (prev.length > 0 && cloudOrders.length > prev.length) {
+          const prevIds = new Set(prev.map((o) => o.id));
+          const hasNew = cloudOrders.some((o) => !prevIds.has(o.id));
+          if (hasNew) playNewOrderSound();
         }
+        return cloudOrders;
       });
-    };
+      setCloudSynced(true);
+    });
 
-    startCloudSync().catch((err) => console.error('Cloud initialization failed:', err));
+    const unsubMotoboys = subscribeToMotoboys((cloudMotoboys) => {
+      setMotoboys(cloudMotoboys);
+      setCloudSynced(true);
+    });
+
+    const unsubShift = subscribeToShift((cloudShift) => {
+      setShift(cloudShift);
+      setCloudSynced(true);
+    });
 
     return () => {
-      disposed = true;
       unsubOrders();
       unsubMotoboys();
       unsubShift();
     };
   }, []);
 
-  // Only the authenticated motoboy device updates its own GPS position.
-  // The store/admin device must never overwrite a driver's location.
+  // 2. Realtime Watchdog
   useEffect(() => {
-    if (session?.role !== 'motoboy' || !session.motoboyId) return;
-    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
-
-    const motoboyId = session.motoboyId;
-
-    const handleGpsUpdate = (pos: GeolocationPosition) => {
-      const lat = Number(pos.coords.latitude.toFixed(6));
-      const lng = Number(pos.coords.longitude.toFixed(6));
-
-      setMotoboys((prevMotoboys) => {
-        const index = prevMotoboys.findIndex((m) => m.id === motoboyId);
-        if (index === -1) return prevMotoboys;
-
-        const current = prevMotoboys[index];
-        const distChanged =
-          Math.abs((current.currentLat || 0) - lat) > 0.0001 ||
-          Math.abs((current.currentLng || 0) - lng) > 0.0001;
-
-        const heartbeatDue = !current.locationUpdatedAt || Date.now() - current.locationUpdatedAt >= 10000;
-        if (!distChanged && !heartbeatDue) return prevMotoboys;
-
-        const locationUpdatedAt = Date.now();
-        const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt };
-        saveMotoboyLocationToCloud(motoboyId, lat, lng, locationUpdatedAt);
-        const updatedList = [...prevMotoboys];
-        updatedList[index] = updatedMotoboy;
-        return updatedList;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      motoboys.forEach((m) => {
+        if (
+          m.callingToCounterAt &&
+          now - m.callingToCounterAt > 15000 &&
+          m.status === 'available'
+        ) {
+          const updated = {
+            ...m,
+            callingToCounterAt: undefined,
+          };
+          saveMotoboyToCloud(updated);
+        }
       });
-    };
+    }, 5000);
 
-    navigator.geolocation.getCurrentPosition(handleGpsUpdate, () => {}, { enableHighAccuracy: true });
-    const watchId = navigator.geolocation.watchPosition(
-      handleGpsUpdate,
-      (err) => console.warn('Motoboy GPS watch warning:', err.message),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 3000 }
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [session?.role, session?.motoboyId]);
-
-  // Keep the displayed active-order counter consistent even after reassignment or multi-device edits.
-  useEffect(() => {
-    if (!cloudSynced) return;
-    motoboys.forEach((m) => {
-      const expectedCount = orders.filter(
-        (o) =>
-          o.assignedMotoboyId === m.id &&
-          o.status !== 'delivered' &&
-          o.status !== 'cancelled'
-      ).length;
-      if (m.activeOrdersCount !== expectedCount) {
-        saveMotoboyToCloud({ ...m, activeOrdersCount: expectedCount });
-      }
-    });
-  }, [cloudSynced, orders, motoboys]);
-
-  // Real-time Clock for top header
-  const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-      const dayName = days[now.getDay()];
-      const hours = String(now.getHours()).padStart(2, '0');
-      const mins = String(now.getMinutes()).padStart(2, '0');
-      setCurrentTimeStr(`${dayName} • ${hours}:${mins}`);
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [motoboys]);
 
-  const showToast = (msg: string, duration = 3500) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), duration);
+  // Order Handlers
+  const handleAddOrder = (newOrder: Order) => {
+    saveOrderToCloud(newOrder);
+    playNewOrderSound();
+    showToast(`Pedido #${newOrder.codeNumber} cadastrado com sucesso! 📦`);
   };
 
-  const handleToggleShift = () => {
-    setShift((prev) => {
-      const nextOpen = !prev.isOpen;
-      const updated = { ...prev, isOpen: nextOpen };
-      saveShiftToCloud(updated);
-      showToast(nextOpen ? 'Expediente ABERTO no Rota Fácil! 🛵' : 'Expediente ENCERRADO.');
-      return updated;
-    });
+  const handleUpdateOrderStatus = (orderId: string, newStatus: Order['status']) => {
+    const target = orders.find((o) => o.id === orderId);
+    if (!target) return;
+
+    if (newStatus === 'dispatched') playDispatchSound();
+    if (newStatus === 'delivered') playDeliverySuccessSound();
+
+    const updatedOrder: Order = {
+      ...target,
+      status: newStatus,
+      dispatchedAt:
+        newStatus === 'dispatched' ? new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : target.dispatchedAt,
+      deliveredAt:
+        newStatus === 'delivered' ? new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : target.deliveredAt,
+      deliveredTimestamp: newStatus === 'delivered' ? Date.now() : target.deliveredTimestamp,
+    };
+
+    saveOrderToCloud(updatedOrder);
+
+    // If order was delivered or cancelled, check motoboy status
+    if (newStatus === 'delivered' || newStatus === 'cancelled') {
+      const driverId = target.assignedMotoboyId;
+      if (driverId) {
+        const driver = motoboys.find((m) => m.id === driverId);
+        if (driver) {
+          const remainingOrders = orders.filter(
+            (o) => o.assignedMotoboyId === driverId && o.id !== orderId && o.status !== 'delivered' && o.status !== 'cancelled'
+          );
+
+          if (remainingOrders.length === 0) {
+            const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+            const isDifferentDay = driver.statsDate !== today;
+            const updatedDriver: Motoboy = {
+              ...driver,
+              status: 'returning_to_store',
+              activeOrdersCount: 0,
+              joinedQueueAt: undefined,
+              callingToCounterAt: undefined,
+              deliveriesCountToday: (isDifferentDay ? 0 : (driver.deliveriesCountToday || 0)) + (newStatus === 'delivered' ? 1 : 0),
+              totalEarnedToday: (isDifferentDay ? 0 : (driver.totalEarnedToday || 0)) + (newStatus === 'delivered' ? (target.deliveryFee || 0) : 0),
+              statsDate: today,
+            };
+            saveMotoboyToCloud(updatedDriver);
+          }
+        }
+      }
+    }
   };
 
   const handleAssignOrderToMotoboy = (orderId: string, motoboyId: string) => {
+    const targetOrder = orders.find((o) => o.id === orderId);
     const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
-    if (!targetMotoboy) return;
-
-    const orderObj = orders.find((o) => o.id === orderId);
-    if (!orderObj) return;
-
-    const newStatus =
-      orderObj.status === 'in_transit' || orderObj.status === 'picked_up' || orderObj.status === 'ready_at_counter'
-        ? orderObj.status
-        : 'preparing';
+    if (!targetOrder || !targetMotoboy) return;
 
     const updatedOrder: Order = {
-      ...orderObj,
-      assignedMotoboyId: targetMotoboy.id,
-      assignedMotoboyName: targetMotoboy.name,
-      status: newStatus,
+      ...targetOrder,
+      assignedMotoboyId: motoboyId,
+      status: 'dispatched',
+      dispatchedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      routeSequence: (targetMotoboy.activeOrdersCount || 0) + 1,
     };
+
+    saveOrderToCloud(updatedOrder);
 
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
-      activeOrdersCount: targetMotoboy.activeOrdersCount + 1,
-      status: targetMotoboy.status,
+      status: 'delivering',
+      activeOrdersCount: (targetMotoboy.activeOrdersCount || 0) + 1,
+      joinedQueueAt: undefined,
+      callingToCounterAt: undefined,
     };
-
-    // Update local & cloud
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
-    setMotoboys((prev) => prev.map((m) => (m.id === targetMotoboy.id ? updatedMotoboy : m)));
-    saveOrderToCloud(updatedOrder);
     saveMotoboyToCloud(updatedMotoboy);
-    playDispatchSound();
 
-    showToast(`Pedido #${updatedOrder.codeNumber} vinculado a ${targetMotoboy.name}! 🛵`);
+    playDispatchSound();
+    showToast(`Pedido #${targetOrder.codeNumber} despachado com ${targetMotoboy.name}! 🚀`);
   };
 
   const handleAssignBatchToMotoboy = (orderIds: string[], motoboyId: string) => {
     const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
     if (!targetMotoboy || orderIds.length === 0) return;
 
-    const updatedOrdersList = orders.map((o) => {
-      if (orderIds.includes(o.id)) {
-        const newStatus =
-          o.status === 'in_transit' || o.status === 'picked_up' || o.status === 'ready_at_counter'
-            ? o.status
-            : 'preparing';
+    const dispatchTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-        const updated: Order = {
-          ...o,
-          assignedMotoboyId: targetMotoboy.id,
-          assignedMotoboyName: targetMotoboy.name,
-          status: newStatus,
-        };
-        saveOrderToCloud(updated);
-        return updated;
+    orderIds.forEach((id, idx) => {
+      const order = orders.find((o) => o.id === id);
+      if (order) {
+        saveOrderToCloud({
+          ...order,
+          assignedMotoboyId: motoboyId,
+          status: 'dispatched',
+          dispatchedAt: dispatchTime,
+          routeSequence: (targetMotoboy.activeOrdersCount || 0) + idx + 1,
+        });
       }
-      return o;
     });
 
     const updatedMotoboy: Motoboy = {
       ...targetMotoboy,
-      activeOrdersCount: targetMotoboy.activeOrdersCount + orderIds.length,
-      status: targetMotoboy.status,
+      status: 'delivering',
+      activeOrdersCount: (targetMotoboy.activeOrdersCount || 0) + orderIds.length,
+      joinedQueueAt: undefined,
+      callingToCounterAt: undefined,
     };
-
-    setOrders(updatedOrdersList);
-    setMotoboys((prev) => prev.map((m) => (m.id === targetMotoboy.id ? updatedMotoboy : m)));
     saveMotoboyToCloud(updatedMotoboy);
 
-    showToast(`Bag de Rota com ${orderIds.length} pedidos vinculada a ${targetMotoboy.name}! 🎒🛵`);
+    playDispatchSound();
+    showToast(`Rota otimizada com ${orderIds.length} pedidos despachada para ${targetMotoboy.name}! 🚀`);
+  };
+
+  const handleReorderMotoboyRoute = (motoboyId: string, reorderedOrderIds: string[]) => {
+    reorderedOrderIds.forEach((orderId, index) => {
+      const order = orders.find((o) => o.id === orderId);
+      if (order && order.assignedMotoboyId === motoboyId) {
+        saveOrderToCloud({
+          ...order,
+          routeSequence: index + 1,
+        });
+      }
+    });
+    showToast('Sequência da rota atualizada com sucesso! 🗺️');
+  };
+
+  const handleUpdateMotoboyStatus = (motoboyId: string, newStatus: Motoboy['status']) => {
+    const target = motoboys.find((m) => m.id === motoboyId);
+    if (!target) return;
+
+    const updated: Motoboy = {
+      ...target,
+      status: newStatus,
+      joinedQueueAt: newStatus === 'available' ? (target.joinedQueueAt || Date.now()) : undefined,
+      callingToCounterAt: undefined,
+    };
+    saveMotoboyToCloud(updated);
   };
 
   const handleConfirmArrivalAtStore = (motoboyId: string) => {
-    const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
-    if (!targetMotoboy || targetMotoboy.status !== 'returning_to_store') return;
+    const target = motoboys.find((m) => m.id === motoboyId);
+    if (!target) return;
 
-    const now = Date.now();
-    const updatedMotoboy: Motoboy = {
-      ...targetMotoboy,
-      activeOrdersCount: 0,
+    const updated: Motoboy = {
+      ...target,
       status: 'available',
-      joinedQueueAt: now, // Reset queue timestamp when returning to store from delivery
-    };
-
-    // Coloca o motoboy no final da fila de rodízio
-    setMotoboys((prev) => {
-      const others = prev.filter((m) => m.id !== motoboyId);
-      return [...others, updatedMotoboy];
-    });
-
-    saveMotoboyToCloud(updatedMotoboy);
-    showToast(`Motoboy ${targetMotoboy.name} chegou à loja e entrou no final da fila de rodízio! 🏁🛵`);
-  };
-
-  const handleUpdateMotoboyStatus = (motoboyId: string, status: Motoboy['status']) => {
-    const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
-    if (!targetMotoboy) return;
-
-    const now = Date.now();
-    const updatedMotoboy: Motoboy = {
-      ...targetMotoboy,
-      status,
-      joinedQueueAt:
-        status === 'available'
-          ? targetMotoboy.status !== 'available'
-            ? now
-            : targetMotoboy.joinedQueueAt || now
-          : undefined,
-    };
-
-    setMotoboys((prev) => prev.map((m) => (m.id === motoboyId ? updatedMotoboy : m)));
-    saveMotoboyToCloud(updatedMotoboy);
-
-    if (status === 'busy') {
-      showToast(`Motoboy ${targetMotoboy.name} saiu da fila de espera e pausou atendimento. ⏸️`);
-    } else if (status === 'available') {
-      showToast(`Motoboy ${targetMotoboy.name} entrou na fila de rodízio da loja! 🏁🛵`);
-    }
-  };
-
-  const handleActivateRealPilot = async () => {
-    if (shift.adminPassword === 'hope2026') {
-      showToast('Troque primeiro a senha padrão da loja antes de ativar o Piloto Real.', 6000);
-      return;
-    }
-    if (!window.confirm('ATIVAR PILOTO REAL? Isso apagará definitivamente os 300 pedidos e 20 motoboys de demonstração. Os dados da loja serão preservados.')) return;
-    try {
-      const pilotShift = await activateRealPilotMode();
-      setOrders([]);
-      setMotoboys([]);
-      setShift(pilotShift);
-      showToast('✅ Piloto Real ativado. Banco limpo e massa de demonstração desativada.', 7000);
-    } catch (error) {
-      console.error(error);
-      showToast('❌ Não foi possível ativar o piloto. Nenhuma operação real deve começar.', 7000);
-    }
-  };
-
-  const handleReorderMotoboyRoute = (orderedOrderIds: string[]) => {
-    setOrders((prev) => {
-      const updated = prev.map((ord) => {
-        const seqIdx = orderedOrderIds.indexOf(ord.id);
-        if (seqIdx !== -1) {
-          // Reordering must never start/alter a delivery by itself.
-          // Status changes only through explicit pickup/start/deliver actions.
-          const updatedOrd: Order = { ...ord, routeSequence: seqIdx + 1 };
-          saveOrderToCloud(updatedOrd);
-          return updatedOrd;
-        }
-        return ord;
-      });
-      return updated;
-    });
-    showToast('MAPA: Sequência de entregas atualizada!');
-  };
-
-  const handleUpdateOrderStatus = (orderId: string, status: OrderStatus) => {
-    const targetOrder = orders.find((o) => o.id === orderId);
-    if (!targetOrder) return;
-    // Idempotency guard: avoids double earnings / duplicate delivery actions on rapid taps.
-    if (targetOrder.status === status) return;
-    if (targetOrder.status === 'delivered' || targetOrder.status === 'cancelled') return;
-    if (status === 'delivered' && targetOrder.status !== 'in_transit') {
-      showToast('Este pedido ainda não está em rota e não pode ser concluído.');
-      return;
-    }
-
-    const updatedOrder: Order = {
-      ...targetOrder,
-      status,
-      deliveredAt:
-        status === 'delivered'
-          ? new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-          : targetOrder.deliveredAt,
-    };
-
-    setOrders((prev) => prev.map((ord) => (ord.id === orderId ? updatedOrder : ord)));
-    saveOrderToCloud(updatedOrder);
-
-    // If order goes in_transit, update motoboy status to delivering
-    if (status === 'in_transit' && targetOrder.assignedMotoboyId) {
-      const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);
-      if (targetMotoboy && targetMotoboy.status !== 'delivering') {
-        const updatedMotoboy: Motoboy = {
-          ...targetMotoboy,
-          status: 'delivering',
-        };
-        setMotoboys((prev) => prev.map((m) => (m.id === targetMotoboy.id ? updatedMotoboy : m)));
-        saveMotoboyToCloud(updatedMotoboy);
-      }
-    }
-
-    // Update motoboy status & earnings if delivered
-    if (status === 'delivered') {
-      playDeliverySuccessSound();
-      const targetMotoboy = motoboys.find((m) => m.id === targetOrder.assignedMotoboyId);
-
-      if (targetMotoboy) {
-        const remainingActiveOrders = orders
-          .filter(
-            (o) =>
-              o.id !== orderId &&
-              o.assignedMotoboyId === targetMotoboy.id &&
-              o.status !== 'delivered' &&
-              o.status !== 'cancelled'
-          )
-          .sort((a, b) => (a.routeSequence || 99) - (b.routeSequence || 99));
-
-        const isFinishedAll = remainingActiveOrders.length === 0;
-
-        // Next remaining order in sequence automatically goes 'in_transit' as motoboy is already out delivering
-        if (!isFinishedAll && remainingActiveOrders.length > 0) {
-          const nextOrder = remainingActiveOrders[0];
-          if (nextOrder.status !== 'in_transit') {
-            const updatedNextOrder: Order = {
-              ...nextOrder,
-              status: 'in_transit',
-            };
-            setOrders((prev) => prev.map((ord) => (ord.id === nextOrder.id ? updatedNextOrder : ord)));
-            saveOrderToCloud(updatedNextOrder);
-          }
-        }
-
-        const feeEarned = targetOrder.deliveryFee && targetOrder.deliveryFee > 0
-          ? targetOrder.deliveryFee
-          : (targetMotoboy.perDeliveryFee && targetMotoboy.perDeliveryFee > 0 ? targetMotoboy.perDeliveryFee : 5.0);
-
-        const updatedMotoboy: Motoboy = {
-          ...targetMotoboy,
-          deliveriesCountToday: (targetMotoboy.deliveriesCountToday || 0) + 1,
-          totalEarnedToday: (targetMotoboy.totalEarnedToday || 0) + feeEarned,
-          activeOrdersCount: remainingActiveOrders.length,
-          status: isFinishedAll ? 'returning_to_store' : 'delivering',
-        };
-
-        setMotoboys((prev) => prev.map((m) => (m.id === targetMotoboy.id ? updatedMotoboy : m)));
-        saveMotoboyToCloud(updatedMotoboy);
-
-        if (isFinishedAll) {
-          showToast(
-            `🚨 ATENÇÃO LOJA: Motoboy ${targetMotoboy.name} finalizou TODAS as entregas e está VOLTANDO PARA A LOJA! 🏪🛵`,
-            7000
-          );
-        } else {
-          const nextCode = remainingActiveOrders[0]?.codeNumber;
-          showToast(
-            `Pedido #${targetOrder.codeNumber} entregue! 🎉 Próxima parada da rota: #${nextCode || 'Próximo'}`
-          );
-        }
-      } else {
-        showToast(`Pedido #${targetOrder.codeNumber} marcado como entregue! 🎉`);
-      }
-    } else if (status === 'picked_up') {
-      showToast(
-        `✅ Retirada do Pedido #${targetOrder.codeNumber} confirmada pelo motoboy! Próximo passo: Iniciar Rota.`,
-        4000
-      );
-    } else if (status === 'in_transit') {
-      showToast(
-        `🚀 Pedido #${targetOrder.codeNumber} INICIOU A ROTA! Rastreio ativo para ${targetOrder.clientName}.`,
-        5000
-      );
-    } else if (status === 'ready_at_counter') {
-      showToast(
-        `🛍️ Motoboy avisado! Pedido #${targetOrder.codeNumber} pronto para retirada no balcão.`,
-        4000
-      );
-    } else {
-      showToast(`Status do pedido #${targetOrder.codeNumber} atualizado!`);
-    }
-  };
-
-  const handleAddOrder = (
-    newOrdData: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'>
-  ) => {
-    const currentActiveOrders = orders.filter((order) => order.status !== 'delivered' && order.status !== 'cancelled').length;
-    if (shift.pilotMode && currentActiveOrders >= 5) {
-      showToast('Piloto Real limitado a 5 pedidos simultâneos. Finalize ou cancele um pedido antes de criar outro.', 6000);
-      return;
-    }
-    const maxCode = orders.reduce((max, o) => Math.max(max, o.codeNumber || 0), 100);
-    const nextCode = maxCode + 1;
-    const newOrd: Order = {
-      ...newOrdData,
-      id: `ord-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      codeNumber: nextCode,
-      status: 'pending',
-      assignedMotoboyId: null,
-      assignedMotoboyName: null,
-      createdAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      trackingCode: `RF-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
-    };
-
-    setOrders((prev) => [newOrd, ...prev]);
-    saveOrderToCloud(newOrd);
-    playNewOrderSound();
-    showToast(`Pedido #${nextCode} criado e salvo na nuvem! 🛵`);
-  };
-
-  const handleAddMotoboy = (
-    newMotoboyData: Omit<Motoboy, 'id' | 'status' | 'activeOrdersCount' | 'totalEarnedToday'>
-  ) => {
-    const newM: Motoboy = {
-      ...newMotoboyData,
-      id: `m-${Date.now()}`,
-      status: 'offline',
       activeOrdersCount: 0,
-      totalEarnedToday: 0,
-      deliveriesCountToday: 0,
+      joinedQueueAt: Date.now(),
+      callingToCounterAt: undefined,
     };
+    saveMotoboyToCloud(updated);
+    showToast(`${target.name} chegou à loja e entrou no final da fila! 🏁`);
+  };
 
-    setMotoboys((prev) => [...prev, newM]);
-    saveMotoboyToCloud(newM);
-    showToast(`Motoboy ${newM.name} cadastrado com sucesso! 🛵`);
+  const handleToggleShift = () => {
+    const updatedShift: StoreShift = {
+      ...shift,
+      isOpen: !shift.isOpen,
+      openedAt: !shift.isOpen ? new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : shift.openedAt,
+    };
+    setShift(updatedShift);
+    saveShiftToCloud(updatedShift);
+    showToast(updatedShift.isOpen ? 'Turno aberto! Loja pronta para receber pedidos.' : 'Turno fechado.');
+  };
+
+  const handleAddMotoboy = (newMotoboy: Motoboy) => {
+    saveMotoboyToCloud(newMotoboy);
+    showToast(`Entregador ${newMotoboy.name} cadastrado com sucesso! 🛵`);
   };
 
   const handleDeleteMotoboy = (motoboyId: string) => {
-    setMotoboys((prev) => prev.filter((m) => m.id !== motoboyId));
     deleteMotoboyFromCloud(motoboyId);
-    showToast('Motoboy removido.');
+    showToast('Entregador removido com sucesso.');
   };
 
   const handleDeleteAllMotoboys = () => {
-    setMotoboys([]);
     deleteAllMotoboysFromCloud();
     showToast('Todos os motoboys foram removidos com sucesso! Pode cadastrar do zero. 🛵');
   };
@@ -646,7 +418,7 @@ export default function App() {
             motoboy={motoboys.find((m) => m.id === matchedOrder.assignedMotoboyId)}
             shift={shift}
             allOrders={orders}
-            isOperator={Boolean(session && session.role === 'store_admin')}
+            isOperator={Boolean(session && (session.role === 'store_admin' || session.role === 'master_admin'))}
             onBackToDashboard={() => {
               window.history.pushState({}, '', window.location.pathname);
               setUrlTrackingCode(null);
@@ -688,6 +460,8 @@ export default function App() {
     );
   }
 
+  const isStoreAdminOrMaster = session.role === 'store_admin' || session.role === 'master_admin';
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col selection:bg-slate-700 selection:text-white">
       {!isOnline && (
@@ -695,8 +469,8 @@ export default function App() {
           ⚠️ SEM INTERNET — alterações podem não chegar aos outros dispositivos até a conexão voltar.
         </div>
       )}
-      {/* Toast Notification - Clean, professional neutral badge (Store Admin only) */}
-      {toastMessage && session?.role === 'store_admin' && (
+      {/* Toast Notification */}
+      {toastMessage && isStoreAdminOrMaster && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-800/95 border border-slate-700 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-2.5 animate-fadeIn">
           <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -705,8 +479,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Top Header Navigation - Store Admin Only */}
-      {session.role === 'store_admin' && (
+      {/* Main Top Header Navigation */}
+      {isStoreAdminOrMaster && (
         <header className="bg-slate-950/80 border-b border-slate-800/60 sticky top-0 z-40 backdrop-blur-md text-white">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-3">
             
@@ -738,8 +512,19 @@ export default function App() {
               </button>
 
               <div className="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-800 text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="font-medium text-slate-200 hidden sm:inline">Loja</span>
+                {session.role === 'master_admin' ? (
+                  <>
+                    <Crown className="w-3.5 h-3.5 text-purple-400" />
+                    <span className="font-extrabold text-purple-300 hidden sm:inline">Master (Ruan)</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="font-medium text-slate-200 hidden sm:inline">
+                      {session.storeName || shift.storeName || 'Loja'}
+                    </span>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -759,7 +544,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className={`flex-1 w-full mx-auto ${session.role === 'motoboy' ? 'p-1 sm:p-3 max-w-md' : 'max-w-[1680px] p-3 md:p-4 space-y-4'}`}>
-        {session.role === 'store_admin' && (
+        {isStoreAdminOrMaster && (
           <StoreDashboard
             shift={shift}
             orders={orders}
@@ -843,7 +628,7 @@ export default function App() {
       />
 
       <StoreAccountSettingsModal
-        isOpen={isAccountSettingsOpen || Boolean(shift.setupRequired && session.role === 'store_admin')}
+        isOpen={isAccountSettingsOpen || Boolean(shift.setupRequired && isStoreAdminOrMaster)}
         onClose={() => { if (!shift.setupRequired) setIsAccountSettingsOpen(false); }}
         shift={shift}
         onSaveSettings={handleSaveStoreSettings}
@@ -853,4 +638,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { Order, Motoboy, StoreShift } from '../types';
+import { Order, Motoboy, StoreShift, StoreAccount } from '../types';
 import { INITIAL_STORE_SHIFT } from '../data/initialData';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -28,8 +28,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 const localDateKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const STORE_PILOT_RESET_VERSION = 'hope_store_pilot_2026_08_17_v5';
-const FRESH_INSTALL_VERSION = 'fresh_company_setup_2026_08_17_v1';
+const STORE_PILOT_RESET_VERSION = 'hope_store_pilot_2026_08_17_v6';
+const FRESH_INSTALL_VERSION = 'fresh_company_setup_2026_08_17_v2';
 
 function forceMotoboyLogout() {
   if (typeof window === 'undefined') return;
@@ -44,23 +44,6 @@ function forceMotoboyLogout() {
 
 function cleanForFirestore(obj: any): any {
   return JSON.parse(JSON.stringify(obj, (key, value) => (value === undefined ? null : value)));
-}
-
-async function isolateHistoricalOrdersFromNewDriver(motoboy: Motoboy) {
-  const normalizedName = (motoboy.name || '').trim().toLowerCase();
-  if (!normalizedName) return;
-  const ordersSnapshot = await getDocs(collection(db, 'orders'));
-  const fixes = ordersSnapshot.docs
-    .filter((orderDoc) => {
-      const order = orderDoc.data() as Order;
-      const oldAssignedName = (order.assignedMotoboyName || '').trim().toLowerCase();
-      return Boolean(oldAssignedName && oldAssignedName === normalizedName && order.assignedMotoboyId && order.assignedMotoboyId !== motoboy.id);
-    })
-    .map((orderDoc) => {
-      const order = orderDoc.data() as Order;
-      return setDoc(orderDoc.ref, { historicalMotoboyName: order.assignedMotoboyName || null, assignedMotoboyName: null }, { merge: true });
-    });
-  if (fixes.length > 0) await Promise.all(fixes);
 }
 
 export function subscribeToOrders(callback: (orders: Order[]) => void) {
@@ -112,6 +95,65 @@ export function subscribeToMotoboys(callback: (motoboys: Motoboy[]) => void) {
 
 export function subscribeToShift(callback: (shift: StoreShift) => void) {
   return onSnapshot(doc(db, 'shifts', 'current_shift'), (snap) => { if (snap.exists()) callback(snap.data() as StoreShift); }, (err) => console.warn('Firestore shift sync error:', err));
+}
+
+export function subscribeToStoreAccounts(callback: (accounts: StoreAccount[]) => void) {
+  return onSnapshot(collection(db, 'stores'), (snapshot) => {
+    const list: StoreAccount[] = [];
+    snapshot.forEach((docSnap) => {
+      list.push({ id: docSnap.id, ...docSnap.data() } as StoreAccount);
+    });
+    callback(list);
+  }, (err) => console.warn('Firestore stores sync error:', err));
+}
+
+export async function saveStoreAccountToCloud(account: StoreAccount) {
+  try {
+    const normalizedUsername = account.username.trim().toLowerCase();
+    const payload = {
+      ...account,
+      id: normalizedUsername,
+      username: normalizedUsername,
+    };
+    await setDoc(doc(db, 'stores', normalizedUsername), cleanForFirestore(payload), { merge: true });
+    
+    // Also update the active shift with this store's real credentials and data
+    const shiftRef = doc(db, 'shifts', 'current_shift');
+    await setDoc(
+      shiftRef,
+      cleanForFirestore({
+        storeName: account.storeName,
+        storePhone: account.storePhone || '',
+        storeAddress: account.storeAddress || '',
+        storeLat: account.storeLat || -26.9194,
+        storeLng: account.storeLng || -49.0661,
+        storeUsername: normalizedUsername,
+        adminPassword: account.password || '',
+        setupRequired: false,
+        pilotMode: true,
+        demoDataDisabled: true,
+      }),
+      { merge: true }
+    );
+  } catch (err) {
+    console.error('Error saving store account to cloud:', err);
+    throw err;
+  }
+}
+
+export async function getStoreAccountFromCloud(username: string): Promise<StoreAccount | null> {
+  try {
+    const normalized = username.trim().toLowerCase();
+    const ref = doc(db, 'stores', normalized);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() } as StoreAccount;
+    }
+    return null;
+  } catch (err) {
+    console.error('Error getting store account:', err);
+    return null;
+  }
 }
 
 export async function saveOrderToCloud(order: Order) {
@@ -209,7 +251,28 @@ export async function clearAllDatabaseData() {
   throw new Error('RESET_FAILED: ainda existem pedidos ou motoboys no Firestore após 3 tentativas.');
 }
 
-export async function saveShiftToCloud(shift: StoreShift) { await setDoc(doc(db, 'shifts', 'current_shift'), shift, { merge: true }); }
+export async function saveShiftToCloud(shift: StoreShift) {
+  await setDoc(doc(db, 'shifts', 'current_shift'), cleanForFirestore(shift), { merge: true });
+  // If shift has storeUsername, also keep the store document synced
+  if (shift.storeUsername) {
+    const normalizedUsername = shift.storeUsername.trim().toLowerCase();
+    await setDoc(
+      doc(db, 'stores', normalizedUsername),
+      cleanForFirestore({
+        id: normalizedUsername,
+        username: normalizedUsername,
+        password: shift.adminPassword || '',
+        storeName: shift.storeName,
+        storePhone: shift.storePhone || '',
+        storeAddress: shift.storeAddress,
+        storeLat: shift.storeLat,
+        storeLng: shift.storeLng,
+        createdAt: Date.now(),
+      }),
+      { merge: true }
+    );
+  }
+}
 
 export async function activateRealPilotMode() {
   const shiftRef = doc(db, 'shifts', 'current_shift');
@@ -279,13 +342,27 @@ export async function seedInitialDataIfEmpty() {
     await setDoc(ref, { installationVersion: `${FRESH_INSTALL_VERSION}:resetting`, isOpen: false }, { merge: true });
     await clearAllDatabaseData();
     await removeSyntheticScaleData();
-    await setDoc(ref, {
+    
+    // Preserve existing custom credentials if any
+    const baseShift: StoreShift = {
       ...INITIAL_STORE_SHIFT,
+      storeName: current?.storeName || INITIAL_STORE_SHIFT.storeName,
+      storePhone: current?.storePhone || INITIAL_STORE_SHIFT.storePhone,
+      storeAddress: current?.storeAddress || INITIAL_STORE_SHIFT.storeAddress,
+      storeLat: current?.storeLat || INITIAL_STORE_SHIFT.storeLat,
+      storeLng: current?.storeLng || INITIAL_STORE_SHIFT.storeLng,
+      storeUsername: current?.storeUsername || '',
+      adminPassword: current?.adminPassword || '',
+      masterUsername: current?.masterUsername || 'ruan',
+      masterPassword: current?.masterPassword || 'ruan123',
+      setupRequired: current?.setupRequired ?? (current?.storeUsername ? false : true),
       installationVersion: FRESH_INSTALL_VERSION,
       operationalResetVersion: STORE_PILOT_RESET_VERSION,
       operationalResetAt: Date.now(),
       pilotActivatedAt: Date.now(),
-    });
+    };
+
+    await setDoc(ref, cleanForFirestore(baseShift));
   } catch (err) {
     console.error('INICIALIZAÇÃO DO PILOTO FALHOU:', err);
     throw err;
