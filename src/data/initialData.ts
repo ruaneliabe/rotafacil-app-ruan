@@ -33,4 +33,3 @@ export const INITIAL_ITEMS_MENU = [
   { name: 'Refrigerante Guaraná 2L', price: 14.0 },
   { name: 'Água Mineral 500ml', price: 5.0 },
 ];
-

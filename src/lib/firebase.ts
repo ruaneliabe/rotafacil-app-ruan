@@ -9,11 +9,13 @@ import {
   getDocs,
   deleteDoc,
   writeBatch,
+  runTransaction,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { Order, Motoboy, StoreShift } from '../types';
 import { INITIAL_STORE_SHIFT } from '../data/initialData';
+import { createScaleTestData } from '../data/scaleTestData';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -29,7 +31,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 const localDateKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const STORE_PILOT_RESET_VERSION = 'hope_store_pilot_2026_08_10_v4';
+const STORE_PILOT_RESET_VERSION = 'hope_store_pilot_2026_08_17_v5';
+const SCALE_TEST_SEED_VERSION = 'scale_test_20_drivers_300_orders_v4';
 
 function forceMotoboyLogout() {
   if (typeof window === 'undefined') return;
@@ -155,6 +158,23 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
   } catch (err) { console.error('Error saving motoboy to cloud:', err); }
 }
 
+export async function saveMotoboyLocationToCloud(
+  motoboyId: string,
+  currentLat: number,
+  currentLng: number,
+  locationUpdatedAt = Date.now()
+) {
+  try {
+    await setDoc(
+      doc(db, 'motoboys', motoboyId),
+      { currentLat, currentLng, locationUpdatedAt },
+      { merge: true }
+    );
+  } catch (err) {
+    console.error('Error saving motoboy location:', err);
+  }
+}
+
 export async function deleteMotoboyFromCloud(motoboyId: string) {
   try {
     const ref = doc(db, 'motoboys', motoboyId);
@@ -253,9 +273,61 @@ async function resetOperationalDataOnceForStorePilot() {
   await setDoc(shiftRef, resetShift);
 }
 
+async function seedScaleTestDataOnce() {
+  const shiftRef = doc(db, 'shifts', 'current_shift');
+  const seedingMarker = `${SCALE_TEST_SEED_VERSION}:seeding`;
+  const now = Date.now();
+  const acquired = await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(shiftRef);
+    const current = snapshot.exists() ? (snapshot.data() as StoreShift) : INITIAL_STORE_SHIFT;
+    if (current.scaleTestSeedVersion === SCALE_TEST_SEED_VERSION) return false;
+    const hasFreshLock = current.scaleTestSeedVersion === seedingMarker && now - Number(current.scaleTestSeedStartedAt || 0) < 120000;
+    if (hasFreshLock) return false;
+    transaction.set(shiftRef, { scaleTestSeedVersion: seedingMarker, scaleTestSeedStartedAt: now }, { merge: true });
+    return true;
+  });
+  if (!acquired) return;
+
+  try {
+    const shiftSnapshot = await getDoc(shiftRef);
+    const currentShift = shiftSnapshot.exists() ? (shiftSnapshot.data() as StoreShift) : INITIAL_STORE_SHIFT;
+    const { motoboys, orders } = createScaleTestData(STORE_PILOT_RESET_VERSION);
+    const documents = [
+      ...motoboys.map((motoboy) => ({ ref: doc(db, 'motoboys', motoboy.id), value: motoboy })),
+      ...orders.map((order) => ({ ref: doc(db, 'orders', order.id), value: order })),
+    ];
+
+    for (let start = 0; start < documents.length; start += 400) {
+      const batch = writeBatch(db);
+      documents.slice(start, start + 400).forEach((item) => batch.set(item.ref, cleanForFirestore(item.value)));
+      await batch.commit();
+    }
+
+    const [ordersAfter, motoboysAfter] = await Promise.all([
+      getDocs(collection(db, 'orders')),
+      getDocs(collection(db, 'motoboys')),
+    ]);
+    if (ordersAfter.size !== 300 || motoboysAfter.size !== 20) {
+      throw new Error(`SCALE_TEST_SEED_FAILED: orders=${ordersAfter.size}, motoboys=${motoboysAfter.size}`);
+    }
+
+    await setDoc(shiftRef, {
+      ...currentShift,
+      isOpen: true,
+      openedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      scaleTestSeedVersion: SCALE_TEST_SEED_VERSION,
+      scaleTestSeedStartedAt: null,
+    }, { merge: true });
+  } catch (error) {
+    await setDoc(shiftRef, { scaleTestSeedVersion: null, scaleTestSeedStartedAt: null }, { merge: true });
+    throw error;
+  }
+}
+
 export async function seedInitialDataIfEmpty() {
   try {
     await resetOperationalDataOnceForStorePilot();
+    await seedScaleTestDataOnce();
     const ref = doc(db, 'shifts', 'current_shift');
     if (!(await getDoc(ref)).exists()) {
       await setDoc(ref, { ...INITIAL_STORE_SHIFT, storeName: 'Hope Burger', storePhone: '(47) 99153-9855', storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313', storeLat: -26.91530418395996, storeLng: -49.1146354675293, adminPassword: 'hope2026' });
@@ -265,4 +337,3 @@ export async function seedInitialDataIfEmpty() {
     throw err;
   }
 }
-

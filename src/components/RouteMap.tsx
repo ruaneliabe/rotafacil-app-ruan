@@ -121,7 +121,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           <div class="relative flex flex-col items-center justify-center">
             <div class="bg-slate-900/95 text-emerald-400 px-3 py-1 rounded-xl shadow-2xl border border-emerald-500/70 flex items-center gap-1.5 font-extrabold text-xs z-50">
               <span class="text-sm">🏪</span>
-              <span class="tracking-wide uppercase text-[11px] text-white">${origin.name || 'Minha Loja'}</span>
+              <span class="tracking-wide uppercase text-[11px] text-white block max-w-[88px] truncate">${origin.name || 'Minha Loja'}</span>
             </div>
             <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-emerald-500/80 -mt-0.5"></div>
           </div>
@@ -169,7 +169,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
               <div class="w-8 h-8 ${bgColor} rounded-full shadow-lg border-2 flex items-center justify-center font-bold text-xs z-30">
                 ${badgeHtml}
               </div>
-              <div class="mt-0.5 bg-slate-900/95 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap border border-emerald-500/60 shadow-md z-30">
+              <div class="mt-0.5 bg-slate-900/95 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap max-w-[130px] truncate border border-emerald-500/60 shadow-md z-30">
                 ${stop.title?.includes('Seu Endereço') ? '📍 Seu Endereço' : (stop.neighborhood || 'Centro')}
               </div>
             </div>
@@ -371,7 +371,25 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           return;
         }
 
-        // Selected or All-mode Motoboy Marker
+        // With the whole fleet visible, names are intentionally hidden. Clicking a
+        // dot focuses the driver and reveals the full marker, preventing label walls.
+        if (!isFilteringActive && onRoad.length > 6) {
+          const fleetDotIcon = L.divIcon({
+            className: 'custom-discrete-dot z-20',
+            html: `<div class="w-5 h-5 rounded-full ${isReturning ? 'bg-amber-500' : 'bg-blue-600'} border-2 border-slate-950 shadow-lg cursor-pointer flex items-center justify-center text-[9px] font-black text-white hover:scale-125 transition-transform">${initial}</div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+          });
+          const fleetDot = L.marker([mbLat, mbLng], { icon: fleetDotIcon }).bindPopup(`
+            <div class="p-1.5 text-slate-100 text-xs"><strong>${mb.name}</strong><br/>${isReturning ? 'Voltando à loja' : 'Em rota'} · clique para focar</div>
+          `);
+          if (onSelectMotoboy) fleetDot.on('click', () => onSelectMotoboy(mb.id));
+          markersGroup.addLayer(fleetDot);
+          bounds.push([mbLat, mbLng]);
+          return;
+        }
+
+        // Selected or low-density Motoboy Marker
         const ringColor = isReturning
           ? 'border-amber-400 bg-amber-500/20 text-amber-300'
           : isDelivering
@@ -522,7 +540,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     // 5. Smoothly fit map bounds to fit store + visible motoboys/stops
     if (bounds.length > 1) {
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      map.fitBounds(bounds, { padding: [70, 70], maxZoom: 15 });
     } else if (bounds.length === 1) {
       map.setView(bounds[0], 15, { animate: true });
     } else if (!fleetOverviewOnly && stops.length > 0) {
@@ -579,7 +597,8 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         </div>
       )}
 
-      {/* Top Left Uber/Linear Style Status Badge Overlay */}
+      {/* Fleet counters only belong to the store's operational overview. */}
+      {motoboysList && (
       <div className="absolute top-3 left-3 z-20 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-[11px] text-slate-300 flex items-center gap-3 font-extrabold shadow-lg">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full inline-block ring-2 ring-emerald-500/30"></span>
@@ -600,7 +619,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           <span>Voltando ({returningCount})</span>
         </div>
       </div>
+      )}
     </div>
   );
 };
-

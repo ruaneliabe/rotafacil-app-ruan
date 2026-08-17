@@ -66,12 +66,26 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
   };
 
   const currentStep = getStatusStep();
+  const isInTransit = order.status === 'in_transit';
   const routeStartsAtDriver = order.status === 'in_transit' && hasLiveGps && motoboy;
   const waitingForDriverGps = order.status === 'in_transit' && Boolean(motoboy) && !hasLiveGps;
+  const isPaid = order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web';
+  const paymentLabel = order.paymentMethod === 'pix'
+    ? 'Pix'
+    : order.paymentMethod === 'cartao_maquininha'
+      ? 'Cartão na maquininha'
+      : 'Dinheiro';
+  const driverStageLabel = order.status === 'in_transit'
+    ? 'A caminho'
+    : order.status === 'picked_up'
+      ? 'Pedido retirado'
+      : order.status === 'ready_at_counter'
+        ? 'Chamado para retirada'
+        : 'Reservado para sua entrega';
 
   return (
-    <div className="max-w-xl mx-auto bg-slate-50 min-h-screen border-x border-slate-200 font-sans pb-12">
-      <div className="bg-[#1e4d3b] text-white p-4 sticky top-0 z-50 shadow-md flex items-center justify-between">
+    <div className="max-w-xl mx-auto bg-slate-50 min-h-screen border-x border-slate-200 font-sans pb-[calc(4rem+env(safe-area-inset-bottom))] overflow-x-hidden">
+      <div className="bg-[#1e4d3b] text-white px-3 py-3 sm:p-4 sticky top-0 z-50 shadow-md flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white font-black flex items-center justify-center text-lg shadow-inner">🍔</div>
           <div>
@@ -84,16 +98,16 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
         )}
       </div>
 
-      <div className="p-4 space-y-5">
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs text-center space-y-4">
+      <div className="p-3 sm:p-4 space-y-4 sm:space-y-5">
+        <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs text-center space-y-4">
           <div className="flex items-center justify-center gap-2 flex-wrap">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-extrabold">
               <Clock className="w-4 h-4 text-emerald-600" />
               {order.status === 'delivered' ? 'Pedido Entregue!' : `Previsão de entrega: ~${estimatedETA} min`}
             </div>
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-extrabold ${hasLiveGps ? 'bg-emerald-500/10 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>
-              <span className="relative flex h-2 w-2"><span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${hasLiveGps ? 'bg-emerald-400' : 'bg-amber-400'}`}></span><span className={`relative inline-flex rounded-full h-2 w-2 ${hasLiveGps ? 'bg-emerald-500' : 'bg-amber-500'}`}></span></span>
-              <span>{hasLiveGps ? 'GPS ao Vivo' : 'Aguardando GPS do entregador'}</span>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-extrabold ${isInTransit && hasLiveGps ? 'bg-emerald-500/10 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>
+              <span className="relative flex h-2 w-2"><span className={`relative inline-flex rounded-full h-2 w-2 ${isInTransit && hasLiveGps ? 'bg-emerald-500' : 'bg-amber-500'}`}></span></span>
+              <span>{isInTransit ? (hasLiveGps ? 'GPS ao vivo' : 'Aguardando GPS do entregador') : 'Rastreio ao vivo após a saída'}</span>
             </div>
           </div>
 
@@ -125,19 +139,21 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
         </div>
 
         {motoboy && (order.status === 'in_transit' || order.status === 'picked_up' || stopsAhead >= 0) && order.status !== 'delivered' && (
-          <div className="bg-white rounded-3xl p-4 border border-emerald-200 shadow-xs space-y-3">
-            <div className="flex items-center justify-between"><span className="text-[11px] font-extrabold text-emerald-800 uppercase">Seu Entregador Dedicado</span><span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">{order.status === 'in_transit' ? 'A caminho' : 'Na Bag / Em rota'}</span></div>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-[#1e4d3b] text-white flex items-center justify-center font-bold text-xl shrink-0">🛵</div>
-              <div className="flex-1"><h3 className="font-extrabold text-sm text-slate-900">{motoboy.name}</h3><p className="text-xs text-slate-500">{motoboy.vehicleModel} • Placa: {motoboy.plate}</p></div>
-              {motoboy.phone && <a href={`https://wa.me/55${motoboy.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${motoboy.name}! Sou o cliente do pedido #${order.codeNumber}.`)}`} target="_blank" rel="noreferrer" className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-sm"><MessageSquare className="w-4 h-4" /><span>Falar no WhatsApp</span></a>}
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 border border-emerald-200 shadow-xs space-y-3">
+            <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-extrabold text-emerald-800 uppercase">Entregador vinculado</span><span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">{driverStageLabel}</span></div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-12 h-12 rounded-2xl bg-[#1e4d3b] text-white flex items-center justify-center font-bold text-xl shrink-0">🛵</div>
+                <div className="min-w-0 flex-1"><h3 className="font-extrabold text-sm text-slate-900 truncate">{motoboy.name}</h3><p className="text-xs text-slate-500 leading-relaxed">{motoboy.vehicleModel} • Placa: {motoboy.plate}</p></div>
+              </div>
+              {motoboy.phone && <a href={`https://wa.me/55${motoboy.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${motoboy.name}! Sou o cliente do pedido #${order.codeNumber}.`)}`} target="_blank" rel="noreferrer" className="w-full sm:w-auto px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-sm"><MessageSquare className="w-4 h-4" /><span>Falar no WhatsApp</span></a>}
             </div>
           </div>
         )}
 
-        <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs space-y-2 p-3">
-          <div className="flex items-center justify-between px-1"><span className="text-xs font-extrabold text-slate-800">Mapa de Acompanhamento Ao Vivo</span><span className="text-[10px] text-slate-500 font-medium">🗺️ {routeStartsAtDriver ? 'Rota a partir do GPS atual' : waitingForDriverGps ? 'Aguardando localização do entregador' : 'Rota estimada ao seu endereço'}</span></div>
-          <div className="h-[280px] rounded-2xl overflow-hidden relative">
+        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs space-y-2 p-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-1 gap-0.5 sm:gap-2"><span className="text-xs font-extrabold text-slate-800">{isInTransit ? 'Acompanhamento ao vivo' : 'Previsão da rota'}</span><span className="text-[10px] text-slate-500 font-medium sm:text-right">🗺️ {routeStartsAtDriver ? 'Rota a partir do GPS atual' : waitingForDriverGps ? 'Aguardando localização do entregador' : 'Trajeto estimado da loja ao seu endereço'}</span></div>
+          <div className="h-[220px] sm:h-[280px] rounded-2xl overflow-hidden relative">
             <RouteMap
               origin={routeStartsAtDriver ? { name: motoboy!.name, address: 'Posição atual do entregador', lat: motoboy!.currentLat, lng: motoboy!.currentLng } : { name: shift.storeName, address: shift.storeAddress, lat: shift.storeLat, lng: shift.storeLng }}
               motoboyName={motoboy?.name}
@@ -159,8 +175,8 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-xs space-y-3">
-          <h3 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-2 flex items-center justify-between"><span>Detalhes do Pedido #{order.codeNumber}</span><span className="text-xs font-normal text-slate-500">{order.createdAt}</span></h3>
+        <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-3">
+          <h3 className="font-extrabold text-sm text-slate-900 border-b border-slate-100 pb-2 flex items-center justify-between gap-3"><span>Detalhes do Pedido #{order.codeNumber}</span><span className="text-xs font-normal text-slate-500 shrink-0">{order.createdAt}</span></h3>
           <div className="space-y-2 text-xs">
             {order.items && order.items.length > 0 ? order.items.map((item, idx) => {
               const rawPrice = typeof item.price === 'number' && !isNaN(item.price) ? item.price : 0;
@@ -168,8 +184,14 @@ export const CustomerTrackingView: React.FC<CustomerTrackingViewProps> = ({
               return <div key={item.id || idx} className="flex items-start justify-between py-1.5 border-b border-slate-100 text-xs"><div><div className="font-semibold text-slate-800">{qty}x {item.name}</div>{item.observations && <div className="text-[11px] text-amber-700 italic mt-0.5">Obs: {item.observations}</div>}</div><span className="font-bold text-slate-900">{formattedCurrency(rawPrice * qty)}</span></div>;
             }) : <div className="flex items-center justify-between py-1.5 border-b border-slate-100 text-xs"><span className="text-slate-700 font-semibold">{order.itemsSummary || 'Itens do pedido'}</span><span className="font-bold text-slate-900">{formattedCurrency(order.subtotal && !isNaN(order.subtotal) ? order.subtotal : (order.total || 0))}</span></div>}
             <div className="flex items-center justify-between py-1 border-t border-slate-100 text-slate-500"><span>Taxa de Entrega</span><span>{formattedCurrency(order.deliveryFee)}</span></div>
-            <div className="flex items-center justify-between py-2 border-t border-slate-200 text-sm font-black text-[#1e4d3b]"><span>Total a pagar</span><span>{formattedCurrency(order.total)}</span></div>
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700"><span>Forma de Pagamento:</span><span className="uppercase text-slate-900 font-bold">{order.paymentMethod}</span></div>
+            <div className="flex items-center justify-between py-2 border-t border-slate-200 text-sm font-black text-[#1e4d3b]"><span>{isPaid ? 'Total do pedido' : 'Valor a cobrar na entrega'}</span><span>{formattedCurrency(order.total)}</span></div>
+            <div className={`p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs font-semibold ${isPaid ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-950'}`}>
+              <span>{isPaid ? '✓ Pagamento confirmado' : 'Pagamento na entrega'}</span>
+              <span className="font-extrabold text-right">{isPaid ? `${paymentLabel} · Nada a cobrar` : paymentLabel}</span>
+            </div>
+            {!isPaid && order.paymentMethod === 'dinheiro' && order.changeFor && order.changeFor > order.total && (
+              <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-bold">Levar troco para {formattedCurrency(order.changeFor)}</div>
+            )}
           </div>
         </div>
       </div>

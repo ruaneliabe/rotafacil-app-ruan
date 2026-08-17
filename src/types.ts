@@ -106,6 +106,8 @@ export interface StoreShift {
   integrations?: StoreIntegrations;
   operationalResetVersion?: string;
   operationalResetAt?: number;
+  scaleTestSeedVersion?: string;
+  scaleTestSeedStartedAt?: number;
 }
 
 export interface OperationalMetrics {
@@ -183,4 +185,3 @@ export interface SavedRoute {
   config?: RouteConfig;
   summary?: RouteSummary;
 }
-

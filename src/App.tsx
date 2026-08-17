@@ -18,6 +18,7 @@ import {
   subscribeToShift,
   saveOrderToCloud,
   saveMotoboyToCloud,
+  saveMotoboyLocationToCloud,
   deleteMotoboyFromCloud,
   deleteAllMotoboysFromCloud,
   deleteAllOrdersFromCloud,
@@ -237,8 +238,9 @@ export default function App() {
         const heartbeatDue = !current.locationUpdatedAt || Date.now() - current.locationUpdatedAt >= 10000;
         if (!distChanged && !heartbeatDue) return prevMotoboys;
 
-        const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() };
-        saveMotoboyToCloud(updatedMotoboy);
+        const locationUpdatedAt = Date.now();
+        const updatedMotoboy = { ...current, currentLat: lat, currentLng: lng, locationUpdatedAt };
+        saveMotoboyLocationToCloud(motoboyId, lat, lng, locationUpdatedAt);
         const updatedList = [...prevMotoboys];
         updatedList[index] = updatedMotoboy;
         return updatedList;
@@ -376,7 +378,7 @@ export default function App() {
 
   const handleConfirmArrivalAtStore = (motoboyId: string) => {
     const targetMotoboy = motoboys.find((m) => m.id === motoboyId);
-    if (!targetMotoboy) return;
+    if (!targetMotoboy || targetMotoboy.status !== 'returning_to_store') return;
 
     const now = Date.now();
     const updatedMotoboy: Motoboy = {
@@ -461,6 +463,10 @@ export default function App() {
     // Idempotency guard: avoids double earnings / duplicate delivery actions on rapid taps.
     if (targetOrder.status === status) return;
     if (targetOrder.status === 'delivered' || targetOrder.status === 'cancelled') return;
+    if (status === 'delivered' && targetOrder.status !== 'in_transit') {
+      showToast('Este pedido ainda não está em rota e não pode ser concluído.');
+      return;
+    }
 
     const updatedOrder: Order = {
       ...targetOrder,
@@ -759,7 +765,7 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className={`flex-1 w-full mx-auto ${session.role === 'motoboy' ? 'p-1 sm:p-3 max-w-md' : 'max-w-7xl p-3 md:p-4 space-y-4'}`}>
+      <main className={`flex-1 w-full mx-auto ${session.role === 'motoboy' ? 'p-1 sm:p-3 max-w-md' : 'max-w-[1680px] p-3 md:p-4 space-y-4'}`}>
         {session.role === 'store_admin' && (
           <StoreDashboard
             shift={shift}
@@ -853,4 +859,3 @@ export default function App() {
     </div>
   );
 }
-

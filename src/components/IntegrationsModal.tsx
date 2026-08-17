@@ -139,4 +139,3 @@ export const IntegrationsModal: React.FC<Props> = ({
     </div>
   );
 };
-

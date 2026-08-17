@@ -237,11 +237,12 @@ export function analyzeOperationalBrain(
       const elapsedMin = Math.round((now.getTime() - createdTime) / 60000);
 
       if (elapsedMin > 25) {
+        const isCritical = elapsedMin > 60;
         alerts.push({
           id: `alert-delay-${ord.id}`,
           type: 'delay_risk',
-          severity: 'high',
-          title: `🔴 Pedido #${ord.codeNumber} demorando`,
+          severity: isCritical ? 'high' : 'medium',
+          title: `${isCritical ? '🔴' : '🟠'} Pedido #${ord.codeNumber} demorando`,
           description: `Esperando saída há ${elapsedMin} min (${ord.clientName} - ${ord.neighborhood}). Que tal priorizar?`,
           actionText: 'Despachar agora',
           orderId: ord.id,
@@ -252,17 +253,18 @@ export function analyzeOperationalBrain(
   });
 
   // Alert B: Fleet Bottleneck (Ready orders but no available motoboys)
-  const readyOrders = orders.filter((o) => o.status === 'ready_at_counter' || o.status === 'pending');
+  const readyOrders = orders.filter((o) => o.status === 'ready_at_counter');
   if (readyOrders.length >= 2 && availableMotoboys.length === 0) {
     const nextReturning = returningMotoboys[0];
     const nextEtaText = nextReturning ? `Próximo a voltar: ${nextReturning.name}` : 'Ninguém voltando agora';
+    const activeDriverCount = motoboys.filter((m) => m.status !== 'offline').length;
 
     alerts.push({
       id: 'alert-fleet-bottleneck',
       type: 'fleet_bottleneck',
       severity: 'medium',
       title: `🟠 ${readyOrders.length} pedidos prontos esperando motoboy`,
-      description: `Todos os entregadores estão na rua. ${nextEtaText}.`,
+      description: `${activeDriverCount} ${activeDriverCount === 1 ? 'motoboy ativo está' : 'motoboys ativos estão'} fora da loja. ${nextEtaText}.`,
       actionText: 'Ver fila de entregas',
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     });

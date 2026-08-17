@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Order, Motoboy, StoreShift } from '../types';
 import { RouteMap } from './RouteMap';
-import { saveMotoboyToCloud } from '../lib/firebase';
+import { saveMotoboyLocationToCloud } from '../lib/firebase';
 import { calculateDistanceKm } from '../utils/geoUtils';
+import { getMotoboyStatusPresentation } from '../utils/motoboyStatusUtils';
 import {
   Bike,
   MapPin,
@@ -122,6 +123,16 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   const routeHasStarted = assignedOrders.some((o) => o.status === 'in_transit' || o.status === 'picked_up') || activeMotoboy?.status === 'delivering';
   const waitingForKitchen = assignedOrders.length > 0 && !routeHasStarted && assignedOrders.some((o) => o.status === 'pending' || o.status === 'preparing');
   const readyForPickup = assignedOrders.length > 0 && !routeHasStarted && assignedOrders.every((o) => o.status === 'ready_at_counter' || o.status === 'picked_up');
+  const baseStatusPresentation = getMotoboyStatusPresentation(activeMotoboy?.status);
+  const statusPresentation = activeMotoboy?.status === 'offline' || activeMotoboy?.status === 'busy' || activeMotoboy?.status === 'returning_to_store'
+    ? baseStatusPresentation
+    : waitingForKitchen
+      ? { ...baseStatusPresentation, label: 'Aguardando cozinha', dotClass: 'bg-amber-400', textClass: 'text-amber-300' }
+      : readyForPickup
+        ? { ...baseStatusPresentation, label: 'Pedido pronto para retirada', dotClass: 'bg-amber-400', textClass: 'text-amber-300' }
+        : routeHasStarted
+          ? getMotoboyStatusPresentation('delivering')
+          : baseStatusPresentation;
 
   const arranqueAmount = activeMotoboy?.fixedFee && activeMotoboy.fixedFee > 0 ? activeMotoboy.fixedFee : 0;
   const deliveryFeesTotal = completedOrders.reduce(
@@ -158,7 +169,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
       setDeviceGps({ lat, lng });
       setGpsStatusMsg('GPS ativo');
       if (activeMotoboy && (Math.abs((activeMotoboy.currentLat || 0) - lat) > 0.0001 || Math.abs((activeMotoboy.currentLng || 0) - lng) > 0.0001)) {
-        saveMotoboyToCloud({ ...activeMotoboy, currentLat: lat, currentLng: lng, locationUpdatedAt: Date.now() });
+        saveMotoboyLocationToCloud(activeMotoboy.id, lat, lng);
       }
     };
     const error = (err: GeolocationPositionError) => setGpsStatusMsg(`GPS pendente: ${err.message}`);
@@ -237,9 +248,9 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
           <div className="min-w-0">
             <h3 className="font-extrabold text-base text-white leading-tight truncate">{activeMotoboy?.name}</h3>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className={`w-2 h-2 rounded-full ${activeMotoboy?.status === 'offline' ? 'bg-rose-400' : waitingForKitchen ? 'bg-amber-400' : activeMotoboy?.status === 'busy' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-              <span className={`text-[11px] font-bold ${waitingForKitchen ? 'text-amber-300' : 'text-slate-300'}`}>
-                {activeMotoboy?.status === 'offline' ? 'Offline' : activeMotoboy?.status === 'busy' ? 'Pausado' : activeMotoboy?.status === 'returning_to_store' ? '🏢 Voltando p/ Loja' : waitingForKitchen ? '🍳 Aguardando cozinha' : readyForPickup ? '📦 Pedido pronto para retirada' : routeHasStarted ? '🛵 Em rota' : '🟢 Na fila da loja'}
+              <span className={`w-2 h-2 rounded-full ${statusPresentation.dotClass}`} />
+              <span className={`text-[11px] font-bold ${statusPresentation.textClass}`}>
+                {statusPresentation.label}
               </span>
             </div>
           </div>
@@ -336,7 +347,7 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
                 const isFirstOrder = index === 0;
                 const isExpanded = isFirstOrder || manualExpandedId === order.id;
                 const hasArrived = Boolean(arrivedOrderIds[order.id]);
-                const isInTransit = order.status === 'in_transit' || (activeMotoboy?.status === 'delivering' && isFirstOrder);
+                const isInTransit = order.status === 'in_transit';
                 const isKitchenWaiting = order.status === 'pending' || order.status === 'preparing';
                 const streetLine = order.street || order.address;
                 const distance = calculateDistanceKm(deviceGps?.lat || activeMotoboy?.currentLat || shift.storeLat, deviceGps?.lng || activeMotoboy?.currentLng || shift.storeLng, order.lat, order.lng);
