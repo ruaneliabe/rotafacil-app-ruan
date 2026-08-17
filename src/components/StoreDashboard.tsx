@@ -293,7 +293,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const completedOnboardingSteps = onboardingSteps.filter((step) => step.done).length;
   const showOnboarding = completedOnboardingSteps < onboardingSteps.length;
   const nextOnboardingStepIndex = onboardingSteps.findIndex((step) => !step.done);
-  const isOperationEmpty = orders.length === 0 && motoboys.length === 0;
   const readyAtCounter = orders.filter((o) => o.status === 'ready_at_counter');
   const unassignedOrders = activeOrders.filter((o) => !o.assignedMotoboyId);
   const todayDateKey = (() => {
@@ -312,6 +311,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       if (loadDiff !== 0) return loadDiff;
       return (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0);
     });
+  const queueWaitSamples = motoboysAvailable
+    .filter((motoboy) => Boolean(motoboy.joinedQueueAt))
+    .map((motoboy) => Math.max(0, (Date.now() - Number(motoboy.joinedQueueAt)) / 60000));
+  const averageQueueWaitMinutes = queueWaitSamples.length > 0
+    ? queueWaitSamples.reduce((sum, minutes) => sum + minutes, 0) / queueWaitSamples.length
+    : null;
 
   const assignOrderRespectingLoad = (orderId: string, motoboyId: string) => {
     const target = motoboys.find((m) => m.id === motoboyId);
@@ -1190,8 +1195,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">~7.5 min</span>
-                <span className="text-[11px] text-slate-500 font-medium">aguardando despacho</span>
+                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">{averageQueueWaitMinutes === null ? '—' : `~${averageQueueWaitMinutes.toFixed(1)} min`}</span>
+                <span className="text-[11px] text-slate-500 font-medium">{averageQueueWaitMinutes === null ? 'sem histórico ainda' : 'espera atual da fila'}</span>
               </div>
             </div>
 
@@ -1206,8 +1211,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">~2.2 min</span>
-                <span className="text-[11px] text-slate-500 font-medium">chamada → saída</span>
+                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">—</span>
+                <span className="text-[11px] text-slate-500 font-medium">sem retiradas ainda</span>
               </div>
             </div>
 
@@ -1757,7 +1762,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 {/* Middle & Right Column: Map + Rotas Disponíveis (Dynamic Full Span when empty) */}
                 <div className={`${unassignedOrders.length > 0 ? 'lg:contents' : 'lg:col-span-3'} grid grid-cols-1 md:grid-cols-12 gap-3`}>
                   {/* Map Panel with Sleek Filter Controls */}
-                  <div id="dashboard-map-section" className={`md:col-span-8 ${unassignedOrders.length > 0 ? 'lg:col-span-1' : 'lg:col-span-8'} min-w-0 flex flex-col bg-slate-950/45 rounded-2xl border border-slate-800/80 p-2.5 space-y-2 shadow-sm ${isOperationEmpty ? 'min-h-[190px]' : 'h-[430px] md:h-auto min-h-[380px]'}`}>
+                  <div id="dashboard-map-section" className={`md:col-span-8 ${unassignedOrders.length > 0 ? 'lg:col-span-1' : 'lg:col-span-8'} min-w-0 flex flex-col bg-slate-950/45 rounded-2xl border border-slate-800/80 p-2.5 space-y-2 shadow-sm h-[430px] md:h-auto min-h-[380px]`}>
                   {/* Clean Toolbar Header */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1 pt-0.5">
                     {/* Left: Title & GPS Sync Button */}
@@ -1894,13 +1899,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   )}
 
                   <div className="flex-1 rounded-xl overflow-hidden border border-slate-800">
-                    {isOperationEmpty ? (
-                      <div className="h-full min-h-[125px] bg-slate-900/70 flex flex-col items-center justify-center text-center p-5">
-                        <MapPin className="w-7 h-7 text-slate-500 mb-2" />
-                        <p className="text-sm font-black text-white">O mapa será ativado durante a operação</p>
-                        <p className="text-xs text-slate-300 mt-1 max-w-sm">Cadastre um motoboy ou crie o primeiro pedido para acompanhar a operação em tempo real.</p>
-                      </div>
-                    ) : (
                     <RouteMap
                       origin={{
                         name: shift.storeName,
@@ -1944,7 +1942,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                               }))
                       }
                     />
-                    )}
                   </div>
                 </div>
 
@@ -2859,3 +2856,4 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     </div>
   );
 };
+
