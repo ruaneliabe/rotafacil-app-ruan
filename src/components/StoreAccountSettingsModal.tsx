@@ -173,7 +173,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   onActivateRealPilot,
   firstSetup = false,
 }) => {
-  const [storeName, setStoreName] = useState(shift.storeName || '');
+  const initialStoreName = firstSetup && shift.storeName === 'Configure sua loja' ? '' : (shift.storeName || '');
+  const [storeName, setStoreName] = useState(initialStoreName);
   const [storePhone, setStorePhone] = useState(shift.storePhone || '');
   const [storeAddress, setStoreAddress] = useState(shift.storeAddress || '');
   const [storeLat, setStoreLat] = useState<number>(shift.storeLat || -26.91530418395996);
@@ -184,10 +185,11 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
   const [isSaved, setIsSaved] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodeSuccess, setGeocodeSuccess] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      setStoreName(shift.storeName || '');
+      setStoreName(firstSetup && shift.storeName === 'Configure sua loja' ? '' : (shift.storeName || ''));
       setStorePhone(shift.storePhone || '');
       setStoreAddress(shift.storeAddress || '');
       setStoreLat(shift.storeLat || -26.91530418395996);
@@ -195,8 +197,9 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       setAdminPassword(shift.adminPassword || 'admin123');
       setIsSaved(false);
       setGeocodeSuccess(false);
+      setFormError('');
     }
-  }, [isOpen, shift]);
+  }, [isOpen, shift, firstSetup]);
 
   if (!isOpen) return null;
 
@@ -220,8 +223,27 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!storeName.trim() || !storePhone.trim() || !storeAddress.trim()) return;
-    if (firstSetup && (adminPassword.trim().length < 6 || adminPassword.trim() === 'admin123')) return;
+    setFormError('');
+    if (!storeName.trim() || storeName.trim() === 'Configure sua loja') {
+      setFormError('Informe o nome real da loja.');
+      return;
+    }
+    if (!storePhone.trim()) {
+      setFormError('Informe o telefone ou WhatsApp comercial.');
+      return;
+    }
+    if (!storeAddress.trim()) {
+      setFormError('Informe o endereço completo da loja.');
+      return;
+    }
+    if (firstSetup && adminPassword.trim() === 'admin123') {
+      setFormError('Troque a senha temporária admin123 por uma senha nova.');
+      return;
+    }
+    if (adminPassword.trim().length < 6) {
+      setFormError('A nova senha precisa ter pelo menos 6 caracteres.');
+      return;
+    }
 
     let finalLat = Number(storeLat) || -26.91530418395996;
     let finalLng = Number(storeLng) || -49.1082;
@@ -456,6 +478,12 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
                 </button>
                 {adminPassword === 'hope2026' && <p className="text-[11px] font-bold text-amber-300">Troque e salve a senha padrão antes de ativar.</p>}
               </div>
+            </div>
+          )}
+
+          {formError && (
+            <div role="alert" className="bg-rose-500/15 border border-rose-500/40 text-rose-200 p-3.5 rounded-2xl text-xs font-bold">
+              ⚠️ {formError}
             </div>
           )}
 
