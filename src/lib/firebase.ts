@@ -231,6 +231,7 @@ async function resetOperationalDataOnceForStorePilot() {
     storeLat: -26.91530418395996,
     storeLng: -49.1146354675293,
     adminPassword: preservedPassword,
+    integrations: current?.integrations || INITIAL_STORE_SHIFT.integrations,
     operationalResetVersion: STORE_PILOT_RESET_VERSION,
     operationalResetAt: needsFullReset ? Date.now() : (current?.operationalResetAt || Date.now()),
   };
@@ -264,3 +265,4 @@ export async function seedInitialDataIfEmpty() {
     throw err;
   }
 }
+
