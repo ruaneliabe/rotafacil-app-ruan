@@ -1240,10 +1240,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1fr)] gap-3.5">
               {/* Left Column: Pedidos sem motoboy - ONLY rendered when unassigned orders exist */}
               {unassignedOrders.length > 0 && (
-                <div className="lg:col-span-4 bg-slate-900/40 rounded-xl p-3 border border-slate-800/80 space-y-2.5">
+                <div className="lg:col-span-1 min-w-0 bg-slate-900/40 rounded-xl p-3 border border-slate-800/80 space-y-2.5">
                   <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-slate-800">
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wide">
@@ -1707,9 +1707,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               )}
 
                 {/* Middle & Right Column: Map + Rotas Disponíveis (Dynamic Full Span when empty) */}
-                <div className={`${unassignedOrders.length > 0 ? 'lg:col-span-8' : 'lg:col-span-12'} grid grid-cols-1 md:grid-cols-12 gap-3`}>
+                <div className={`${unassignedOrders.length > 0 ? 'lg:contents' : 'lg:col-span-3'} grid grid-cols-1 md:grid-cols-12 gap-3`}>
                   {/* Map Panel with Sleek Filter Controls */}
-                  <div id="dashboard-map-section" className={`md:col-span-8 flex flex-col bg-slate-950/45 rounded-2xl border border-slate-800/80 p-2.5 space-y-2 shadow-sm ${isOperationEmpty ? 'min-h-[190px]' : 'h-[430px] md:h-auto min-h-[380px]'}`}>
+                  <div id="dashboard-map-section" className={`md:col-span-8 lg:col-span-1 min-w-0 flex flex-col bg-slate-950/45 rounded-2xl border border-slate-800/80 p-2.5 space-y-2 shadow-sm ${isOperationEmpty ? 'min-h-[190px]' : 'h-[430px] md:h-auto min-h-[380px]'}`}>
                   {/* Clean Toolbar Header */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1 pt-0.5">
                     {/* Left: Title & GPS Sync Button */}
@@ -1760,8 +1760,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           title="Filtrar o mapa para focar em apenas 1 motoboy"
                         >
                           <option value="">
-                            🌐 Frota: {motoboys.filter((m) => m.status !== 'offline').length}{' '}
-                            {motoboys.filter((m) => m.status !== 'offline').length === 1 ? 'motoboy ativo' : 'motoboys ativos'}
+                            🌐 Frota: {motoboys.length} cadastrados · {motoboys.filter((m) => m.status !== 'offline').length} ativos
                           </option>
                           {motoboys
                             .filter((m) => m.status !== 'offline')
@@ -1838,8 +1837,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   </div>
 
                   {!selectedMotoboyId && motoboys.filter((m) => m.status === 'delivering' || m.status === 'returning_to_store').length > 6 && (
-                    <div className="px-1 text-[10px] text-slate-400 flex items-center gap-2">
-                      <span>Mapa simplificado para evitar sobreposição.</span>
+                    <div className="px-1 text-[11px] text-slate-300 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-semibold">Mapa simplificado para evitar sobreposição.</span>
                       <span className="text-blue-300">● Em rota</span>
                       <span className="text-amber-300">● Voltando</span>
                       <span>Clique em um ponto para ver nome e detalhes.</span>
@@ -1902,31 +1901,33 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </div>
 
                 {/* Rotas disponíveis dos Motoboys */}
-                <div className="md:col-span-4 min-w-0 overflow-hidden bg-slate-950/35 rounded-2xl p-2.5 border border-slate-800/80 space-y-2.5 flex flex-col justify-between">
+                <div className="md:col-span-4 lg:col-span-1 min-w-0 overflow-hidden bg-slate-950/35 rounded-2xl p-2.5 border border-slate-800/80 space-y-2.5 flex flex-col justify-between">
                   <div className="space-y-2">
                     {/* Header */}
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-800">
-                      <h4 className="font-extrabold text-sm text-white tracking-tight">Equipe</h4>
-                      <span className="text-[10px] text-slate-400 font-medium text-right leading-tight">
+                    <div className="pb-2 border-b border-slate-800 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="font-extrabold text-sm text-white tracking-tight">Equipe</h4>
                         {(() => {
                           const activeCount = motoboys.filter((m) => m.status !== 'offline').length;
+                          return <span className="text-[11px] text-slate-300 font-bold whitespace-nowrap">{activeCount} ativos de {motoboys.length}</span>;
+                        })()}
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-medium leading-snug">
+                        {(() => {
                           const availableCount = motoboys.filter((m) => m.status === 'available').length;
                           const deliveringCount = motoboys.filter((m) => m.status === 'delivering').length;
                           const returningCount = motoboys.filter((m) => m.status === 'returning_to_store').length;
                           const pausedCount = motoboys.filter((m) => m.status === 'busy').length;
                           const offlineCount = motoboys.filter((m) => m.status === 'offline').length;
 
-                          const parts = [
-                            `${activeCount} ${activeCount === 1 ? 'motoboy ativo' : 'motoboys ativos'}`,
-                            `${availableCount} na loja`
-                          ];
+                          const parts = [`${availableCount} na loja`];
                           if (deliveringCount > 0) parts.push(`${deliveringCount} em rota`);
                           if (returningCount > 0) parts.push(`${returningCount} retornando`);
                           if (pausedCount > 0) parts.push(`${pausedCount} pausados`);
                           if (offlineCount > 0) parts.push(`${offlineCount} offline`);
                           return parts.join(' · ');
                         })()}
-                      </span>
+                      </div>
                     </div>
 
                     <div className="space-y-1.5 max-h-[455px] overflow-y-auto pr-1">
@@ -2001,7 +2002,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   )}
                                 </div>
 
-                                <p className="text-[11px] text-slate-400 font-medium mt-0.5 break-words">
+                                <p className="text-xs text-slate-300 font-medium mt-0.5 break-words leading-relaxed">
                                   {m.status === 'offline' ? (
                                     'Fora de turno (Offline)'
                                   ) : m.status === 'busy' ? (
@@ -2288,16 +2289,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
 
             {/* Resumo Rápido Card matching Mockup */}
-            <div className="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 space-y-2">
-              <h4 className="font-bold text-xs text-slate-300 uppercase tracking-wider">Resumo rápido</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800 space-y-2">
+              <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wider">Resumo rápido da operação</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                 <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
                   <span className="text-[11px] text-slate-400 block font-medium">Pedidos no balcão</span>
-                  <strong className="text-white text-sm font-bold">{readyAtCounter.length} prontos</strong>
+                  <strong className="text-white text-base font-black">{readyAtCounter.length} prontos</strong>
                 </div>
                 <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
                   <span className="text-[11px] text-slate-400 block font-medium">Motoboys ativos</span>
-                  <strong className="text-white text-sm font-bold">{motoboysAvailable.length} na fila</strong>
+                  <strong className="text-white text-base font-black">{motoboysAvailable.length} na fila</strong>
                 </div>
                 <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
                   <span className="text-[11px] text-slate-400 block font-medium">Próxima entrega</span>
