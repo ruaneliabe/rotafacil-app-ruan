@@ -32,6 +32,7 @@ import {
   Webhook,
   X,
   RotateCw,
+  Sparkles,
 } from 'lucide-react';
 import { RouteMap } from './RouteMap';
 import { ThermalTicketModal } from './ThermalTicketModal';
@@ -56,6 +57,7 @@ interface StoreDashboardProps {
   onConfirmArrivalAtStore?: (motoboyId: string) => void;
   onOpenNewOrderModal: () => void;
   onOpenMotoboyModal: () => void;
+  onOpenStoreSettings: () => void;
   onSelectOrderForTracking: (order: Order) => void;
   onDeleteMotoboy?: (motoboyId: string) => void;
   onDeleteAllMotoboys?: () => void;
@@ -76,6 +78,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   onConfirmArrivalAtStore,
   onOpenNewOrderModal,
   onOpenMotoboyModal,
+  onOpenStoreSettings,
   onSelectOrderForTracking,
   onDeleteMotoboy,
   onDeleteAllMotoboys,
@@ -276,6 +279,15 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled');
   const activeIntegrationsCount = [shift.integrations?.ifood, shift.integrations?.cardapioWeb]
     .filter((item) => item?.enabled).length;
+  const hasStoreAddress = Boolean(shift.storeAddress?.trim());
+  const onboardingSteps = [
+    { label: 'Configurar dados da loja', done: hasStoreAddress },
+    { label: 'Cadastrar primeiro motoboy', done: motoboys.length > 0 },
+    { label: 'Abrir a operação', done: shift.isOpen },
+    { label: 'Lançar primeiro pedido', done: orders.length > 0 },
+  ];
+  const completedOnboardingSteps = onboardingSteps.filter((step) => step.done).length;
+  const showOnboarding = completedOnboardingSteps < onboardingSteps.length;
   const readyAtCounter = orders.filter((o) => o.status === 'ready_at_counter');
   const unassignedOrders = activeOrders.filter((o) => !o.assignedMotoboyId);
   const todayDateKey = (() => {
@@ -451,10 +463,17 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-white tracking-tight">{shift.storeName || 'Hope Burger'}</h2>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase ${
-                shift.isOpen ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-800 text-slate-400'
+                shift.isOpen ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
               }`}>
                 {shift.isOpen ? 'Aberto' : 'Fechado'}
               </span>
+              <button
+                type="button"
+                onClick={onToggleShift}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${shift.isOpen ? 'bg-slate-800 hover:bg-rose-950 text-slate-200 hover:text-rose-300 border border-slate-700' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/40'}`}
+              >
+                {shift.isOpen ? 'Encerrar loja' : 'Abrir loja agora'}
+              </button>
             </div>
             {/* Minimal line requested by user: Hope Burger • 2 pedidos • 1 motoboy ativo • R$233 hoje */}
             <p className="text-xs text-slate-400 font-medium mt-0.5">
@@ -521,17 +540,45 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               <span className="hidden sm:inline">Equipe</span>
             </button>
 
-            <button
-              type="button"
-              onClick={onToggleShift}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 rounded-xl border border-slate-700/60 transition-all cursor-pointer"
-              title={shift.isOpen ? 'Encerrar Expediente' : 'Abrir Expediente'}
-            >
-              <Power className="w-4 h-4 text-rose-400" />
-            </button>
+            <span className={`p-2 rounded-xl border ${shift.isOpen ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'}`} title={shift.isOpen ? 'Loja aberta' : 'Loja fechada'}>
+              <Power className="w-4 h-4" />
+            </span>
           </div>
         </div>
       </div>
+
+      {showOnboarding && (
+        <section className="bg-gradient-to-r from-blue-950/80 to-slate-900 border border-blue-500/35 rounded-2xl p-4 shadow-sm" aria-label="Checklist para iniciar a operação">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-300" />
+                <h3 className="font-black text-sm text-white">Prepare a loja para operar hoje</h3>
+                <span className="text-[10px] font-black text-blue-200 bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 rounded-full">{completedOnboardingSteps}/4</span>
+              </div>
+              <p className="text-xs text-slate-300">Complete estes passos antes de receber os primeiros pedidos.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 flex-1 lg:max-w-3xl">
+              {onboardingSteps.map((step, index) => (
+                <button
+                  key={step.label}
+                  type="button"
+                  disabled={step.done}
+                  onClick={() => {
+                    if (index === 0) onOpenStoreSettings();
+                    if (index === 1) onOpenMotoboyModal();
+                    if (index === 2) onToggleShift();
+                    if (index === 3) onOpenNewOrderModal();
+                  }}
+                  className={`text-left px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${step.done ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300 cursor-default' : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-white cursor-pointer'}`}
+                >
+                  <span className="mr-1.5">{step.done ? '✓' : index + 1}</span>{step.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 🔌 INTEGRATIONS VALUE POSITIONING BANNER (COLLAPSIBLE / COMPACT) */}
       {isSyncBannerCollapsed ? (
@@ -1144,13 +1191,18 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
 
             {/* Banner when 0 unassigned orders */}
-            {unassignedOrders.length === 0 && (
-              <div className="hidden">
-                <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-xs font-black shrink-0">
-                  ✓
+            {unassignedOrders.length === 0 && activeOrders.length === 0 && (
+              <div className="bg-slate-900/70 border border-dashed border-slate-700 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-300 border border-blue-500/30 flex items-center justify-center"><Package className="w-5 h-5" /></div>
+                  <div>
+                    <p className="font-bold text-white text-sm">Nenhum pedido na operação</p>
+                    <p className="text-xs text-slate-300">Lance um pedido de teste para validar o atendimento e o despacho.</p>
+                  </div>
                 </div>
-                <span className="font-semibold text-slate-300">Tudo despachado</span>
-                <span className="text-slate-500 font-medium">Nenhum pedido aguardando motoboy.</span>
+                <button type="button" onClick={onOpenNewOrderModal} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black cursor-pointer flex items-center justify-center gap-1.5">
+                  <Plus className="w-4 h-4" /> Criar primeiro pedido
+                </button>
               </div>
             )}
 
@@ -2206,14 +2258,17 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
 
           {motoboys.length === 0 ? (
-            <div className="bg-slate-900/60 border border-dashed border-slate-700 rounded-2xl p-8 text-center space-y-2">
+            <div className="bg-slate-900/60 border border-dashed border-slate-600 rounded-2xl p-8 text-center space-y-3">
               <div className="w-12 h-12 bg-slate-800 border border-slate-700 text-slate-300 rounded-full flex items-center justify-center mx-auto text-xl">
                 🛵
               </div>
               <h4 className="font-bold text-white text-sm">Nenhum motoboy cadastrado</h4>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Sua lista de entregadores está limpa. Clique em "Cadastrar Novo Motoboy" acima para adicionar seus entregadores.
+              <p className="text-xs text-slate-300 max-w-sm mx-auto">
+                Cadastre a equipe antes de abrir a operação para conseguir vincular e despachar pedidos.
               </p>
+              <button type="button" onClick={onOpenMotoboyModal} className="mx-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black cursor-pointer flex items-center gap-1.5">
+                <Plus className="w-4 h-4" /> Cadastrar primeiro motoboy
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
