@@ -10,6 +10,10 @@ export const INITIAL_STORE_SHIFT: StoreShift = {
   storeLat: -26.91530418395996,
   storeLng: -49.1146354675293,
   adminPassword: 'hope2026',
+  integrations: {
+    ifood: { enabled: false, accountId: '', webhookUrl: '' },
+    cardapioWeb: { enabled: false, accountId: '', webhookUrl: '' },
+  },
 };
 
 export const INITIAL_MOTOBOYS: Motoboy[] = [];
@@ -29,3 +33,4 @@ export const INITIAL_ITEMS_MENU = [
   { name: 'Refrigerante Guaraná 2L', price: 14.0 },
   { name: 'Água Mineral 500ml', price: 5.0 },
 ];
+
