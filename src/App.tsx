@@ -740,7 +740,7 @@ export default function App() {
 
               <div className="flex items-center gap-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-800 text-xs">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="font-medium text-slate-200 hidden sm:inline">Painel Loja</span>
+                <span className="font-medium text-slate-200 hidden sm:inline">Loja</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -774,6 +774,7 @@ export default function App() {
             onConfirmArrivalAtStore={handleConfirmArrivalAtStore}
             onOpenNewOrderModal={() => setIsNewOrderModalOpen(true)}
             onOpenMotoboyModal={() => setIsMotoboyModalOpen(true)}
+            onOpenStoreSettings={() => setIsAccountSettingsOpen(true)}
             onDeleteMotoboy={handleDeleteMotoboy}
             onDeleteAllMotoboys={handleDeleteAllMotoboys}
             onAddOrder={handleAddOrder}
