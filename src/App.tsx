@@ -23,6 +23,7 @@ import {
   deleteAllMotoboysFromCloud,
   deleteAllOrdersFromCloud,
   clearAllDatabaseData,
+  activateRealPilotMode,
   saveShiftToCloud,
   seedInitialDataIfEmpty,
 } from './lib/firebase';
@@ -439,6 +440,24 @@ export default function App() {
     }
   };
 
+  const handleActivateRealPilot = async () => {
+    if (shift.adminPassword === 'hope2026') {
+      showToast('Troque primeiro a senha padrão da loja antes de ativar o Piloto Real.', 6000);
+      return;
+    }
+    if (!window.confirm('ATIVAR PILOTO REAL? Isso apagará definitivamente os 300 pedidos e 20 motoboys de demonstração. Os dados da loja serão preservados.')) return;
+    try {
+      const pilotShift = await activateRealPilotMode();
+      setOrders([]);
+      setMotoboys([]);
+      setShift(pilotShift);
+      showToast('✅ Piloto Real ativado. Banco limpo e massa de demonstração desativada.', 7000);
+    } catch (error) {
+      console.error(error);
+      showToast('❌ Não foi possível ativar o piloto. Nenhuma operação real deve começar.', 7000);
+    }
+  };
+
   const handleReorderMotoboyRoute = (orderedOrderIds: string[]) => {
     setOrders((prev) => {
       const updated = prev.map((ord) => {
@@ -576,6 +595,11 @@ export default function App() {
   const handleAddOrder = (
     newOrdData: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'>
   ) => {
+    const currentActiveOrders = orders.filter((order) => order.status !== 'delivered' && order.status !== 'cancelled').length;
+    if (shift.pilotMode && currentActiveOrders >= 5) {
+      showToast('Piloto Real limitado a 5 pedidos simultâneos. Finalize ou cancele um pedido antes de criar outro.', 6000);
+      return;
+    }
     const maxCode = orders.reduce((max, o) => Math.max(max, o.codeNumber || 0), 100);
     const nextCode = maxCode + 1;
     const newOrd: Order = {
@@ -855,6 +879,7 @@ export default function App() {
         shift={shift}
         onSaveSettings={handleSaveStoreSettings}
         onClearAllData={handleClearAllData}
+        onActivateRealPilot={handleActivateRealPilot}
       />
     </div>
   );

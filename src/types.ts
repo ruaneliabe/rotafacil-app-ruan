@@ -108,6 +108,9 @@ export interface StoreShift {
   operationalResetAt?: number;
   scaleTestSeedVersion?: string;
   scaleTestSeedStartedAt?: number;
+  pilotMode?: boolean;
+  pilotActivatedAt?: number;
+  demoDataDisabled?: boolean;
 }
 
 export interface OperationalMetrics {

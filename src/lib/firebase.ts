@@ -8,14 +8,11 @@ import {
   setDoc,
   getDocs,
   deleteDoc,
-  writeBatch,
-  runTransaction,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { Order, Motoboy, StoreShift } from '../types';
 import { INITIAL_STORE_SHIFT } from '../data/initialData';
-import { createScaleTestData } from '../data/scaleTestData';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -32,7 +29,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 const localDateKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const STORE_PILOT_RESET_VERSION = 'hope_store_pilot_2026_08_17_v5';
-const SCALE_TEST_SEED_VERSION = 'scale_test_20_drivers_300_orders_v5';
 
 function forceMotoboyLogout() {
   if (typeof window === 'undefined') return;
@@ -214,126 +210,42 @@ export async function clearAllDatabaseData() {
 
 export async function saveShiftToCloud(shift: StoreShift) { await setDoc(doc(db, 'shifts', 'current_shift'), shift, { merge: true }); }
 
-async function deleteOperationalDocuments(includeCurrentEpoch: boolean) {
-  const [ordersSnapshot, motoboysSnapshot] = await Promise.all([
-    getDocs(collection(db, 'orders')),
-    getDocs(collection(db, 'motoboys')),
-  ]);
-  const documents = [...ordersSnapshot.docs, ...motoboysSnapshot.docs].filter(
-    (item) => includeCurrentEpoch || item.data().operationalEpoch !== STORE_PILOT_RESET_VERSION
-  );
-  for (let start = 0; start < documents.length; start += 400) {
-    const batch = writeBatch(db);
-    documents.slice(start, start + 400).forEach((item) => batch.delete(item.ref));
-    await batch.commit();
-  }
-}
-
-async function resetOperationalDataOnceForStorePilot() {
+export async function activateRealPilotMode() {
   const shiftRef = doc(db, 'shifts', 'current_shift');
-  const snap = await getDoc(shiftRef);
-  const current = snap.exists() ? (snap.data() as StoreShift) : null;
-  const preservedPassword = current?.adminPassword || INITIAL_STORE_SHIFT.adminPassword || 'hope2026';
-  const needsFullReset = current?.operationalResetVersion !== STORE_PILOT_RESET_VERSION;
-
-  await deleteOperationalDocuments(needsFullReset);
-  if (needsFullReset) {
-    await wait(750);
-    await deleteOperationalDocuments(true);
-  }
-  const resetShift: StoreShift = {
-    isOpen: needsFullReset ? false : Boolean(current?.isOpen),
-    openedAt: needsFullReset ? '' : (current?.openedAt || ''),
-    initialCash: needsFullReset ? 0 : (current?.initialCash || 0),
-    storeName: 'Hope Burger',
-    storePhone: '(47) 99153-9855',
-    storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313',
-    storeLat: -26.91530418395996,
-    storeLng: -49.1146354675293,
-    adminPassword: preservedPassword,
-    integrations: current?.integrations || INITIAL_STORE_SHIFT.integrations,
-    operationalResetVersion: STORE_PILOT_RESET_VERSION,
-    operationalResetAt: needsFullReset ? Date.now() : (current?.operationalResetAt || Date.now()),
+  await clearAllDatabaseData();
+  const currentSnapshot = await getDoc(shiftRef);
+  const current = currentSnapshot.exists() ? (currentSnapshot.data() as StoreShift) : INITIAL_STORE_SHIFT;
+  const pilotShift: StoreShift = {
+    ...current,
+    isOpen: false,
+    openedAt: '',
+    initialCash: 0,
+    pilotMode: true,
+    pilotActivatedAt: Date.now(),
+    demoDataDisabled: true,
+    scaleTestSeedVersion: 'disabled_for_real_pilot',
+    scaleTestSeedStartedAt: undefined,
   };
+  await setDoc(shiftRef, cleanForFirestore(pilotShift), { merge: true });
 
   const [ordersAfter, motoboysAfter] = await Promise.all([
     getDocs(collection(db, 'orders')),
     getDocs(collection(db, 'motoboys')),
   ]);
-  const staleOrders = ordersAfter.docs.filter((item) => item.data().operationalEpoch !== STORE_PILOT_RESET_VERSION);
-  const staleMotoboys = motoboysAfter.docs.filter((item) => item.data().operationalEpoch !== STORE_PILOT_RESET_VERSION);
-  if (needsFullReset && (!ordersAfter.empty || !motoboysAfter.empty)) {
-    throw new Error(`Store pilot reset verification failed: orders=${ordersAfter.size}, motoboys=${motoboysAfter.size}`);
+  if (!ordersAfter.empty || !motoboysAfter.empty) {
+    throw new Error(`PILOT_ACTIVATION_FAILED: orders=${ordersAfter.size}, motoboys=${motoboysAfter.size}`);
   }
-  if (staleOrders.length || staleMotoboys.length) {
-    throw new Error(`Legacy operational cleanup failed: orders=${staleOrders.length}, motoboys=${staleMotoboys.length}`);
-  }
-  // The completion marker is stored only after the destructive operation was
-  // read back successfully. A failed/raced reset is retried on the next load.
-  await setDoc(shiftRef, resetShift);
-}
-
-async function seedScaleTestDataOnce() {
-  const shiftRef = doc(db, 'shifts', 'current_shift');
-  const seedingMarker = `${SCALE_TEST_SEED_VERSION}:seeding`;
-  const now = Date.now();
-  const acquired = await runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(shiftRef);
-    const current = snapshot.exists() ? (snapshot.data() as StoreShift) : INITIAL_STORE_SHIFT;
-    if (current.scaleTestSeedVersion === SCALE_TEST_SEED_VERSION) return false;
-    const hasFreshLock = current.scaleTestSeedVersion === seedingMarker && now - Number(current.scaleTestSeedStartedAt || 0) < 120000;
-    if (hasFreshLock) return false;
-    transaction.set(shiftRef, { scaleTestSeedVersion: seedingMarker, scaleTestSeedStartedAt: now }, { merge: true });
-    return true;
-  });
-  if (!acquired) return;
-
-  try {
-    const shiftSnapshot = await getDoc(shiftRef);
-    const currentShift = shiftSnapshot.exists() ? (shiftSnapshot.data() as StoreShift) : INITIAL_STORE_SHIFT;
-    const { motoboys, orders } = createScaleTestData(STORE_PILOT_RESET_VERSION);
-    const documents = [
-      ...motoboys.map((motoboy) => ({ ref: doc(db, 'motoboys', motoboy.id), value: motoboy })),
-      ...orders.map((order) => ({ ref: doc(db, 'orders', order.id), value: order })),
-    ];
-
-    for (let start = 0; start < documents.length; start += 400) {
-      const batch = writeBatch(db);
-      documents.slice(start, start + 400).forEach((item) => batch.set(item.ref, cleanForFirestore(item.value)));
-      await batch.commit();
-    }
-
-    const [ordersAfter, motoboysAfter] = await Promise.all([
-      getDocs(collection(db, 'orders')),
-      getDocs(collection(db, 'motoboys')),
-    ]);
-    if (ordersAfter.size !== 300 || motoboysAfter.size !== 20) {
-      throw new Error(`SCALE_TEST_SEED_FAILED: orders=${ordersAfter.size}, motoboys=${motoboysAfter.size}`);
-    }
-
-    await setDoc(shiftRef, {
-      ...currentShift,
-      isOpen: true,
-      openedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      scaleTestSeedVersion: SCALE_TEST_SEED_VERSION,
-      scaleTestSeedStartedAt: null,
-    }, { merge: true });
-  } catch (error) {
-    await setDoc(shiftRef, { scaleTestSeedVersion: null, scaleTestSeedStartedAt: null }, { merge: true });
-    throw error;
-  }
+  return pilotShift;
 }
 
 export async function seedInitialDataIfEmpty() {
   try {
-    await resetOperationalDataOnceForStorePilot();
-    await seedScaleTestDataOnce();
     const ref = doc(db, 'shifts', 'current_shift');
     if (!(await getDoc(ref)).exists()) {
-      await setDoc(ref, { ...INITIAL_STORE_SHIFT, storeName: 'Hope Burger', storePhone: '(47) 99153-9855', storeAddress: 'R. dos Caçadores, 653 - Velha Central, Blumenau - SC, 89040-313', storeLat: -26.91530418395996, storeLng: -49.1146354675293, adminPassword: 'hope2026' });
+      await setDoc(ref, { ...INITIAL_STORE_SHIFT, isOpen: false, openedAt: '', demoDataDisabled: true });
     }
   } catch (err) {
-    console.error('RESET OPERACIONAL FALHOU:', err);
+    console.error('INICIALIZAÇÃO DO PILOTO FALHOU:', err);
     throw err;
   }
 }

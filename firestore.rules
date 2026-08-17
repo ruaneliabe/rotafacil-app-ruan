@@ -14,15 +14,19 @@ service cloud.firestore {
 
     // 1. Order Schema Validation Helper
     function isValidOrder(data) {
-      return data.clientName is string && data.clientName.size() <= 100
-        && data.address is string && data.address.size() <= 300
-        && data.status is string && data.status.size() <= 50;
+      return data.clientName is string && data.clientName.size() > 0 && data.clientName.size() <= 100
+        && data.address is string && data.address.size() > 0 && data.address.size() <= 300
+        && data.status in ['pending', 'preparing', 'ready_at_counter', 'picked_up', 'in_transit', 'delivered', 'cancelled']
+        && (!('totalAmount' in data) || (data.totalAmount is number && data.totalAmount >= 0 && data.totalAmount <= 100000))
+        && (!('deliveryFee' in data) || (data.deliveryFee is number && data.deliveryFee >= 0 && data.deliveryFee <= 10000));
     }
 
     // 2. Motoboy Schema Validation Helper
     function isValidMotoboy(data) {
-      return data.name is string && data.name.size() <= 100
-        && data.status is string && data.status.size() <= 50;
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.status in ['available', 'delivering', 'returning_to_store', 'offline', 'busy']
+        && (!('lat' in data) || (data.lat is number && data.lat >= -90 && data.lat <= 90))
+        && (!('lng' in data) || (data.lng is number && data.lng >= -180 && data.lng <= 180));
     }
 
     // 3. Shift Schema Validation Helper
@@ -47,7 +51,7 @@ service cloud.firestore {
 
     match /shifts/{shiftId} {
       allow read: if true;
-      allow create, update: if isValidId(shiftId) && isValidShift(incoming());
+      allow create, update: if shiftId == 'current_shift' && isValidShift(incoming());
       allow delete: if false;
     }
 

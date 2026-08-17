@@ -496,8 +496,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             <button
               type="button"
               onClick={onOpenNewOrderModal}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Cadastrar um pedido manual avulso no sistema"
+              disabled={Boolean(shift.pilotMode && activeOrders.length >= 5)}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
+              title={shift.pilotMode && activeOrders.length >= 5 ? 'Limite seguro do piloto: conclua um pedido antes de lançar outro' : 'Cadastrar um pedido manual avulso no sistema'}
             >
               <Plus className="w-3.5 h-3.5 text-blue-400" />
               <span>Pedido Manual</span>
@@ -539,6 +540,29 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {shift.pilotMode ? (
+        <section className="rounded-2xl border border-emerald-500/40 bg-emerald-950/35 px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-2" aria-label="Status do piloto real">
+          <div className="flex items-center gap-3">
+            <span className="h-9 w-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-lg">🧪</span>
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-emerald-300">Piloto real ativo</p>
+              <p className="text-xs text-slate-300">Dados reais da loja • integrações externas continuam em simulação • use apenas um operador no painel</p>
+            </div>
+          </div>
+          <span className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-black ${activeOrders.length >= 5 ? 'border-amber-500/50 bg-amber-500/15 text-amber-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
+            {activeOrders.length}/5 pedidos simultâneos
+          </span>
+        </section>
+      ) : (
+        <section className="rounded-2xl border border-amber-500/35 bg-amber-950/25 px-4 py-3 flex items-center gap-3" aria-label="Ambiente de demonstração">
+          <AlertTriangle className="w-5 h-5 text-amber-300 shrink-0" />
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-amber-200">Ambiente de demonstração</p>
+            <p className="text-xs text-slate-300">Não cadastre clientes reais antes de ativar o Piloto Real em Configurar Loja.</p>
+          </div>
+        </section>
+      )}
 
       {showOnboarding && (
         <section className="bg-gradient-to-r from-blue-950/80 to-slate-900 border border-blue-500/35 rounded-2xl p-4 shadow-sm" aria-label="Checklist para iniciar a operação">
