@@ -777,6 +777,12 @@ export default function App() {
             onDeleteMotoboy={handleDeleteMotoboy}
             onDeleteAllMotoboys={handleDeleteAllMotoboys}
             onAddOrder={handleAddOrder}
+            onSaveIntegrations={(integrations) => {
+              const updatedShift = { ...shift, integrations };
+              setShift(updatedShift);
+              saveShiftToCloud(updatedShift);
+              showToast('Integrações da loja salvas com sucesso! 🔌');
+            }}
             onSelectOrderForTracking={(ord) => {
               setSelectedTrackingOrder(ord);
               const trackingUrl = `${window.location.origin}/?rastreio=${ord.trackingCode || ord.id}`;
@@ -846,3 +852,4 @@ export default function App() {
     </div>
   );
 }
+
