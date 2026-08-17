@@ -1709,7 +1709,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 {/* Middle & Right Column: Map + Rotas Disponíveis (Dynamic Full Span when empty) */}
                 <div className={`${unassignedOrders.length > 0 ? 'lg:contents' : 'lg:col-span-3'} grid grid-cols-1 md:grid-cols-12 gap-3`}>
                   {/* Map Panel with Sleek Filter Controls */}
-                  <div id="dashboard-map-section" className={`md:col-span-8 lg:col-span-1 min-w-0 flex flex-col bg-slate-950/45 rounded-2xl border border-slate-800/80 p-2.5 space-y-2 shadow-sm ${isOperationEmpty ? 'min-h-[190px]' : 'h-[430px] md:h-auto min-h-[380px]'}`}>
+                  <div id="dashboard-map-section" className={`md:col-span-8 ${unassignedOrders.length > 0 ? 'lg:col-span-1' : 'lg:col-span-8'} min-w-0 flex flex-col bg-slate-950/45 rounded-2xl border border-slate-800/80 p-2.5 space-y-2 shadow-sm ${isOperationEmpty ? 'min-h-[190px]' : 'h-[430px] md:h-auto min-h-[380px]'}`}>
                   {/* Clean Toolbar Header */}
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1 pt-0.5">
                     {/* Left: Title & GPS Sync Button */}
@@ -1901,8 +1901,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </div>
 
                 {/* Rotas disponíveis dos Motoboys */}
-                <div className="md:col-span-4 lg:col-span-1 min-w-0 overflow-hidden bg-slate-950/35 rounded-2xl p-2.5 border border-slate-800/80 space-y-2.5 flex flex-col justify-between">
-                  <div className="space-y-2">
+                <div className={`md:col-span-4 ${unassignedOrders.length > 0 ? 'lg:col-span-1' : 'lg:col-span-4'} min-w-0 min-h-0 overflow-hidden bg-slate-950/35 rounded-2xl p-2.5 border border-slate-800/80 flex flex-col`}>
+                  <div className="flex flex-1 min-h-0 flex-col gap-2">
                     {/* Header */}
                     <div className="pb-2 border-b border-slate-800 space-y-1">
                       <div className="flex items-center justify-between gap-2">
@@ -1930,7 +1930,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className="space-y-1.5 max-h-[455px] overflow-y-auto pr-1">
+                    <div className="flex-1 min-h-0 space-y-1.5 overflow-y-auto pr-1">
                       {motoboys.length === 0 && (
                         <div className="border border-dashed border-slate-700 bg-slate-900/60 rounded-xl p-4 text-center space-y-2">
                           <Bike className="w-7 h-7 text-blue-300 mx-auto" />
