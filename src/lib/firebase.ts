@@ -185,7 +185,7 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
     const existingData = existing.exists() ? ({ id: existing.id, ...existing.data() } as Motoboy) : null;
     const dailyBase = motoboy.statsDate === today ? motoboy : { ...motoboy, deliveriesCountToday: 0, totalEarnedToday: 0, statsDate: today };
     let payload: Motoboy = isNewDriver
-      ? { ...dailyBase, status: 'offline', activeOrdersCount: 0, totalEarnedToday: 0, deliveriesCountToday: 0, statsDate: today, joinedQueueAt: undefined, callingToCounterAt: undefined }
+      ? { ...dailyBase, status: motoboy.status || 'available', activeOrdersCount: 0, totalEarnedToday: 0, deliveriesCountToday: 0, statsDate: today, joinedQueueAt: Date.now(), callingToCounterAt: undefined }
       : dailyBase;
     payload = { ...payload, operationalEpoch: STORE_PILOT_RESET_VERSION };
     if (existingData?.status === 'returning_to_store' && payload.status !== 'returning_to_store') {

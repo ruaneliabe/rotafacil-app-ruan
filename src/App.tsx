@@ -206,10 +206,45 @@ export default function App() {
   }, [motoboys]);
 
   // Order Handlers
-  const handleAddOrder = (newOrder: Order) => {
-    saveOrderToCloud(newOrder);
+  const handleAddOrder = (newOrderData: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'> | Order) => {
+    const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+    const nextCode = (newOrderData as any).codeNumber || (orders.reduce((max, o) => Math.max(max, o.codeNumber || 0), 100) + 1);
+    const orderId = (newOrderData as any).id || `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const tracking = (newOrderData as any).trackingCode || `ROTA-${nextCode}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+    const completeOrder: Order = {
+      id: orderId,
+      codeNumber: nextCode,
+      clientName: newOrderData.clientName || 'Cliente',
+      clientPhone: newOrderData.clientPhone || '',
+      address: newOrderData.address || 'Endereço da entrega',
+      street: newOrderData.street,
+      houseNumber: newOrderData.houseNumber,
+      complement: newOrderData.complement,
+      neighborhood: newOrderData.neighborhood || 'Centro',
+      lat: newOrderData.lat || shift.storeLat || -26.9194,
+      lng: newOrderData.lng || shift.storeLng || -49.0661,
+      items: newOrderData.items || [],
+      itemsSummary: newOrderData.itemsSummary || 'Pedido',
+      subtotal: newOrderData.subtotal || newOrderData.total || 0,
+      deliveryFee: newOrderData.deliveryFee || 0,
+      total: newOrderData.total || 0,
+      paymentMethod: newOrderData.paymentMethod || 'pix',
+      changeFor: newOrderData.changeFor,
+      status: (newOrderData as any).status || 'pending',
+      createdAt: (newOrderData as any).createdAt || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      createdDate: (newOrderData as any).createdDate || today,
+      estimatedMinutes: newOrderData.estimatedMinutes || 25,
+      assignedMotoboyId: newOrderData.assignedMotoboyId || null,
+      assignedMotoboyName: newOrderData.assignedMotoboyName || null,
+      originChannel: newOrderData.originChannel || 'manual',
+      kitchenReadyInMin: newOrderData.kitchenReadyInMin || 0,
+      trackingCode: tracking,
+    };
+
+    saveOrderToCloud(completeOrder);
     playNewOrderSound();
-    showToast(`Pedido #${newOrder.codeNumber} cadastrado com sucesso! 📦`);
+    showToast(`Pedido #${completeOrder.codeNumber} cadastrado com sucesso! 📦`);
   };
 
   const handleUpdateOrderStatus = (orderId: string, newStatus: Order['status']) => {
@@ -373,9 +408,28 @@ export default function App() {
     showToast(updatedShift.isOpen ? 'Turno aberto! Loja pronta para receber pedidos.' : 'Turno fechado.');
   };
 
-  const handleAddMotoboy = (newMotoboy: Motoboy) => {
-    saveMotoboyToCloud(newMotoboy);
-    showToast(`Entregador ${newMotoboy.name} cadastrado com sucesso! 🛵`);
+  const handleAddMotoboy = (newMotoboyData: Omit<Motoboy, 'id' | 'status' | 'activeOrdersCount' | 'totalEarnedToday'> | Motoboy) => {
+    const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+    const motoboyId = (newMotoboyData as any).id || `mb_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const completeMotoboy: Motoboy = {
+      id: motoboyId,
+      name: newMotoboyData.name,
+      phone: newMotoboyData.phone || '',
+      plate: newMotoboyData.plate || '',
+      vehicleModel: newMotoboyData.vehicleModel || '',
+      username: newMotoboyData.username || '',
+      password: newMotoboyData.password || '',
+      status: (newMotoboyData as any).status || 'available',
+      activeOrdersCount: 0,
+      deliveriesCountToday: 0,
+      totalEarnedToday: 0,
+      statsDate: today,
+      joinedQueueAt: Date.now(),
+      currentLat: newMotoboyData.currentLat || 0,
+      currentLng: newMotoboyData.currentLng || 0,
+    };
+    saveMotoboyToCloud(completeMotoboy);
+    showToast(`Entregador ${completeMotoboy.name} cadastrado com sucesso! 🛵`);
   };
 
   const handleDeleteMotoboy = (motoboyId: string) => {

@@ -21,6 +21,9 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
   const [plate, setPlate] = useState('');
   const [arranqueInput, setArranqueInput] = useState('0');
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const resetForm = () => {
@@ -31,30 +34,54 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
     setVehicleModel('');
     setPlate('');
     setArranqueInput('0');
+    setErrorText(null);
+    setIsSubmitting(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !username.trim() || !password.trim()) return;
+    setErrorText(null);
 
+    const cleanName = name.trim();
+    const cleanUser = username.trim().toLowerCase().replace(/\s+/g, '');
+    const cleanPass = password.trim();
+
+    if (!cleanName) {
+      setErrorText('Informe o nome do motoboy.');
+      return;
+    }
+    if (!cleanUser || cleanUser.length < 2) {
+      setErrorText('O usuário de login deve ter pelo menos 2 caracteres.');
+      return;
+    }
+    if (!cleanPass || cleanPass.length < 3) {
+      setErrorText('A senha de login deve ter pelo menos 3 caracteres.');
+      return;
+    }
+
+    setIsSubmitting(true);
     const parsedArranque = parseFloat(arranqueInput.replace(',', '.')) || 0;
 
-    onAddMotoboy({
-      name: name.trim(),
-      phone: phone.trim(),
-      username: username.trim().toLowerCase(),
-      password: password.trim(),
-      vehicleModel: vehicleModel.trim(),
-      plate: plate.trim().toUpperCase(),
-      fixedFee: parsedArranque,
-      perDeliveryFee: 0,
-      // Position is unknown until the authenticated driver's device sends real GPS.
-      currentLat: 0,
-      currentLng: 0,
-    });
+    try {
+      onAddMotoboy({
+        name: cleanName,
+        phone: phone.trim(),
+        username: cleanUser,
+        password: cleanPass,
+        vehicleModel: vehicleModel.trim(),
+        plate: plate.trim().toUpperCase(),
+        fixedFee: parsedArranque,
+        perDeliveryFee: 0,
+        currentLat: 0,
+        currentLng: 0,
+      });
 
-    resetForm();
-    onClose();
+      resetForm();
+      onClose();
+    } catch (err: any) {
+      setErrorText('Erro ao salvar: ' + (err?.message || 'Tente novamente.'));
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -69,6 +96,13 @@ export const AddMotoboyModal: React.FC<AddMotoboyModalProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {errorText && (
+          <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 font-bold rounded-xl text-xs flex items-center gap-2">
+            <span>⚠️</span>
+            <span>{errorText}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4 text-xs">
           <div>
