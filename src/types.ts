@@ -81,6 +81,18 @@ export interface UserSession {
   username?: string;
 }
 
+export interface StoreIntegrationConfig {
+  enabled: boolean;
+  accountId: string;
+  webhookUrl: string;
+  updatedAt?: number;
+}
+
+export interface StoreIntegrations {
+  ifood: StoreIntegrationConfig;
+  cardapioWeb: StoreIntegrationConfig;
+}
+
 export interface StoreShift {
   isOpen: boolean;
   openedAt: string;
@@ -91,6 +103,7 @@ export interface StoreShift {
   storeLat: number;
   storeLng: number;
   adminPassword?: string;
+  integrations?: StoreIntegrations;
   operationalResetVersion?: string;
   operationalResetAt?: number;
 }
@@ -170,3 +183,4 @@ export interface SavedRoute {
   config?: RouteConfig;
   summary?: RouteSummary;
 }
+
