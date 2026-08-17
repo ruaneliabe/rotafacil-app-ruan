@@ -559,6 +559,13 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     <div className="relative w-full h-full min-h-[350px] bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-xl">
       <div ref={mapContainerRef} className="w-full h-full" />
 
+      {isStoreAddressConfigured && stops.length === 0 && (!motoboysList || motoboysList.length === 0) && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-sm bg-slate-900/95 border border-slate-700 rounded-xl p-3 text-center shadow-xl backdrop-blur-md pointer-events-none">
+          <p className="text-xs font-black text-white">Mapa pronto para a primeira entrega</p>
+          <p className="text-[11px] text-slate-300 mt-0.5">A loja está centralizada. Pedidos e motoboys aparecerão aqui em tempo real.</p>
+        </div>
+      )}
+
       {/* Unconfigured Store Address Banner */}
       {!isStoreAddressConfigured && (
         <div className="absolute top-12 left-3 right-3 z-30 bg-slate-900/95 border-2 border-amber-500/80 rounded-xl p-2.5 shadow-2xl flex items-center gap-2.5 text-xs text-amber-200 backdrop-blur-md">
@@ -596,3 +603,4 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     </div>
   );
 };
+
