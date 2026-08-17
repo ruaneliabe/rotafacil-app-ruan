@@ -690,7 +690,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           <div className="flex items-center gap-2.5 min-w-0">
             <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
             <span className="font-extrabold text-xs text-amber-200 truncate">
-              {operationalProblemAlerts.length} ocorrências exigem atenção · {operationalProblemAlerts.filter((alert) => alert.severity === 'high').length} críticas
+              {operationalProblemAlerts.length} {operationalProblemAlerts.length === 1 ? 'ocorrência exige' : 'ocorrências exigem'} atenção · {(() => {
+                const count = operationalProblemAlerts.filter((alert) => alert.severity === 'high').length;
+                return `${count} ${count === 1 ? 'crítica' : 'críticas'}`;
+              })()}
             </span>
           </div>
 
@@ -964,6 +967,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               .filter((alert) => alert.type === 'delay_risk' && alert.orderId)
               .map((alert) => alert.orderId as string)
               .filter((orderId) => orders.some((order) => order.id === orderId && !order.assignedMotoboyId && order.status !== 'delivered' && order.status !== 'cancelled'));
+            const alertsByNeighborhood = delayedUnassignedIds.reduce<Record<string, string[]>>((groups, orderId) => {
+              const order = orders.find((item) => item.id === orderId);
+              const neighborhood = order?.neighborhood?.trim() || 'Sem bairro';
+              if (!groups[neighborhood]) groups[neighborhood] = [];
+              groups[neighborhood].push(orderId);
+              return groups;
+            }, {});
+            const concentratedAlertGroups = Object.entries(alertsByNeighborhood)
+              .filter(([, orderIds]) => orderIds.length > 1)
+              .sort(([, a], [, b]) => b.length - a.length);
 
             return (
               <>
@@ -973,17 +986,28 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       <div>
                         <span className="text-sm font-black text-white tracking-wide flex items-center gap-2">
                           <AlertTriangle className="w-4 h-4 text-amber-400" />
-                          <span>{problemAlerts.length} ocorrências exigem atenção</span>
+                          <span>{problemAlerts.length} {problemAlerts.length === 1 ? 'ocorrência exige' : 'ocorrências exigem'} atenção</span>
                         </span>
                         <p className="text-[11px] text-slate-400 mt-1">Mostrando primeiro o que está há mais tempo esperando ação.</p>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {criticalCount > 0 && <span className="text-[10px] font-black text-rose-200 bg-rose-950/60 border border-rose-500/40 px-2.5 py-1 rounded-full">{criticalCount} críticas</span>}
+                        {criticalCount > 0 && <span className="text-[10px] font-black text-rose-200 bg-rose-950/60 border border-rose-500/40 px-2.5 py-1 rounded-full">{criticalCount} {criticalCount === 1 ? 'crítica' : 'críticas'}</span>}
                         {attentionCount > 0 && <span className="text-[10px] font-black text-amber-200 bg-amber-950/60 border border-amber-500/40 px-2.5 py-1 rounded-full">{attentionCount} em atenção</span>}
-                        {delayedCount > 0 && <span className="text-[10px] font-bold text-slate-300 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full">{delayedCount} pedidos atrasados</span>}
-                        {fleetBottleneckCount > 0 && <span className="text-[10px] font-bold text-slate-300 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full">{fleetBottleneckCount} gargalo de frota</span>}
+                        {delayedCount > 0 && <span className="text-[10px] font-bold text-slate-300 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full">{delayedCount} {delayedCount === 1 ? 'pedido atrasado' : 'pedidos atrasados'}</span>}
+                        {fleetBottleneckCount > 0 && <span className="text-[10px] font-bold text-slate-300 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full">{fleetBottleneckCount} {fleetBottleneckCount === 1 ? 'gargalo de frota' : 'gargalos de frota'}</span>}
                       </div>
                     </div>
+
+                    {concentratedAlertGroups.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/45 p-2.5">
+                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">Ocorrências concentradas:</span>
+                        {concentratedAlertGroups.slice(0, 5).map(([neighborhood, orderIds]) => (
+                          <button key={neighborhood} type="button" onClick={() => setSelectedOrderIds(orderIds)} className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-200 hover:bg-amber-500/20 cursor-pointer" title={`Selecionar os ${orderIds.length} pedidos atrasados de ${neighborhood}`}>
+                            {orderIds.length} em {neighborhood}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="space-y-2">
                       {visibleProblemAlerts.map((alt, index) => (
@@ -1132,7 +1156,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           {/* 4. STRIPE-STYLE OPERATIONAL METRICS CARDS */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 rounded-2xl border border-slate-800/80 bg-slate-950/35 overflow-hidden">
             {/* CARD 1: Espera Médio na Fila */}
-            <div className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
+            <div title="Tempo médio que um motoboy disponível permanece na fila antes de receber um despacho." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-amber-400 shrink-0" /> Espera Médio Fila
@@ -1148,7 +1172,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
 
             {/* CARD 2: Tempo até Retirada */}
-            <div className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
+            <div title="Tempo médio entre a chamada do motoboy no balcão e a confirmação da saída." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <Zap className="w-4 h-4 text-emerald-400 shrink-0" /> Tempo até Retirada
@@ -1164,7 +1188,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
 
             {/* CARD 3: Motoboys Disponíveis / Parados */}
-            <div className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
+            <div title="Motoboys disponíveis na fila agora. O total cadastrado também inclui quem está em rota, retornando, pausado ou offline." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <Bike className="w-4 h-4 text-blue-400 shrink-0" /> Motoboys Fila Agora
@@ -1177,16 +1201,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
-                  {motoboysAvailable.length}/{motoboys.length}
+                  {motoboysAvailable.length} na fila
                 </span>
                 <span className="text-[11px] text-slate-500 font-medium truncate">
-                  {motoboysAvailable.length > 0 ? `1º: ${motoboysAvailable[0].name.split(' ')[0]}` : 'todos em rota'}
+                  {motoboys.length} cadastrados · {motoboys.filter((motoboy) => motoboy.status !== 'offline').length} trabalhando
                 </span>
               </div>
             </div>
 
             {/* CARD 4: Faturamento & Entregas Hoje */}
-            <div className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
+            <div title="Total financeiro dos pedidos criados hoje. Em andamento inclui pedidos na cozinha, prontos, vinculados e em rota." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
                   <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" /> Entregas Hoje
@@ -1219,7 +1243,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                 </button>
               </div>
 
-              <span className="text-xs text-slate-400 font-medium">
+              <span title="Pedidos em andamento que ainda não foram vinculados a nenhum motoboy." className="text-xs text-slate-400 font-medium">
                 <strong className="text-amber-400">{unassignedOrders.length}</strong> aguardando despacho
               </span>
             </div>

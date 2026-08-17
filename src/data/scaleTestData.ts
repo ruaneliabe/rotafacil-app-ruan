@@ -18,6 +18,23 @@ const DESTINATIONS = [
   ['Victor Konder', 'Rua São Paulo', -26.9107, -49.0735],
 ] as const;
 
+// Pontos reais sobre corredores viários de Blumenau. A massa anterior distribuía
+// os entregadores em um círculo matemático e acabava colocando motos em morros,
+// rios e áreas sem rua, o que parecia um salto de GPS no mapa.
+const DRIVER_ROAD_POSITIONS = [
+  [-26.9078, -49.1055], // Rua Benjamin Constant
+  [-26.9141, -49.1038], // Rua João Pessoa
+  [-26.9202, -49.1112], // Rua dos Caçadores
+  [-26.8952, -49.1158], // Rua Bahia
+  [-26.9027, -49.0914], // Rua Almirante Barroso
+  [-26.9107, -49.0735], // Rua São Paulo
+  [-26.9185, -49.0661], // Rua XV de Novembro
+  [-26.9365, -49.0791], // Rua Amazonas
+  [-26.9169, -49.1105], // Retorno pela Rua dos Caçadores
+  [-26.9139, -49.1052], // Retorno pela Rua João Pessoa
+  [-26.9091, -49.1064], // Retorno pela Rua Benjamin Constant
+] as const;
+
 const ITEMS = [
   ['Hope Smash Bacon', 32],
   ['Hope Double Cheese & Bacon', 38],
@@ -44,7 +61,8 @@ export function createScaleTestData(operationalEpoch: string) {
             ? 'busy'
             : 'offline';
     const angle = (index / DRIVER_NAMES.length) * Math.PI * 2;
-    const routeDistance = status === 'available' || status === 'busy' || status === 'offline' ? 0.0005 : 0.018 + (index % 4) * 0.006;
+    const isOnRoad = status === 'delivering' || status === 'returning_to_store';
+    const roadPosition = isOnRoad ? DRIVER_ROAD_POSITIONS[index - 6] : null;
     const activeOrdersCount = status === 'delivering' ? 3 : 0;
 
     return {
@@ -57,8 +75,8 @@ export function createScaleTestData(operationalEpoch: string) {
       plate: `TST-${String(1000 + index)}`,
       status,
       activeOrdersCount,
-      currentLat: -26.91530418395996 + Math.cos(angle) * routeDistance,
-      currentLng: -49.1146354675293 + Math.sin(angle) * routeDistance,
+      currentLat: roadPosition?.[0] ?? -26.91530418395996 + Math.cos(angle) * 0.00018,
+      currentLng: roadPosition?.[1] ?? -49.1146354675293 + Math.sin(angle) * 0.00018,
       locationUpdatedAt: nowMs - (index % 4) * 7000,
       fixedFee: 35,
       perDeliveryFee: 7.99,
