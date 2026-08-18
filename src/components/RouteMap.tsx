@@ -109,7 +109,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     // otherwise multiple riders with multiple orders create a misleading spaghetti map.
     // Customer tracking and the driver's own route map do not pass motoboysList, so they
     // continue to show their delivery destination normally.
-    const fleetOverviewOnly = Boolean(motoboysList);
+    const fleetOverviewOnly = Boolean(motoboysList && motoboysList.length > 0);
 
     // 1. Store Marker (Sleek Dark Pill) - ONLY render if store address is configured in Configurar Loja
     if (isStoreAddressConfigured) {

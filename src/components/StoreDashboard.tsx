@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Order, Motoboy, StoreShift, OrderStatus, StoreIntegrations } from '../types';
+import { Order, Motoboy, StoreShift, OrderStatus, StoreIntegrations, StoreBranch } from '../types';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -33,8 +33,10 @@ import {
   X,
   RotateCw,
   Sparkles,
+  Map,
 } from 'lucide-react';
 import { RouteMap } from './RouteMap';
+import { RouteModal } from './RouteModal';
 import { ThermalTicketModal } from './ThermalTicketModal';
 import { MotoboySettlementModal } from './MotoboySettlementModal';
 import { DeliveryHistoryModal } from './DeliveryHistoryModal';
@@ -92,6 +94,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   // Multi-select for multi-order grouping/bag dispatch
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [orderSort, setOrderSort] = useState<'time' | 'value' | 'neighborhood'>('time');
+  const [storeFilter, setStoreFilter] = useState<string>('all');
+  const [isRouteModalOpen, setIsRouteModalOpen] = useState<boolean>(false);
   const [isCompactMode, setIsCompactMode] = useState<boolean>(false);
   const [isAlertsSectionInView, setIsAlertsSectionInView] = useState<boolean>(true);
   const [isSavingsDismissed, setIsSavingsDismissed] = useState<boolean>(false);
@@ -500,6 +504,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
+              onClick={() => setIsRouteModalOpen(true)}
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black text-xs rounded-xl border border-indigo-400/50 shadow-md shadow-indigo-950/40 transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Abrir mapa de rotas e endereços dos pedidos"
+            >
+              <Map className="w-3.5 h-3.5 text-indigo-200" />
+              <span>Rotas no Mapa</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onOpenNewOrderModal}
               disabled={Boolean(shift.pilotMode && activeOrders.length >= 5)}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
@@ -733,7 +747,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       )}
 
       {/* 2. SUB NAVIGATION TABS */}
-      <div className="bg-slate-950/35 p-1.5 rounded-2xl border border-slate-800/70 flex items-center justify-between overflow-x-auto text-xs font-medium text-slate-500 shadow-sm">
+      <div className="bg-slate-950/40 p-1.5 rounded-2xl border border-slate-800/70 flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-slate-500 shadow-sm">
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -790,6 +804,57 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           >
             Histórico
           </button>
+        </div>
+
+        {/* 🏬 Multi-Store Selector (Hope Burger vs Hope Pizza) */}
+        <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+          <span className="text-[10px] font-black uppercase text-slate-400 px-1.5 hidden sm:inline">Loja:</span>
+          <button
+            type="button"
+            onClick={() => setStoreFilter('all')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              storeFilter === 'all'
+                ? 'bg-slate-200 text-slate-950 font-black shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Todas ({activeOrders.length})
+          </button>
+          {(shift.branches || [
+            { id: 'hope_burger', name: 'Hope Burger', icon: '🍔', tag: 'HB' },
+            { id: 'hope_pizza', name: 'Hope Pizza', icon: '🍕', tag: 'HP' },
+          ]).map((branch) => {
+            const isSel = storeFilter === branch.id;
+            const count = activeOrders.filter((o) => {
+              if (o.storeId) return o.storeId === branch.id;
+              if (branch.id === 'hope_burger' && o.storeName?.toLowerCase().includes('burger')) return true;
+              if (branch.id === 'hope_pizza' && (o.storeName?.toLowerCase().includes('pizz') || o.storeName?.toLowerCase().includes('pizza'))) return true;
+              return false;
+            }).length;
+
+            return (
+              <button
+                key={branch.id}
+                type="button"
+                onClick={() => setStoreFilter(branch.id)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  isSel
+                    ? 'bg-indigo-600 text-white font-black shadow-xs'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>{branch.icon || '🏪'}</span>
+                <span>{branch.name}</span>
+                {count > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                    isSel ? 'bg-white text-indigo-950' : 'bg-slate-800 text-slate-300'
+                  }`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -1490,6 +1555,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                   <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
                     {[...unassignedOrders]
+                      .filter((ord) => {
+                        if (storeFilter === 'all') return true;
+                        if (ord.storeId) return ord.storeId === storeFilter;
+                        if (storeFilter === 'hope_burger' && ord.storeName?.toLowerCase().includes('burger')) return true;
+                        if (storeFilter === 'hope_pizza' && (ord.storeName?.toLowerCase().includes('pizz') || ord.storeName?.toLowerCase().includes('pizza'))) return true;
+                        return false;
+                      })
                       .sort((a, b) => {
                         if (orderSort === 'value') return b.total - a.total;
                         if (orderSort === 'neighborhood') return a.neighborhood.localeCompare(b.neighborhood);
@@ -1527,6 +1599,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     <span className="font-extrabold text-sm text-white">#{ord.codeNumber}</span>
                                     <span className="font-bold text-slate-200 truncate max-w-[110px] sm:max-w-[140px]">{ord.clientName}</span>
                                     {renderChannelBadge(ord.originChannel)}
+                                    {ord.storeName && (
+                                      <span className="px-1.5 py-0.2 rounded-md bg-indigo-950 text-indigo-300 border border-indigo-500/30 text-[9px] font-black uppercase">
+                                        {ord.storeName.includes('Burger') ? '🍔 HB' : ord.storeName.includes('Pizza') ? '🍕 HP' : ord.storeName}
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="text-[10px] text-emerald-300 font-bold truncate">📍 {ord.neighborhood} • <span className="text-slate-400 font-medium">{ord.address}</span></p>
                                 </div>
@@ -1614,6 +1691,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     #{ord.codeNumber} - {ord.clientName}
                                   </span>
                                   {renderChannelBadge(ord.originChannel)}
+                                  {ord.storeName && (
+                                    <span className="px-1.5 py-0.2 rounded-md bg-indigo-950 text-indigo-300 border border-indigo-500/30 text-[9px] font-black uppercase">
+                                      {ord.storeName.includes('Burger') ? '🍔 HB' : ord.storeName.includes('Pizza') ? '🍕 HP' : ord.storeName}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                               {/* Prominent High-Contrast Price Badge */}
@@ -2812,6 +2894,18 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* 🗺️ Interactive Route & Deliveries Map Modal */}
+      <RouteModal
+        isOpen={isRouteModalOpen}
+        onClose={() => setIsRouteModalOpen(false)}
+        orders={orders}
+        motoboys={motoboys}
+        shift={shift}
+        selectedStoreFilter={storeFilter}
+        onSelectOrderForTracking={onSelectOrderForTracking}
+        onAssignOrderToMotoboy={onAssignOrderToMotoboy}
+      />
 
       {/* 🎒 FLOATING BATCH DISPATCH BAR WHEN CHECKBOXES ARE CHECKED */}
       {selectedOrderIds.length > 0 && (

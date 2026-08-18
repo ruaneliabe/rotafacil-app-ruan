@@ -57,6 +57,8 @@ export interface Order {
   operationalEpoch?: string;
   originChannel?: 'manual' | 'cardapio_web' | 'ifood' | 'whatsapp' | 'pdv';
   kitchenReadyInMin?: number;
+  storeId?: string;
+  storeName?: string;
 }
 
 export type MotoboyStatus = 'available' | 'delivering' | 'returning_to_store' | 'paused' | 'offline' | 'busy';
@@ -118,15 +120,37 @@ export interface IFoodIntegration {
   webhookUrl?: string;
 }
 
+export interface StoreIntegrationConfig {
+  enabled?: boolean;
+  accountId?: string;
+  webhookUrl?: string;
+  lastSyncAt?: string;
+  autoAcceptOrders?: boolean;
+  merchantToken?: string;
+  clientId?: string;
+  clientSecret?: string;
+  merchantId?: string;
+}
+
 export interface StoreIntegrations {
   enabled?: boolean;
   accountId?: string;
   webhookUrl?: string;
-  cardapioWeb?: CardapioWebIntegration;
-  ifood?: IFoodIntegration;
+  cardapioWeb?: StoreIntegrationConfig;
+  ifood?: StoreIntegrationConfig;
 }
 
-export type StoreIntegrationConfig = StoreIntegrations;
+export interface StoreBranch {
+  id: string;
+  name: string;
+  tag: string;
+  icon?: string;
+  phone?: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  integrations?: StoreIntegrations;
+}
 
 export interface StoreShift {
   id: string;
@@ -155,6 +179,8 @@ export interface StoreShift {
   scaleTestSeedVersion?: string;
   scaleTestSeedStartedAt?: number;
   integrations?: StoreIntegrations;
+  branches?: StoreBranch[];
+  activeBranchId?: string;
 }
 
 export type UserRole = 'store_admin' | 'master_admin' | 'motoboy' | 'customer';

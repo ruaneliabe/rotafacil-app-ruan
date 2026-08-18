@@ -7,7 +7,6 @@ import {
   User,
   AlertCircle,
   LogIn,
-  Sparkles,
   Crown,
   Building2,
   Phone,
@@ -16,6 +15,8 @@ import {
   Search,
   ArrowRight,
   ShieldCheck,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geoUtils';
 import { saveStoreAccountToCloud, getStoreAccountFromCloud } from '../lib/firebase';
@@ -43,14 +44,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   // Store Login State
   const [storeUser, setStoreUser] = useState('');
   const [storePass, setStorePass] = useState('');
+  const [showStorePass, setShowStorePass] = useState(false);
 
-  // Store Signup State (O cliente cria o usuário e senha dele)
+  // Store Signup State
   const [signupStoreName, setSignupStoreName] = useState('');
   const [signupPhone, setSignupPhone] = useState('');
   const [signupAddress, setSignupAddress] = useState('');
   const [signupUser, setSignupUser] = useState('');
   const [signupPass, setSignupPass] = useState('');
   const [signupPassConfirm, setSignupPassConfirm] = useState('');
+  const [showSignupPass, setShowSignupPass] = useState(false);
   const [signupLat, setSignupLat] = useState<number>(-26.9194);
   const [signupLng, setSignupLng] = useState<number>(-49.0661);
   const [isGeocoding, setIsGeocoding] = useState(false);
@@ -59,17 +62,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   // Motoboy Login State
   const [motoboyUser, setMotoboyUser] = useState('');
   const [motoboyPass, setMotoboyPass] = useState('');
+  const [showMotoboyPass, setShowMotoboyPass] = useState(false);
 
-  // Master Login State (Ruan / Dono da Plataforma)
+  // Master Login State
   const [masterUser, setMasterUser] = useState('');
   const [masterPass, setMasterPass] = useState('');
+  const [showMasterPass, setShowMasterPass] = useState(false);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   if (!isOpen && !isStandalonePage) return null;
 
-  // 1. Cliente fazendo login na loja dele
+  // 1. Store Login
   const handleStoreLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -83,11 +88,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    // Check shift config first
     const shiftStoreUser = (shift?.storeUsername || '').trim().toLowerCase();
     const shiftAdminPass = shift?.adminPassword || '';
 
-    // If matches current shift credentials
     if (shiftStoreUser && shiftStoreUser === inputUser && shiftAdminPass === inputPass) {
       onLoginSuccess({
         role: 'store_admin',
@@ -98,7 +101,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    // Check Firestore stores collection
     try {
       const cloudAccount = await getStoreAccountFromCloud(inputUser);
       if (cloudAccount && cloudAccount.password === inputPass) {
@@ -114,7 +116,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       console.warn('Erro ao autenticar loja no Firestore:', err);
     }
 
-    // Fallback: Check if master or admin matches
     if (inputUser === (shift?.masterUsername || 'ruan') && inputPass === (shift?.masterPassword || 'ruan123')) {
       onLoginSuccess({
         role: 'master_admin',
@@ -126,7 +127,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    // If default unconfigured store is still active and user is admin/admin123
     if (shift?.setupRequired && inputUser === 'admin' && inputPass === (shift.adminPassword || 'admin123')) {
       onLoginSuccess({
         role: 'store_admin',
@@ -137,10 +137,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    setErrorMsg('Usuário ou senha da loja incorretos. Se ainda não tem cadastro, clique em "Cadastrar Loja".');
+    setErrorMsg('Usuário ou senha da loja incorretos.');
   };
 
-  // 2. Cliente criando o usuário e senha da loja dele
+  // 2. Geocode & Signup
   const handleGeocodeSignupAddress = async () => {
     if (!signupAddress.trim()) return;
     setIsGeocoding(true);
@@ -150,12 +150,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       if (geo && typeof geo.lat === 'number' && typeof geo.lng === 'number') {
         setSignupLat(Number(geo.lat.toFixed(6)));
         setSignupLng(Number(geo.lng.toFixed(6)));
-        setSuccessMsg(`📍 Localização encontrada no mapa: ${geo.name || geo.address}`);
+        setSuccessMsg(`Localização encontrada: ${geo.name || geo.address}`);
       } else {
-        setErrorMsg('Endereço não localizado automaticamente no mapa. Você pode prosseguir e ajustar nas configurações.');
+        setErrorMsg('Endereço não localizado automaticamente. Você pode prosseguir e ajustar depois.');
       }
     } catch {
-      setErrorMsg('Não foi possível geolocalizar agora. Você pode salvar e ajustar depois.');
+      setErrorMsg('Não foi possível geolocalizar agora. Você pode salvar e ajustar nas configurações.');
     } finally {
       setIsGeocoding(false);
     }
@@ -177,22 +177,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
     if (!username || username.length < 3) {
-      setErrorMsg('O usuário da loja deve ter pelo menos 3 caracteres (sem espaços).');
+      setErrorMsg('O usuário deve ter no mínimo 3 caracteres.');
       return;
     }
     if (!password || password.length < 4) {
-      setErrorMsg('A senha da loja deve ter pelo menos 4 caracteres.');
+      setErrorMsg('A senha deve ter no mínimo 4 caracteres.');
       return;
     }
     if (password !== signupPassConfirm) {
-      setErrorMsg('A confirmação de senha não confere.');
+      setErrorMsg('As senhas não coincidem.');
       return;
     }
 
     setIsSubmittingSignup(true);
 
     try {
-      // Create new store account
       const newAccount: StoreAccount = {
         id: username,
         username,
@@ -215,13 +214,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
       if (onClose) onClose();
     } catch (err: any) {
-      setErrorMsg('Erro ao cadastrar a loja: ' + (err?.message || 'Tente novamente.'));
+      setErrorMsg('Erro ao cadastrar: ' + (err?.message || 'Tente novamente.'));
     } finally {
       setIsSubmittingSignup(false);
     }
   };
 
-  // 3. Motoboy fazendo login
+  // 3. Motoboy Login
   const handleMotoboyLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -236,12 +235,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     );
 
     if (!targetMotoboy) {
-      setErrorMsg('Entregador não encontrado. Peça para a loja cadastrar seu usuário no painel.');
+      setErrorMsg('Entregador não encontrado. Verifique o usuário informado.');
       return;
     }
 
     if (!targetMotoboy.password || targetMotoboy.password !== motoboyPass) {
-      setErrorMsg('Senha incorreta para este entregador.');
+      setErrorMsg('Senha incorreta.');
       return;
     }
 
@@ -254,7 +253,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     if (onClose) onClose();
   };
 
-  // 4. Master Admin Login (Ruan / Dono)
+  // 4. Master Login
   const handleMasterLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -269,413 +268,427 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     if (inputUser === expectedUser && inputPass === expectedPass) {
       onLoginSuccess({
         role: 'master_admin',
-        storeName: shift?.storeName || 'Rota Fácil Master (Ruan)',
+        storeName: shift?.storeName || 'Rota Fácil Master',
         username: inputUser,
         isMaster: true,
       });
       if (onClose) onClose();
     } else {
-      setErrorMsg('Usuário ou senha Master incorretos!');
+      setErrorMsg('Credenciais Master inválidas.');
     }
   };
 
-  const outerClasses = isStandalonePage
-    ? 'min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 selection:bg-blue-600 selection:text-white'
-    : 'fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 selection:bg-blue-600 selection:text-white';
-
   return (
-    <div className={outerClasses}>
-      <div className="bg-slate-900 text-slate-100 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-800 space-y-5">
-        
-        {/* Brand Header */}
-        <div className="text-center space-y-1.5">
-          <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-2xl font-black mx-auto shadow-lg shadow-blue-600/30">
-            🛵
-          </div>
-          <div>
-            <h2 className="text-xl font-black text-white tracking-tight">
+    <div className="w-full min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      {/* Container Central Clean */}
+      <div className="w-full max-w-[420px]">
+        {/* Card Principal */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-7 shadow-xl space-y-6">
+          
+          {/* Cabeçalho */}
+          <div className="text-center space-y-1.5">
+            <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 mx-auto flex items-center justify-center text-xl shadow-inner mb-3">
+              🛵
+            </div>
+            <h1 className="text-xl font-bold text-white tracking-tight">
               Rota Fácil Delivery
-            </h2>
-            <p className="text-xs font-bold text-blue-400 tracking-wide uppercase">
+            </h1>
+            <p className="text-xs text-slate-400 font-medium">
               {shift?.storeName && shift.storeName !== 'Configure sua loja'
                 ? shift.storeName
-                : 'Sistema de Entregas & Balcão'}
+                : 'Gestão de Entregas e Balcão'}
             </p>
           </div>
-        </div>
 
-        {/* Navigation Tabs */}
-        <div className="bg-slate-950 p-1 rounded-2xl border border-slate-800 flex text-xs font-bold gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('store_login');
-              setErrorMsg(null);
-              setSuccessMsg(null);
-            }}
-            className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'store_login'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
-            }`}
-          >
-            <Store className="w-3.5 h-3.5" /> Entrar na Loja
-          </button>
-          
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('store_signup');
-              setErrorMsg(null);
-              setSuccessMsg(null);
-            }}
-            className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'store_signup'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-900/60'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" /> Criar Loja
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('motoboy');
-              setErrorMsg(null);
-              setSuccessMsg(null);
-            }}
-            className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'motoboy'
-                ? 'bg-amber-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
-            }`}
-          >
-            <Bike className="w-3.5 h-3.5" /> Motoboy
-          </button>
-        </div>
-
-        {/* Messages */}
-        {errorMsg && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-2 animate-fadeIn">
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
-        {successMsg && (
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-2 animate-fadeIn">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{successMsg}</span>
-          </div>
-        )}
-
-        {/* 1. ABA: ENTRAR NA LOJA (LOGIN DO CLIENTE) */}
-        {activeTab === 'store_login' && (
-          <form onSubmit={handleStoreLogin} autoComplete="off" className="space-y-4 text-xs">
-            <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">Usuário da Loja</label>
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  name="store-login-user"
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  required
-                  value={storeUser}
-                  onChange={(e) => setStoreUser(e.target.value)}
-                  placeholder="Ex: hopeburger ou o usuário que criou"
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-medium"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">Senha da Loja</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="password"
-                  name="store-login-secret"
-                  autoComplete="new-password"
-                  required
-                  value={storePass}
-                  onChange={(e) => setStorePass(e.target.value)}
-                  placeholder="Digite a senha da sua loja"
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-medium"
-                />
-              </div>
-            </div>
-
+          {/* Seletor de Abas (Minimalista) */}
+          <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex text-xs font-semibold">
             <button
-              type="submit"
-              className="w-full py-3 bg-blue-600 hover:bg-blue-500 active:scale-98 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 text-xs uppercase cursor-pointer"
+              type="button"
+              onClick={() => {
+                setActiveTab('store_login');
+                setErrorMsg(null);
+                setSuccessMsg(null);
+              }}
+              className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === 'store_login'
+                  ? 'bg-slate-800 text-white font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
-              <LogIn className="w-4 h-4" /> Entrar no Painel da Loja
+              <Store className="w-3.5 h-3.5" />
+              <span>Entrar</span>
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('store_signup');
+                setErrorMsg(null);
+                setSuccessMsg(null);
+              }}
+              className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === 'store_signup'
+                  ? 'bg-slate-800 text-white font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span>Cadastrar</span>
             </button>
 
-            <div className="pt-2 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('motoboy');
+                setErrorMsg(null);
+                setSuccessMsg(null);
+              }}
+              className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === 'motoboy'
+                  ? 'bg-slate-800 text-white font-bold shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Bike className="w-3.5 h-3.5" />
+              <span>Entregador</span>
+            </button>
+          </div>
+
+          {/* Mensagens de Alerta */}
+          {errorMsg && (
+            <div className="p-3 bg-red-950/40 border border-red-800/50 text-red-300 rounded-xl text-xs font-medium flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+          {successMsg && (
+            <div className="p-3 bg-emerald-950/40 border border-emerald-800/50 text-emerald-300 rounded-xl text-xs font-medium flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {/* 1. LOGIN DA LOJA */}
+          {activeTab === 'store_login' && (
+            <form onSubmit={handleStoreLogin} autoComplete="off" className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300 block text-xs">Usuário da Loja</label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    name="store-user"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    required
+                    value={storeUser}
+                    onChange={(e) => setStoreUser(e.target.value)}
+                    placeholder="ex: hopeburger"
+                    className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300 block text-xs">Senha</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <input
+                    type={showStorePass ? 'text' : 'password'}
+                    name="store-pass"
+                    autoComplete="new-password"
+                    required
+                    value={storePass}
+                    onChange={(e) => setStorePass(e.target.value)}
+                    placeholder="Sua senha de acesso"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowStorePass(!showStorePass)}
+                    className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 cursor-pointer"
+                  >
+                    {showStorePass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
               <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('store_signup');
-                  setErrorMsg(null);
-                }}
-                className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                type="submit"
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer shadow-sm mt-2"
               >
-                <span>Ainda não tem conta? Criar Cadastro da Loja</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <LogIn className="w-4 h-4" />
+                <span>Entrar no Painel</span>
               </button>
-            </div>
-          </form>
-        )}
 
-        {/* 2. ABA: CADASTRAR NOVA LOJA (O CLIENTE CRIA O USUÁRIO E SENHA DELE) */}
-        {activeTab === 'store_signup' && (
-          <form onSubmit={handleStoreSignup} autoComplete="off" className="space-y-3.5 text-xs max-h-[65vh] overflow-y-auto pr-1">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-medium">
-              ✨ <strong>Cadastro Rápido da Loja:</strong> Crie seu próprio usuário e senha para gerenciar suas entregas e equipe de motoboys.
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">Nome da Sua Loja / Restaurante</label>
-              <div className="relative">
-                <Building2 className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  required
-                  value={signupStoreName}
-                  onChange={(e) => setSignupStoreName(e.target.value)}
-                  placeholder="Ex: Hope Burger, Pizzaria do Zé..."
-                  className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">WhatsApp Comercial</label>
-              <div className="relative">
-                <Phone className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  required
-                  value={signupPhone}
-                  onChange={(e) => setSignupPhone(e.target.value)}
-                  placeholder="Ex: (47) 99887-6655"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <label className="font-bold text-slate-300 block">Endereço Completo da Loja</label>
+              <div className="pt-2 text-center">
                 <button
                   type="button"
-                  onClick={handleGeocodeSignupAddress}
-                  disabled={isGeocoding || !signupAddress.trim()}
-                  className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  onClick={() => {
+                    setActiveTab('store_signup');
+                    setErrorMsg(null);
+                  }}
+                  className="text-xs text-slate-400 hover:text-slate-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
                 >
-                  <Search className="w-3 h-3" />
-                  <span>{isGeocoding ? 'Localizando...' : 'Buscar no Mapa'}</span>
+                  <span>Não possui conta? Cadastre sua loja</span>
+                  <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
-              <div className="relative">
-                <MapPin className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  required
-                  value={signupAddress}
-                  onChange={(e) => setSignupAddress(e.target.value)}
-                  placeholder="Ex: Rua dos Caçadores, 653, Blumenau - SC"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
-                />
-              </div>
-            </div>
+            </form>
+          )}
 
-            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+          {/* 2. CADASTRO DE LOJA */}
+          {activeTab === 'store_signup' && (
+            <form onSubmit={handleStoreSignup} autoComplete="off" className="space-y-3.5 text-xs">
               <div className="space-y-1">
-                <label className="font-bold text-slate-300 block">Escolha seu Usuário</label>
+                <label className="font-semibold text-slate-300 block text-xs">Nome do Estabelecimento</label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                  <Building2 className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                   <input
                     type="text"
                     required
-                    autoCapitalize="none"
-                    spellCheck={false}
-                    value={signupUser}
-                    onChange={(e) => setSignupUser(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                    placeholder="Ex: hopeburger"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
+                    value={signupStoreName}
+                    onChange={(e) => setSignupStoreName(e.target.value)}
+                    placeholder="Ex: Hope Burger"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-slate-300 block">Escolha sua Senha</label>
+                <label className="font-semibold text-slate-300 block text-xs">WhatsApp / Contato</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                  <Phone className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                   <input
-                    type="password"
+                    type="text"
                     required
-                    value={signupPass}
-                    onChange={(e) => setSignupPass(e.target.value)}
-                    placeholder="Mínimo 4 dígitos"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
+                    value={signupPhone}
+                    onChange={(e) => setSignupPhone(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
                   />
                 </div>
               </div>
-            </div>
 
-            <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">Confirmar Senha</label>
-              <div className="relative">
-                <ShieldCheck className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="password"
-                  required
-                  value={signupPassConfirm}
-                  onChange={(e) => setSignupPassConfirm(e.target.value)}
-                  placeholder="Repita sua senha"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
-                />
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-300 block text-xs">Endereço da Loja</label>
+                  <button
+                    type="button"
+                    onClick={handleGeocodeSignupAddress}
+                    disabled={isGeocoding || !signupAddress.trim()}
+                    className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <Search className="w-3 h-3" />
+                    <span>{isGeocoding ? 'Buscando...' : 'Localizar'}</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <MapPin className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    required
+                    value={signupAddress}
+                    onChange={(e) => setSignupAddress(e.target.value)}
+                    placeholder="Rua, Número, Bairro, Cidade"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
+                  />
+                </div>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={isSubmittingSignup}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 text-xs uppercase cursor-pointer disabled:opacity-50 mt-2"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>{isSubmittingSignup ? 'Criando Conta...' : 'Criar Minha Loja & Entrar'}</span>
-            </button>
-          </form>
-        )}
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-300 block text-xs">Usuário</label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      required
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      value={signupUser}
+                      onChange={(e) => setSignupUser(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                      placeholder="usuario"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
+                    />
+                  </div>
+                </div>
 
-        {/* 3. ABA: LOGIN DO MOTOBOY */}
-        {activeTab === 'motoboy' && (
-          <form onSubmit={handleMotoboyLogin} autoComplete="off" className="space-y-4 text-xs">
-            <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">Usuário do Entregador</label>
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  name="driver-login-user"
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  required
-                  value={motoboyUser}
-                  onChange={(e) => setMotoboyUser(e.target.value)}
-                  placeholder="Ex: carlos, motoboy1..."
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-medium"
-                />
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-300 block text-xs">Senha</label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                    <input
+                      type={showSignupPass ? 'text' : 'password'}
+                      required
+                      value={signupPass}
+                      onChange={(e) => setSignupPass(e.target.value)}
+                      placeholder="Mín. 4 dígitos"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">Senha do Entregador</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="password"
-                  name="driver-login-secret"
-                  autoComplete="new-password"
-                  required
-                  value={motoboyPass}
-                  onChange={(e) => setMotoboyPass(e.target.value)}
-                  placeholder="Digite sua senha cadastrada pela loja"
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-medium"
-                />
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-300 block text-xs">Confirmar Senha</label>
+                <div className="relative">
+                  <ShieldCheck className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                  <input
+                    type={showSignupPass ? 'text' : 'password'}
+                    required
+                    value={signupPassConfirm}
+                    onChange={(e) => setSignupPassConfirm(e.target.value)}
+                    placeholder="Repita sua senha"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
+                  />
+                </div>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              className="w-full py-3 bg-amber-600 hover:bg-amber-500 active:scale-98 text-white font-bold rounded-xl transition-all shadow-lg shadow-amber-600/30 flex items-center justify-center gap-2 text-xs uppercase cursor-pointer"
-            >
-              <LogIn className="w-4 h-4" /> Entrar no Celular do Entregador
-            </button>
-          </form>
-        )}
+              <button
+                type="submit"
+                disabled={isSubmittingSignup}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50 mt-2"
+              >
+                <span>{isSubmittingSignup ? 'Cadastrando...' : 'Concluir Cadastro'}</span>
+              </button>
+            </form>
+          )}
 
-        {/* 4. ABA: LOGIN MASTER (RUAN / DONO DA PLATAFORMA) */}
-        {activeTab === 'master' && (
-          <form onSubmit={handleMasterLogin} autoComplete="off" className="space-y-4 text-xs">
-            <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[11px] font-medium">
-              👑 <strong>Acesso Master Plataforma (Ruan):</strong> Controle total sobre todas as configurações, lojas e operações.
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">Usuário Master</label>
-              <div className="relative">
-                <Crown className="w-4 h-4 text-purple-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  required
-                  value={masterUser}
-                  onChange={(e) => setMasterUser(e.target.value)}
-                  placeholder="ruan"
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-medium"
-                />
+          {/* 3. LOGIN MOTOBOY */}
+          {activeTab === 'motoboy' && (
+            <form onSubmit={handleMotoboyLogin} autoComplete="off" className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300 block text-xs">Usuário do Entregador</label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    name="driver-user"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    required
+                    value={motoboyUser}
+                    onChange={(e) => setMotoboyUser(e.target.value)}
+                    placeholder="Nome de usuário cadastrado"
+                    className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">Senha Master</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-purple-400 absolute left-3 top-2.5" />
-                <input
-                  type="password"
-                  required
-                  value={masterPass}
-                  onChange={(e) => setMasterPass(e.target.value)}
-                  placeholder="ruan123"
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-medium"
-                />
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300 block text-xs">Senha</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <input
+                    type={showMotoboyPass ? 'text' : 'password'}
+                    name="driver-pass"
+                    autoComplete="new-password"
+                    required
+                    value={motoboyPass}
+                    onChange={(e) => setMotoboyPass(e.target.value)}
+                    placeholder="Senha do entregador"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMotoboyPass(!showMotoboyPass)}
+                    className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 cursor-pointer"
+                  >
+                    {showMotoboyPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              className="w-full py-3 bg-purple-600 hover:bg-purple-500 active:scale-98 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 text-xs uppercase cursor-pointer"
-            >
-              <Crown className="w-4 h-4" /> Entrar como Master Admin (Ruan)
-            </button>
-          </form>
-        )}
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer mt-2"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Acessar Entregador</span>
+              </button>
+            </form>
+          )}
 
-        {/* Footer Master Link */}
-        <div className="pt-2 flex items-center justify-between border-t border-slate-800/80 text-[11px] text-slate-400">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab(activeTab === 'master' ? 'store_login' : 'master');
-              setErrorMsg(null);
-              setSuccessMsg(null);
-            }}
-            className="text-purple-400 hover:text-purple-300 flex items-center gap-1 font-bold cursor-pointer"
-          >
-            <Crown className="w-3.5 h-3.5" />
-            <span>{activeTab === 'master' ? 'Voltar para Loja' : 'Acesso Master (Ruan)'}</span>
-          </button>
+          {/* 4. LOGIN MASTER */}
+          {activeTab === 'master' && (
+            <form onSubmit={handleMasterLogin} autoComplete="off" className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300 block text-xs">Usuário Master</label>
+                <div className="relative">
+                  <Crown className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    required
+                    value={masterUser}
+                    onChange={(e) => setMasterUser(e.target.value)}
+                    placeholder="ruan"
+                    className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                  />
+                </div>
+              </div>
 
-          {onClose && (
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300 block text-xs">Senha Master</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                  <input
+                    type={showMasterPass ? 'text' : 'password'}
+                    required
+                    value={masterPass}
+                    onChange={(e) => setMasterPass(e.target.value)}
+                    placeholder="••••••"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMasterPass(!showMasterPass)}
+                    className="absolute right-3 top-3 text-slate-500 hover:text-slate-300 cursor-pointer"
+                  >
+                    {showMasterPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-2 text-xs cursor-pointer mt-2"
+              >
+                <Crown className="w-4 h-4" />
+                <span>Entrar como Master</span>
+              </button>
+            </form>
+          )}
+
+          {/* Rodapé Discreto */}
+          <div className="pt-2 flex items-center justify-between border-t border-slate-800/80 text-[11px] text-slate-500">
             <button
               type="button"
-              onClick={onClose}
-              className="text-slate-400 hover:text-slate-200 underline font-medium cursor-pointer"
+              onClick={() => {
+                setActiveTab(activeTab === 'master' ? 'store_login' : 'master');
+                setErrorMsg(null);
+                setSuccessMsg(null);
+              }}
+              className="hover:text-slate-400 cursor-pointer transition-colors"
             >
-              Rastreio do Cliente
+              {activeTab === 'master' ? '← Voltar ao Login' : 'Acesso Master'}
             </button>
-          )}
-        </div>
 
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="hover:text-slate-400 cursor-pointer transition-colors"
+              >
+                Rastreio de Pedido
+              </button>
+            )}
+          </div>
+
+        </div>
       </div>
     </div>
   );

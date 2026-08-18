@@ -503,7 +503,7 @@ export default function App() {
   // Standalone Login Screen if not authenticated
   if (!session) {
     return (
-      <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col justify-center items-center p-4">
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col justify-center items-center">
         {toastMessage && (
           <div className="fixed top-5 right-5 z-50 bg-slate-800 border border-slate-700 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2">
             <span>{toastMessage}</span>

@@ -30,6 +30,8 @@ interface NewOrderModalProps {
   onClose: () => void;
   onAddOrder: (newOrder: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'>) => void;
   nextOrderCode: number;
+  defaultStoreId?: string;
+  branches?: { id: string; name: string; icon?: string; tag?: string }[];
 }
 
 export const NewOrderModal: React.FC<NewOrderModalProps> = ({
@@ -37,8 +39,16 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
   onClose,
   onAddOrder,
   nextOrderCode,
+  defaultStoreId = 'hope_burger',
+  branches = [
+    { id: 'hope_burger', name: 'Hope Burger', icon: '🍔', tag: 'HB' },
+    { id: 'hope_pizza', name: 'Hope Pizza', icon: '🍕', tag: 'HP' },
+  ],
 }) => {
   const [showImportBox, setShowImportBox] = useState(true);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    defaultStoreId === 'all' ? 'hope_burger' : defaultStoreId
+  );
   const [pastedText, setPastedText] = useState('');
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
 
@@ -479,6 +489,8 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
       const calcTotal = calcSubtotal + safeDeliveryFee;
       const itemsSummary = finalItems.map((i) => `${i.quantity}x ${i.name}`).join(', ');
 
+      const currentBranchObj = branches.find((b) => b.id === selectedBranchId) || branches[0];
+
       onAddOrder({
         clientName,
         clientPhone: clientPhone.trim(),
@@ -501,6 +513,8 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
         assignedMotoboyName: null,
         originChannel,
         kitchenReadyInMin,
+        storeId: selectedBranchId,
+        storeName: currentBranchObj?.name || 'Hope Burger',
       });
 
       handleResetForm();
@@ -575,6 +589,34 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
           {/* LEFT COLUMN: Data Entry (7 cols) */}
           <div className="md:col-span-7 p-5 space-y-5 bg-slate-900">
             
+            {/* 0. Seletor de Loja (Hope Burger vs Hope Pizza) */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3">
+              <span className="text-xs font-black text-slate-300 uppercase flex items-center gap-1.5">
+                <Store className="w-4 h-4 text-emerald-400" />
+                Unidade / Loja:
+              </span>
+              <div className="flex items-center gap-2">
+                {branches.map((b) => {
+                  const isSel = b.id === selectedBranchId;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setSelectedBranchId(b.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                        isSel
+                          ? 'bg-emerald-500 text-slate-950 shadow-md font-black scale-105'
+                          : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      <span>{b.icon || '🏪'}</span>
+                      <span>{b.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* 1. Importar Pedido de Qualquer Plataforma */}
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3 relative overflow-hidden">
               <div className="flex items-center justify-between flex-wrap gap-2">

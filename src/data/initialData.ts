@@ -24,6 +24,37 @@ export const INITIAL_STORE_SHIFT: StoreShift = {
     ifood: { enabled: false, accountId: '', webhookUrl: '' },
     cardapioWeb: { enabled: false, accountId: '', webhookUrl: '' },
   },
+  branches: [
+    {
+      id: 'hope_burger',
+      name: 'Hope Burger',
+      tag: 'HB',
+      icon: '🍔',
+      phone: '(47) 99999-1111',
+      address: 'Rua XV de Novembro, 1500 - Centro, Blumenau - SC',
+      lat: -26.9194,
+      lng: -49.0661,
+      integrations: {
+        ifood: { enabled: true, accountId: 'hope-burger-ifood', webhookUrl: '' },
+        cardapioWeb: { enabled: true, accountId: 'hope-burger-cardapio', webhookUrl: '' },
+      },
+    },
+    {
+      id: 'hope_pizza',
+      name: 'Hope Pizza',
+      tag: 'HP',
+      icon: '🍕',
+      phone: '(47) 99999-2222',
+      address: 'Rua 7 de Setembro, 800 - Garcia, Blumenau - SC',
+      lat: -26.9240,
+      lng: -49.0630,
+      integrations: {
+        ifood: { enabled: true, accountId: 'hope-pizza-ifood', webhookUrl: '' },
+        cardapioWeb: { enabled: true, accountId: 'hope-pizza-cardapio', webhookUrl: '' },
+      },
+    },
+  ],
+  activeBranchId: 'all',
 };
 
 export const INITIAL_MOTOBOYS: Motoboy[] = [];
