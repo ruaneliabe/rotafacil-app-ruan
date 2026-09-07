@@ -89,7 +89,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   onSaveIntegrations,
 }) => {
   const [activeTab, setActiveTab] = useState<'operacao' | 'equipe' | 'financeiro' | 'historico'>('operacao');
-  const [selectedMotoboyId, setSelectedMotoboyId] = useState<string | null>(motoboys[0]?.id || null);
+  const [selectedMotoboyId, setSelectedMotoboyId] = useState<string | null>(null);
+  const [selectedOrderIdOnMap, setSelectedOrderIdOnMap] = useState<string | null>(null);
 
   // Multi-select for multi-order grouping/bag dispatch
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
@@ -1833,7 +1834,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800/80">
                         <button
                           type="button"
-                          onClick={() => setMapFilter('all')}
+                          onClick={() => {
+                            setMapFilter('all');
+                            setSelectedMotoboyId(null);
+                          }}
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             mapFilter === 'all'
                               ? 'bg-slate-200 text-slate-950 shadow-2xs font-extrabold'
@@ -1855,14 +1859,17 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setMapFilter('orders')}
+                          onClick={() => {
+                            setMapFilter('orders');
+                            setSelectedMotoboyId(null);
+                          }}
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                             mapFilter === 'orders'
-                              ? 'bg-slate-700 text-white shadow-2xs font-extrabold'
+                              ? 'bg-emerald-500 text-slate-950 shadow-2xs font-extrabold'
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
-                          📦 Pedidos ({activeOrders.length})
+                          📦 Pedidos ({activeOrders.filter((o) => !o.address?.toLowerCase().includes('retirada') && o.neighborhood?.toLowerCase() !== 'balcão').length})
                         </button>
                       </div>
                     </div>
@@ -1887,6 +1894,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       }}
                       selectedMotoboyId={selectedMotoboyId}
                       onSelectMotoboy={(id) => setSelectedMotoboyId(id)}
+                      selectedStopId={selectedOrderIdOnMap}
+                      onSelectStop={(stop) => setSelectedOrderIdOnMap(stop.id)}
                       motoboysList={
                         mapFilter === 'all'
                           ? motoboys.filter((m) => m.status !== 'offline')
@@ -1899,12 +1908,17 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           ? []
                           : activeOrders
                               .filter((ord) => {
-                                if (!selectedMotoboyId) return true;
-                                const focusedMb = motoboys.find((mb) => mb.id === selectedMotoboyId);
+                                if (ord.address?.toLowerCase().includes('retirada') || ord.neighborhood?.toLowerCase() === 'balcão') {
+                                  return false;
+                                }
+                                if (typeof ord.lat !== 'number' || isNaN(ord.lat) || ord.lat === 0) return false;
+                                if (typeof ord.lng !== 'number' || isNaN(ord.lng) || ord.lng === 0) return false;
+                                if (!selectedMotoboyId || mapFilter === 'orders') return true;
                                 return ord.assignedMotoboyId === selectedMotoboyId;
                               })
                               .map((ord, idx) => ({
                                 id: ord.id,
+                                codeNumber: ord.codeNumber,
                                 orderIndex: idx + 1,
                                 title: `#${ord.codeNumber} - ${ord.clientName}`,
                                 address: ord.address,

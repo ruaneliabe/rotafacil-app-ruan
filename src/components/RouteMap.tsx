@@ -105,13 +105,6 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     const bounds: [number, number][] = [];
 
-    // When the dashboard passes a fleet list, this map is an operational fleet overview.
-    // In this mode we intentionally hide every customer/order stop and route polyline,
-    // otherwise multiple riders with multiple orders create a misleading spaghetti map.
-    // Customer tracking and the driver's own route map do not pass motoboysList, so they
-    // continue to show their delivery destination normally.
-    const fleetOverviewOnly = Boolean(motoboysList && motoboysList.length > 0);
-
     // 1. Store Marker (Sleek Dark Pill) - ONLY render if store address is configured in Configurar Loja
     if (isStoreAddressConfigured) {
       bounds.push([origin.lat, origin.lng]);
@@ -142,94 +135,107 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       markersGroup.addLayer(originMarker);
     }
 
-    // 2. Stops Markers (hidden on store/fleet overview)
-    if (!fleetOverviewOnly) {
-      stops.forEach((stop, idx) => {
-        bounds.push([stop.lat, stop.lng]);
+    // 2. Stops Markers (Todos os pedidos com coordenadas válidas exibidos no mapa)
+    stops.forEach((stop, idx) => {
+      if (
+        typeof stop.lat !== 'number' ||
+        isNaN(stop.lat) ||
+        stop.lat === 0 ||
+        typeof stop.lng !== 'number' ||
+        isNaN(stop.lng) ||
+        stop.lng === 0
+      ) {
+        return;
+      }
 
-        const isSelected = stop.id === selectedStopId;
-        let bgColor = 'bg-slate-800 text-slate-100 border-slate-600';
-        const orderNumberText = stop.codeNumber ? `#${stop.codeNumber}` : `${idx + 1}`;
-        let badgeHtml = orderNumberText;
+      bounds.push([stop.lat, stop.lng]);
 
-        if (stop.status === 'delivered') {
-          bgColor = 'bg-emerald-600 text-white border-emerald-400';
-          badgeHtml = `${orderNumberText} ✓`;
-        } else if (stop.status === 'in_transit') {
-          bgColor = 'bg-blue-600 text-white border-blue-400';
-        } else if (stop.status === 'failed') {
-          bgColor = 'bg-rose-600 text-white border-rose-400';
-          badgeHtml = `${orderNumberText} ✕`;
-        }
+      const isSelected = stop.id === selectedStopId;
+      const orderNumberText = stop.codeNumber ? `#${stop.codeNumber}` : `#${idx + 1}`;
+      let badgeHtml = orderNumberText;
+      let bgColor = 'bg-amber-600 text-white border-amber-300'; // Pendente sem motoboy vinculado
 
-        const ringClass = isSelected ? 'ring-4 ring-indigo-500/80 scale-110 z-30' : '';
+      if (stop.status === 'delivered') {
+        bgColor = 'bg-emerald-600 text-white border-emerald-400';
+        badgeHtml = `${orderNumberText} ✓`;
+      } else if (stop.status === 'in_transit') {
+        bgColor = 'bg-blue-600 text-white border-blue-400 animate-pulse';
+      } else if (stop.status === 'failed') {
+        bgColor = 'bg-rose-600 text-white border-rose-400';
+        badgeHtml = `${orderNumberText} ✕`;
+      } else if (stop.motoboyId || stop.motoboyName) {
+        bgColor = 'bg-indigo-600 text-white border-indigo-400';
+      }
 
-        const stopIcon = L.divIcon({
-          className: 'custom-stop-pin',
-          html: `
-            <div class="relative flex flex-col items-center justify-center transition-all duration-200 ${ringClass}">
-              <div class="px-2 min-w-[34px] h-8 ${bgColor} rounded-full shadow-lg border-2 flex items-center justify-center font-black text-xs z-30 tracking-tight whitespace-nowrap">
-                ${badgeHtml}
-              </div>
-              <div class="mt-0.5 bg-slate-900/95 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap max-w-[140px] truncate border border-emerald-500/60 shadow-md z-30">
-                ${stop.codeNumber ? `#${stop.codeNumber} · ` : ''}${stop.title?.includes('Seu Endereço') ? '📍 Seu Endereço' : (stop.neighborhood || 'Centro')}
-              </div>
+      const ringClass = isSelected ? 'ring-4 ring-amber-400 scale-125 z-40' : '';
+
+      const stopIcon = L.divIcon({
+        className: 'custom-stop-pin',
+        html: `
+          <div class="relative flex flex-col items-center justify-center transition-all duration-200 cursor-pointer ${ringClass}">
+            <div class="px-2 min-w-[34px] h-8 ${bgColor} rounded-full shadow-lg border-2 flex items-center justify-center font-black text-xs z-30 tracking-tight whitespace-nowrap">
+              ${badgeHtml}
             </div>
-          `,
-          iconSize: [80, 52],
-          iconAnchor: [40, 26],
-        });
-
-        const marker = L.marker([stop.lat, stop.lng], { icon: stopIcon });
-
-        marker.on('click', () => {
-          if (onSelectStop) onSelectStop(stop);
-        });
-
-        marker.bindPopup(`
-          <div class="p-2 min-w-[220px] text-slate-100">
-            <div class="flex items-center justify-between gap-2 mb-1">
-              <span class="font-extrabold text-xs text-indigo-400">${stop.codeNumber ? `Pedido #${stop.codeNumber}` : `Parada #${idx + 1}`}</span>
-              <span class="text-[10px] px-1.5 py-0.5 rounded uppercase font-bold ${
-                stop.status === 'delivered' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' :
-                stop.status === 'in_transit' ? 'bg-blue-950 text-blue-300 border border-blue-700' :
-                stop.status === 'failed' ? 'bg-rose-950 text-rose-300 border border-rose-700' : 'bg-slate-800 text-slate-300 border border-slate-700'
-              }">${
-                stop.status === 'delivered' ? 'Entregue' :
-                stop.status === 'in_transit' ? 'Em trânsito' :
-                stop.status === 'failed' ? 'Não entregue' : 'Pendente'
-              }</span>
-            </div>
-            <h4 class="font-extrabold text-white text-sm">${stop.title}</h4>
-            <div class="inline-flex items-center gap-1 my-1 px-2 py-0.5 bg-emerald-950/80 text-emerald-300 font-extrabold text-xs rounded border border-emerald-700/60">
-              📍 Bairro: ${stop.neighborhood || 'Centro'}
-            </div>
-            <p class="text-xs text-slate-300 font-medium">${stop.address}</p>
-            ${stop.recipientName ? `<p class="text-xs text-slate-400 mt-1">👤 ${stop.recipientName}</p>` : ''}
-            <div class="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between gap-1">
-              <a href="https://waze.com/ul?ll=${stop.lat},${stop.lng}&navigate=yes" target="_blank" class="px-2 py-1 bg-indigo-950 text-indigo-300 border border-indigo-700 rounded text-xs font-semibold hover:bg-indigo-900 inline-block">
-                Waze 🧭
-              </a>
-              <a href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}" target="_blank" class="px-2 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 rounded text-xs font-semibold hover:bg-emerald-900 inline-block">
-                Google Maps 🗺️
-              </a>
+            <div class="mt-0.5 bg-slate-900/95 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap max-w-[140px] truncate border border-emerald-500/60 shadow-md z-30">
+              ${stop.codeNumber ? `#${stop.codeNumber} · ` : ''}${stop.title?.includes('Seu Endereço') ? '📍 Seu Endereço' : (stop.neighborhood || 'Centro')}
             </div>
           </div>
-        `);
-
-        markersGroup.addLayer(marker);
-
-        if (isSelected) {
-          setTimeout(() => {
-            try {
-              marker.openPopup();
-            } catch {
-              // ignore
-            }
-          }, 150);
-        }
+        `,
+        iconSize: [80, 52],
+        iconAnchor: [40, 26],
       });
-    }
+
+      const marker = L.marker([stop.lat, stop.lng], { icon: stopIcon });
+
+      marker.on('click', () => {
+        if (onSelectStop) onSelectStop(stop);
+      });
+
+      marker.bindPopup(`
+        <div class="p-2.5 min-w-[230px] text-slate-100">
+          <div class="flex items-center justify-between gap-2 mb-1.5">
+            <span class="font-extrabold text-sm text-indigo-400">${stop.codeNumber ? `Pedido #${stop.codeNumber}` : `Parada #${idx + 1}`}</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-md uppercase font-black ${
+              stop.status === 'delivered' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' :
+              stop.status === 'in_transit' ? 'bg-blue-950 text-blue-300 border border-blue-700' :
+              stop.status === 'failed' ? 'bg-rose-950 text-rose-300 border border-rose-700' :
+              stop.motoboyName ? 'bg-indigo-950 text-indigo-300 border border-indigo-700' :
+              'bg-amber-950 text-amber-300 border border-amber-700'
+            }">${
+              stop.status === 'delivered' ? 'Entregue' :
+              stop.status === 'in_transit' ? 'Em trânsito' :
+              stop.status === 'failed' ? 'Não entregue' :
+              stop.motoboyName ? `Com ${stop.motoboyName.split(' ')[0]}` : 'Aguardando'
+            }</span>
+          </div>
+          <h4 class="font-extrabold text-white text-sm">${stop.title || `Pedido #${stop.codeNumber}`}</h4>
+          <div class="inline-flex items-center gap-1 my-1 px-2 py-0.5 bg-emerald-950/80 text-emerald-300 font-extrabold text-xs rounded border border-emerald-700/60">
+            📍 Bairro: ${stop.neighborhood || 'Centro'}
+          </div>
+          <p class="text-xs text-slate-300 font-medium">${stop.address}</p>
+          ${stop.recipientName ? `<p class="text-xs text-slate-400 mt-1">👤 ${stop.recipientName}</p>` : ''}
+          ${stop.valueToReceive ? `<p class="text-xs text-emerald-400 font-bold mt-0.5">💰 R$ ${Number(stop.valueToReceive).toFixed(2).replace('.', ',')}</p>` : ''}
+          <div class="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between gap-1.5">
+            <a href="https://waze.com/ul?ll=${stop.lat},${stop.lng}&navigate=yes" target="_blank" class="px-2.5 py-1 bg-indigo-950 text-indigo-300 border border-indigo-700 rounded text-xs font-bold hover:bg-indigo-900 inline-block">
+              Waze 🧭
+            </a>
+            <a href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}" target="_blank" class="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 rounded text-xs font-bold hover:bg-emerald-900 inline-block">
+              Google Maps 🗺️
+            </a>
+          </div>
+        </div>
+      `);
+
+      markersGroup.addLayer(marker);
+
+      if (isSelected) {
+        setTimeout(() => {
+          try {
+            marker.openPopup();
+          } catch {}
+        }, 150);
+      }
+    });
 
     // 3. Draw Motoboy Markers on Map (Sleek Scalable Cluster + Focus System)
     if (motoboysList && motoboysList.length > 0) {
@@ -526,9 +532,9 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       }
     }
 
-    // 4. Draw Route Polyline ONLY IF an active route/delivery is happening.
-    // Fleet overview intentionally never draws customer-to-customer lines.
-    const activeStops = fleetOverviewOnly ? [] : stops.filter((s) => s.status === 'in_transit');
+    // 4. Draw Route Polyline ONLY IF a specific driver is selected or in dedicated delivery view
+    const isSingleDriverFocus = Boolean(selectedMotoboyId || motoboyName);
+    const activeStops = isSingleDriverFocus ? stops.filter((s) => s.status === 'in_transit') : [];
 
     if (activeStops.length > 0) {
       const hasLiveMotoboyGps =
@@ -560,10 +566,10 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     }
 
     if (bounds.length > 1) {
-      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15 });
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
     } else if (bounds.length === 1) {
       map.setView(bounds[0], 15, { animate: true });
-    } else if (!fleetOverviewOnly && stops.length > 0) {
+    } else if (stops.length > 0 && stops[0].lat && stops[0].lng) {
       map.setView([stops[0].lat, stops[0].lng], 14, { animate: true });
     } else {
       map.setView([origin.lat || -26.9194, origin.lng || -49.0661], 14);
