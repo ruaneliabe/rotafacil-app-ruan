@@ -1,5 +1,16 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/webhook/cardapio-web/:branchId",
+      "destination": "/api/webhook-cardapio-web?branchId=:branchId"
+    },
+    {
+      "source": "/api/webhook/cardapio-web",
+      "destination": "/api/webhook-cardapio-web"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }

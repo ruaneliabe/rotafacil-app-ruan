@@ -109,7 +109,10 @@ export const IntegrationsModal: React.FC<Props> = ({
   const currentBranch = draftBranches.find((b) => b.id === selectedBranchId) || draftBranches[0];
   const currentIntegrations = normalize(currentBranch?.integrations || integrations);
 
-  const originUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const VERCEL_PRODUCTION_ORIGIN = 'https://rotafacil-app-ruan.vercel.app';
+  const originUrl = typeof window !== 'undefined' && window.location.origin.includes('vercel.app')
+    ? window.location.origin
+    : VERCEL_PRODUCTION_ORIGIN;
 
   const copyToClipboard = (text: string, key: string) => {
     try {
