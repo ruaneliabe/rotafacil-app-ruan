@@ -455,108 +455,98 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         </div>
       )}
 
-      {/* 1. CLEAN ULTRA-SLIM DASHBOARD HEADER */}
-      <div className="bg-slate-900/80 backdrop-blur-md rounded-2xl p-3 px-4 border border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700/60 text-blue-400 flex items-center justify-center shrink-0 font-bold shadow-2xs">
-            <Building2 className="w-4 h-4 text-blue-400" />
+      {/* 1. CLEAN UNIFIED DASHBOARD HEADER & ACTION BAR */}
+      <div className="bg-slate-900/90 backdrop-blur-md rounded-2xl p-3 sm:p-4 border border-slate-800/80 shadow-md flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+        {/* Left: Store Identity & Shift Info */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700/60 text-blue-400 flex items-center justify-center shrink-0 font-bold shadow-xs">
+            <Building2 className="w-5 h-5 text-blue-400" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-white tracking-tight">{shift.storeName || 'Hope Burger'}</h2>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase ${
-                shift.isOpen ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-black text-white tracking-tight">
+                {shift.storeName || 'Hope Burger & Pizza'}
+              </h2>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide uppercase border ${
+                shift.isOpen ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
               }`}>
-                {shift.isOpen ? 'Aberto' : 'Fechado'}
+                {shift.isOpen ? '● Aberto' : '○ Fechado'}
               </span>
               <button
                 type="button"
                 onClick={onToggleShift}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer ${shift.isOpen ? 'bg-slate-800 hover:bg-rose-950 text-slate-200 hover:text-rose-300 border border-slate-700' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/40'}`}
+                className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  shift.isOpen
+                    ? 'bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 border border-slate-700'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                }`}
               >
-                {shift.isOpen ? 'Encerrar loja' : 'Abrir loja agora'}
+                {shift.isOpen ? 'Encerrar turno' : 'Abrir loja'}
               </button>
             </div>
-            {/* Minimal line requested by user: Hope Burger • 2 pedidos • 1 motoboy ativo • R$233 hoje */}
             <p className="text-xs text-slate-400 font-medium mt-0.5">
-              <strong className="text-slate-200">{activeOrders.length} pedidos</strong> • <strong className="text-slate-200">{motoboysAvailable.length} motoboy{motoboysAvailable.length !== 1 ? 's' : ''} ativo{motoboysAvailable.length !== 1 ? 's' : ''}</strong> • <strong className="text-blue-400 font-semibold">{formattedCurrency(totalRevenue)} hoje</strong>
+              <strong className="text-slate-100 font-bold">{activeOrders.length} pedidos ativos</strong> • <strong className="text-slate-100 font-bold">{motoboysAvailable.length} motoboy{motoboysAvailable.length !== 1 ? 's' : ''} livre{motoboysAvailable.length !== 1 ? 's' : ''}</strong> • <strong className="text-emerald-400 font-bold">{formattedCurrency(totalRevenue)} hoje</strong>
             </p>
           </div>
         </div>
 
-        {/* Action Controls: Group Primary Dispatch separately from Secondary Toolbar */}
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-end flex-wrap">
-          {/* Primary Action: Standalone Highlighted Button */}
+        {/* Right: Operational Actions Group */}
+        <div className="flex items-center gap-2 flex-wrap justify-start lg:justify-end">
+          {/* Primary CTA: Despachar Próximo */}
           <button
             type="button"
             onClick={handleCallNextMotoboy}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/50 cursor-pointer border-2 border-emerald-400/80 uppercase tracking-wide"
-            title="Sinaliza o celular do 1º motoboy da fila com aviso sonoro e vibratório para retirar o pedido no balcão"
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer border border-emerald-400/60 uppercase tracking-wide shrink-0"
+            title="Sinaliza o celular do 1º motoboy da fila para retirar o pedido no balcão"
           >
             <Zap className="w-4 h-4 text-amber-300 fill-amber-300 shrink-0 animate-pulse" />
-            <span>Despachar Próximo da Fila</span>
+            <span>Despachar 1º da Fila</span>
           </button>
 
-          {/* Vertical Divider on Desktop */}
-          <div className="hidden sm:block h-6 w-px bg-slate-800" />
+          {/* Map Button - Highlighted in Indigo */}
+          <button
+            type="button"
+            onClick={() => setIsRouteModalOpen(true)}
+            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black text-xs rounded-xl border border-indigo-400/50 shadow-md shadow-indigo-950/30 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            title="Abrir mapa com localização de todos os pedidos e entregadores"
+          >
+            <Map className="w-3.5 h-3.5 text-indigo-200" />
+            <span>Mapa de Pedidos</span>
+          </button>
 
-          {/* Secondary Actions Group */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setIsRouteModalOpen(true)}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black text-xs rounded-xl border border-indigo-400/50 shadow-md shadow-indigo-950/40 transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Abrir mapa de rotas e endereços dos pedidos"
-            >
-              <Map className="w-3.5 h-3.5 text-indigo-200" />
-              <span>Rotas no Mapa</span>
-            </button>
+          {/* New Manual Order */}
+          <button
+            type="button"
+            onClick={onOpenNewOrderModal}
+            disabled={Boolean(shift.pilotMode && activeOrders.length >= 5)}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 shrink-0"
+            title="Lançar pedido manual avulso"
+          >
+            <Plus className="w-3.5 h-3.5 text-blue-400" />
+            <span>Novo Pedido</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={onOpenNewOrderModal}
-              disabled={Boolean(shift.pilotMode && activeOrders.length >= 5)}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
-              title={shift.pilotMode && activeOrders.length >= 5 ? 'Limite seguro do piloto: conclua um pedido antes de lançar outro' : 'Cadastrar um pedido manual avulso no sistema'}
-            >
-              <Plus className="w-3.5 h-3.5 text-blue-400" />
-              <span>Pedido Manual</span>
-            </button>
+          {/* Integrations Modal Button */}
+          <button
+            type="button"
+            onClick={() => setIsIntegrationsOpen(true)}
+            className="px-3 py-2 bg-purple-950/70 hover:bg-purple-900 text-purple-200 font-bold text-xs rounded-xl border border-purple-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+            title="Integrações Cardápio Web, iFood e Webhooks"
+          >
+            <Webhook className="w-3.5 h-3.5 text-purple-400" />
+            <span>Integrações</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => setIsIntegrationsOpen(true)}
-              className="px-3 py-2 bg-purple-950/60 hover:bg-purple-900/80 text-purple-200 font-bold text-xs rounded-xl border border-purple-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Conectado com Cardápio Web, iFood, Anota AI e PDV"
-            >
-              <Webhook className="w-3.5 h-3.5 text-purple-400" />
-              <span className="hidden sm:inline">Integrações</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsHistoryModalOpen(true)}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Relatórios e Histórico de Entregas"
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Relatórios</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onOpenMotoboyModal}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs rounded-xl border border-slate-700/60 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              title="Gerenciar cadastro da equipe de entregadores"
-            >
-              <Bike className="w-3.5 h-3.5 text-blue-400" />
-              <span className="hidden sm:inline">Equipe</span>
-            </button>
-
-            <span className={`p-2 rounded-xl border ${shift.isOpen ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'}`} title={shift.isOpen ? 'Loja aberta' : 'Loja fechada'}>
-              <Power className="w-4 h-4" />
-            </span>
-          </div>
+          {/* Reports Modal Button */}
+          <button
+            type="button"
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+            title="Relatórios e Histórico de Entregas"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Relatórios</span>
+          </button>
         </div>
       </div>
 
@@ -713,9 +703,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           ]).map((branch) => {
             const isSel = storeFilter === branch.id;
             const count = activeOrders.filter((o) => {
-              if (o.storeId) return o.storeId === branch.id;
-              if (branch.id === 'hope_burger' && o.storeName?.toLowerCase().includes('burger')) return true;
-              if (branch.id === 'hope_pizza' && (o.storeName?.toLowerCase().includes('pizz') || o.storeName?.toLowerCase().includes('pizza'))) return true;
+              if (o.storeBranch === branch.id) return true;
+              if (o.storeId === branch.id) return true;
+              if (branch.id === 'hope_burger' && (o.storeBranch === 'hope_burger' || o.storeName?.toLowerCase().includes('burger'))) return true;
+              if (branch.id === 'hope_pizza' && (o.storeBranch === 'hope_pizza' || o.storeName?.toLowerCase().includes('pizz') || o.storeName?.toLowerCase().includes('pizza'))) return true;
               return false;
             }).length;
 
@@ -1454,9 +1445,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     {[...unassignedOrders]
                       .filter((ord) => {
                         if (storeFilter === 'all') return true;
-                        if (ord.storeId) return ord.storeId === storeFilter;
-                        if (storeFilter === 'hope_burger' && ord.storeName?.toLowerCase().includes('burger')) return true;
-                        if (storeFilter === 'hope_pizza' && (ord.storeName?.toLowerCase().includes('pizz') || ord.storeName?.toLowerCase().includes('pizza'))) return true;
+                        if (ord.storeBranch === storeFilter) return true;
+                        if (ord.storeId === storeFilter) return true;
+                        if (storeFilter === 'hope_burger' && (ord.storeBranch === 'hope_burger' || ord.storeName?.toLowerCase().includes('burger'))) return true;
+                        if (storeFilter === 'hope_pizza' && (ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz') || ord.storeName?.toLowerCase().includes('pizza'))) return true;
                         return false;
                       })
                       .sort((a, b) => {
@@ -1496,9 +1488,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     <span className="font-extrabold text-sm text-white">#{ord.codeNumber}</span>
                                     <span className="font-bold text-slate-200 truncate max-w-[110px] sm:max-w-[140px]">{ord.clientName}</span>
                                     {renderChannelBadge(ord.originChannel)}
-                                    {ord.storeName && (
-                                      <span className="px-1.5 py-0.2 rounded-md bg-indigo-950 text-indigo-300 border border-indigo-500/30 text-[9px] font-black uppercase">
-                                        {ord.storeName.includes('Burger') ? '🍔 HB' : ord.storeName.includes('Pizza') ? '🍕 HP' : ord.storeName}
+                                    {(ord.storeBranch || ord.storeName) && (
+                                      <span className={`px-1.5 py-0.2 rounded-md text-[9px] font-black uppercase border ${
+                                        (ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz'))
+                                          ? 'bg-amber-950 text-amber-300 border-amber-500/40'
+                                          : 'bg-rose-950 text-rose-300 border-rose-500/40'
+                                      }`}>
+                                        {(ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz')) ? '🍕 HP' : '🍔 HB'}
                                       </span>
                                     )}
                                   </div>
@@ -1588,9 +1584,13 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                     #{ord.codeNumber} - {ord.clientName}
                                   </span>
                                   {renderChannelBadge(ord.originChannel)}
-                                  {ord.storeName && (
-                                    <span className="px-1.5 py-0.2 rounded-md bg-indigo-950 text-indigo-300 border border-indigo-500/30 text-[9px] font-black uppercase">
-                                      {ord.storeName.includes('Burger') ? '🍔 HB' : ord.storeName.includes('Pizza') ? '🍕 HP' : ord.storeName}
+                                  {(ord.storeBranch || ord.storeName) && (
+                                    <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase border ${
+                                      (ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz'))
+                                        ? 'bg-amber-950 text-amber-300 border-amber-500/40'
+                                        : 'bg-rose-950 text-rose-300 border-rose-500/40'
+                                    }`}>
+                                      {(ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz')) ? '🍕 Hope Pizza' : '🍔 Hope Burger'}
                                     </span>
                                   )}
                                 </div>

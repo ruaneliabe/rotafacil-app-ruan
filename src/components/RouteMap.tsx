@@ -148,35 +148,36 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         bounds.push([stop.lat, stop.lng]);
 
         const isSelected = stop.id === selectedStopId;
-        let bgColor = 'bg-slate-800 text-slate-200 border-slate-600';
-        let badgeHtml = `${idx + 1}`;
+        let bgColor = 'bg-slate-800 text-slate-100 border-slate-600';
+        const orderNumberText = stop.codeNumber ? `#${stop.codeNumber}` : `${idx + 1}`;
+        let badgeHtml = orderNumberText;
 
         if (stop.status === 'delivered') {
           bgColor = 'bg-emerald-600 text-white border-emerald-400';
-          badgeHtml = '✓';
+          badgeHtml = `${orderNumberText} ✓`;
         } else if (stop.status === 'in_transit') {
           bgColor = 'bg-blue-600 text-white border-blue-400';
         } else if (stop.status === 'failed') {
           bgColor = 'bg-rose-600 text-white border-rose-400';
-          badgeHtml = '✕';
+          badgeHtml = `${orderNumberText} ✕`;
         }
 
-        const ringClass = isSelected ? 'ring-4 ring-indigo-500/60 scale-110 z-30' : '';
+        const ringClass = isSelected ? 'ring-4 ring-indigo-500/80 scale-110 z-30' : '';
 
         const stopIcon = L.divIcon({
           className: 'custom-stop-pin',
           html: `
             <div class="relative flex flex-col items-center justify-center transition-all duration-200 ${ringClass}">
-              <div class="w-8 h-8 ${bgColor} rounded-full shadow-lg border-2 flex items-center justify-center font-bold text-xs z-30">
+              <div class="px-2 min-w-[34px] h-8 ${bgColor} rounded-full shadow-lg border-2 flex items-center justify-center font-black text-xs z-30 tracking-tight whitespace-nowrap">
                 ${badgeHtml}
               </div>
-              <div class="mt-0.5 bg-slate-900/95 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap max-w-[130px] truncate border border-emerald-500/60 shadow-md z-30">
-                ${stop.title?.includes('Seu Endereço') ? '📍 Seu Endereço' : (stop.neighborhood || 'Centro')}
+              <div class="mt-0.5 bg-slate-900/95 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap max-w-[140px] truncate border border-emerald-500/60 shadow-md z-30">
+                ${stop.codeNumber ? `#${stop.codeNumber} · ` : ''}${stop.title?.includes('Seu Endereço') ? '📍 Seu Endereço' : (stop.neighborhood || 'Centro')}
               </div>
             </div>
           `,
-          iconSize: [70, 48],
-          iconAnchor: [35, 24],
+          iconSize: [80, 52],
+          iconAnchor: [40, 26],
         });
 
         const marker = L.marker([stop.lat, stop.lng], { icon: stopIcon });
@@ -188,7 +189,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         marker.bindPopup(`
           <div class="p-2 min-w-[220px] text-slate-100">
             <div class="flex items-center justify-between gap-2 mb-1">
-              <span class="font-semibold text-xs text-indigo-400">Parada #${idx + 1}</span>
+              <span class="font-extrabold text-xs text-indigo-400">${stop.codeNumber ? `Pedido #${stop.codeNumber}` : `Parada #${idx + 1}`}</span>
               <span class="text-[10px] px-1.5 py-0.5 rounded uppercase font-bold ${
                 stop.status === 'delivered' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' :
                 stop.status === 'in_transit' ? 'bg-blue-950 text-blue-300 border border-blue-700' :
@@ -217,6 +218,16 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         `);
 
         markersGroup.addLayer(marker);
+
+        if (isSelected) {
+          setTimeout(() => {
+            try {
+              marker.openPopup();
+            } catch {
+              // ignore
+            }
+          }, 150);
+        }
       });
     }
 
@@ -540,14 +551,22 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     }
 
     // 5. Smoothly fit map bounds to fit store + visible motoboys/stops
+    if (selectedStopId) {
+      const targetStop = stops.find((s) => s.id === selectedStopId);
+      if (targetStop && targetStop.lat && targetStop.lng) {
+        map.setView([targetStop.lat, targetStop.lng], 16, { animate: true });
+        return;
+      }
+    }
+
     if (bounds.length > 1) {
-      map.fitBounds(bounds, { padding: [70, 70], maxZoom: 15 });
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15 });
     } else if (bounds.length === 1) {
       map.setView(bounds[0], 15, { animate: true });
     } else if (!fleetOverviewOnly && stops.length > 0) {
       map.setView([stops[0].lat, stops[0].lng], 14, { animate: true });
     } else {
-      map.setView([origin.lat || -26.91530418395996, origin.lng || -49.1146354675293], 14);
+      map.setView([origin.lat || -26.9194, origin.lng || -49.0661], 14);
     }
   }, [origin, stops, selectedStopId, motoboysList, showMotoboyMarker, motoboyLat, motoboyLng, selectedMotoboyId]);
 

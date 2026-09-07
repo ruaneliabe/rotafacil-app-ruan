@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { X, MapPin, ExternalLink, Store, Package } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, MapPin, ExternalLink, Store, Package, Loader2 } from 'lucide-react';
 import { Order, Motoboy, StoreShift } from '../types';
 import { RouteMap } from './RouteMap';
+import { geocodeAddress } from '../utils/geoUtils';
+import { saveOrderToCloud } from '../lib/firebase';
 
 interface RouteModalProps {
   isOpen: boolean;
@@ -25,18 +27,21 @@ export const RouteModal: React.FC<RouteModalProps> = ({
   const [activeTab, setActiveTab] = useState<'all' | 'unassigned' | 'delivering'>('all');
   const [localStoreFilter, setLocalStoreFilter] = useState<string>(selectedStoreFilter);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [resolvedCoords, setResolvedCoords] = useState<Record<string, { lat: number; lng: number }>>({});
+  const [geocodingInProgress, setGeocodingInProgress] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
   // Filter orders by store if selected
   const storeFilteredOrders = orders.filter((ord) => {
     if (localStoreFilter === 'all') return true;
-    if (ord.storeId) return ord.storeId === localStoreFilter;
+    if (ord.storeBranch === localStoreFilter) return true;
+    if (ord.storeId === localStoreFilter) return true;
     if (ord.storeName) {
       if (localStoreFilter === 'hope_burger' && ord.storeName.toLowerCase().includes('burger')) return true;
       if (localStoreFilter === 'hope_pizza' && (ord.storeName.toLowerCase().includes('pizz') || ord.storeName.toLowerCase().includes('pizza'))) return true;
     }
-    return true;
+    return false;
   });
 
   // Filter active orders (excluding completed/cancelled)
@@ -54,28 +59,79 @@ export const RouteModal: React.FC<RouteModalProps> = ({
     return true;
   });
 
-  // Convert strictly orders to map stops
-  const stops = displayedOrders.map((ord, idx) => ({
-    id: ord.id,
-    orderIndex: idx + 1,
-    title: `#${ord.codeNumber} - ${ord.clientName}`,
-    address: ord.address,
-    neighborhood: ord.neighborhood,
-    lat: ord.lat,
-    lng: ord.lng,
-    status:
-      ord.status === 'delivered'
-        ? ('delivered' as const)
-        : ord.status === 'in_transit'
-        ? ('in_transit' as const)
-        : ('pending' as const),
-    priority: 'medium' as const,
-    recipientName: ord.clientName,
-    phone: ord.clientPhone,
-    valueToReceive: ord.total,
-    motoboyId: ord.assignedMotoboyId || undefined,
-    motoboyName: ord.assignedMotoboyName || undefined,
-  }));
+  // Auto-geocode orders that have fallback or missing coordinates
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function geocodeOrdersMissingCoords() {
+      const needsGeocode = displayedOrders.filter((ord) => {
+        if (resolvedCoords[ord.id]) return false;
+        if (!ord.address || ord.address.toLowerCase().includes('retirada no balcão')) return false;
+        const isDefaultHopePizza = Math.abs(ord.lat - (-26.9240)) < 0.0001 && Math.abs(ord.lng - (-49.0630)) < 0.0001;
+        const isDefaultHopeBurger = Math.abs(ord.lat - (-26.9194)) < 0.0001 && Math.abs(ord.lng - (-49.0661)) < 0.0001;
+        const isMissing = !ord.lat || !ord.lng || ord.lat === 0;
+        return isDefaultHopePizza || isDefaultHopeBurger || isMissing;
+      });
+
+      if (needsGeocode.length === 0) return;
+
+      setGeocodingInProgress(true);
+      for (const ord of needsGeocode) {
+        if (isCancelled) break;
+        try {
+          const point = await geocodeAddress(ord.address);
+          if (point && !isCancelled) {
+            setResolvedCoords((prev) => ({
+              ...prev,
+              [ord.id]: { lat: point.lat, lng: point.lng },
+            }));
+            // Persist the precise coordinates so map shows real location
+            saveOrderToCloud({
+              ...ord,
+              lat: point.lat,
+              lng: point.lng,
+            });
+          }
+        } catch (err) {
+          console.warn(`[RouteModal] Falha ao geolocalizar pedido #${ord.codeNumber}:`, err);
+        }
+      }
+      if (!isCancelled) setGeocodingInProgress(false);
+    }
+
+    geocodeOrdersMissingCoords();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [displayedOrders, resolvedCoords]);
+
+  // Convert strictly orders to map stops with real geocoded coordinates & order number
+  const stops = displayedOrders.map((ord, idx) => {
+    const coords = resolvedCoords[ord.id] || { lat: ord.lat, lng: ord.lng };
+    return {
+      id: ord.id,
+      orderIndex: idx + 1,
+      codeNumber: ord.codeNumber,
+      title: `#${ord.codeNumber} - ${ord.clientName}`,
+      address: ord.address,
+      neighborhood: ord.neighborhood,
+      lat: coords.lat,
+      lng: coords.lng,
+      status:
+        ord.status === 'delivered'
+          ? ('delivered' as const)
+          : ord.status === 'in_transit'
+          ? ('in_transit' as const)
+          : ('pending' as const),
+      priority: 'medium' as const,
+      recipientName: ord.clientName,
+      phone: ord.clientPhone,
+      valueToReceive: ord.total,
+      motoboyId: ord.assignedMotoboyId || undefined,
+      motoboyName: ord.assignedMotoboyName || undefined,
+    };
+  });
 
   const branches = shift.branches || [
     { id: 'hope_burger', name: 'Hope Burger', icon: '🍔', tag: 'HB' },
@@ -216,9 +272,17 @@ export const RouteModal: React.FC<RouteModalProps> = ({
                 <Package className="w-3.5 h-3.5 text-indigo-400" />
                 Endereços dos Pedidos ({displayedOrders.length})
               </span>
-              <span className="text-[10px] text-slate-400 font-bold">
-                {activeOrders.filter((o) => !o.assignedMotoboyId).length} pendentes
-              </span>
+              <div className="flex items-center gap-2">
+                {geocodingInProgress && (
+                  <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1 animate-pulse">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Mapeando...
+                  </span>
+                )}
+                <span className="text-[10px] text-slate-400 font-bold">
+                  {activeOrders.filter((o) => !o.assignedMotoboyId).length} pendentes
+                </span>
+              </div>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5">
@@ -231,9 +295,9 @@ export const RouteModal: React.FC<RouteModalProps> = ({
                   </p>
                 </div>
               ) : (
-                displayedOrders.map((ord, idx) => {
+                displayedOrders.map((ord) => {
                   const isAssigned = Boolean(ord.assignedMotoboyId);
-                  const isHopePizza = ord.storeId === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz');
+                  const isHopePizza = ord.storeBranch === 'hope_pizza' || ord.storeId === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz');
                   const isSelected = selectedOrderId === ord.id;
                   
                   return (
@@ -252,12 +316,12 @@ export const RouteModal: React.FC<RouteModalProps> = ({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span className={`w-6 h-6 rounded-lg font-black text-xs flex items-center justify-center shrink-0 border ${
+                          <span className={`px-2 h-6 rounded-lg font-black text-xs flex items-center justify-center shrink-0 border ${
                             isSelected
                               ? 'bg-indigo-600 text-white border-indigo-400'
                               : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
                           }`}>
-                            {idx + 1}
+                            #{ord.codeNumber}
                           </span>
                           <div>
                             <div className="flex items-center gap-1.5 flex-wrap">

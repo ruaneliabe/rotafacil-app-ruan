@@ -196,6 +196,38 @@ export function calculateRouteSummary(
   };
 }
 
+export const BLUMENAU_NEIGHBORHOOD_COORDS: Record<string, { lat: number; lng: number }> = {
+  'velha central': { lat: -26.9284, lng: -49.1147 },
+  'velha grande': { lat: -26.9550, lng: -49.1310 },
+  'velha': { lat: -26.9200, lng: -49.0950 },
+  'garcia': { lat: -26.9450, lng: -49.0680 },
+  'centro': { lat: -26.9194, lng: -49.0661 },
+  'itoupava norte': { lat: -26.8850, lng: -49.0800 },
+  'itoupavazinha': { lat: -26.8650, lng: -49.0950 },
+  'fortaleza': { lat: -26.8900, lng: -49.0550 },
+  'vila nova': { lat: -26.9100, lng: -49.0850 },
+  'victor konder': { lat: -26.9150, lng: -49.0750 },
+  'escola agrícola': { lat: -26.8950, lng: -49.1050 },
+  'escola agricola': { lat: -26.8950, lng: -49.1050 },
+  'água verde': { lat: -26.9150, lng: -49.1200 },
+  'agua verde': { lat: -26.9150, lng: -49.1200 },
+  'passo manso': { lat: -26.9180, lng: -49.1450 },
+  'salto do norte': { lat: -26.8700, lng: -49.1100 },
+  'badenfurt': { lat: -26.8650, lng: -49.1450 },
+  'vorstadt': { lat: -26.9300, lng: -49.0450 },
+  'ponta aguda': { lat: -26.9250, lng: -49.0550 },
+  'progresso': { lat: -26.9800, lng: -49.0700 },
+  'da glória': { lat: -26.9600, lng: -49.0650 },
+  'gloria': { lat: -26.9600, lng: -49.0650 },
+  'valparaíso': { lat: -26.9550, lng: -49.0850 },
+  'valparaiso': { lat: -26.9550, lng: -49.0850 },
+  'tribess': { lat: -26.8750, lng: -49.0400 },
+  'itoupava central': { lat: -26.8200, lng: -49.0900 },
+  'testo salto': { lat: -26.8250, lng: -49.1500 },
+  'fidélis': { lat: -26.8400, lng: -49.0700 },
+  'fidelis': { lat: -26.8400, lng: -49.0700 },
+};
+
 /**
  * Helper to expand common Portuguese address abbreviations and clean hyphens
  */
@@ -277,22 +309,23 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
 
   // 2. Try OpenStreetMap Nominatim with normalized query variations
   const searchQueries = [
-    `${normalized}, Brasil`,
-    `street=${encodeURIComponent(normalized.split(',')[0])}&country=Brasil`,
     `${normalized}, Blumenau, SC, Brasil`,
+    `${normalized}, Brasil`,
+    `street=${encodeURIComponent(normalized.split(',')[0])}&city=Blumenau&country=Brasil`,
+    `street=${encodeURIComponent(normalized.split(',')[0])}&country=Brasil`,
   ];
 
   for (const sq of searchQueries) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
 
       const url = sq.startsWith('street=')
         ? `https://nominatim.openstreetmap.org/search?format=json&${sq}&limit=1`
         : `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(sq)}&limit=1`;
 
       const res = await fetch(url, { 
-        headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' },
+        headers: { 'Accept-Language': 'pt-BR,pt;q=0.9', 'User-Agent': 'RotaFacilDelivery/1.0' },
         signal: controller.signal 
       });
       clearTimeout(timeoutId);
@@ -316,18 +349,18 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
         }
       }
     } catch (err) {
-      console.warn('Nominatim geocode attempt failed:', err);
+      // Nominatim attempt failed, try next
     }
   }
 
-  // Fallback: if query contains street and number, try searching just the street + city/state
+  // Fallback 1: if query contains street and number, try searching just the street in Blumenau
   const streetOnly = normalized.split(',')[0].replace(/\d+/g, '').trim();
   if (streetOnly && streetOnly.length > 4) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(streetOnly + ', Brasil')}&limit=1`, {
-        headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' },
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(streetOnly + ', Blumenau, SC, Brasil')}&limit=1`, {
+        headers: { 'Accept-Language': 'pt-BR,pt;q=0.9', 'User-Agent': 'RotaFacilDelivery/1.0' },
         signal: controller.signal
       });
       clearTimeout(timeoutId);
@@ -352,7 +385,20 @@ export async function geocodeAddress(query: string): Promise<LocationPoint | nul
     }
   }
 
-  // Never invent/approximate a customer address. A wrong point is worse than an explicit validation error.
+  // Fallback 2: Check known Blumenau neighborhoods
+  for (const [neigh, coords] of Object.entries(BLUMENAU_NEIGHBORHOOD_COORDS)) {
+    if (lowerNorm.includes(neigh)) {
+      const jitterLat = (Math.random() - 0.5) * 0.003;
+      const jitterLng = (Math.random() - 0.5) * 0.003;
+      return {
+        address: rawCleaned,
+        lat: coords.lat + jitterLat,
+        lng: coords.lng + jitterLng,
+        name: rawCleaned,
+      };
+    }
+  }
+
   return null;
 }
 

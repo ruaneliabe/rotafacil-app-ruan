@@ -211,6 +211,7 @@ export interface LocationPoint {
 export interface Stop extends LocationPoint {
   order?: number;
   orderIndex?: number;
+  codeNumber?: number | string;
   title?: string;
   contactName?: string;
   contactPhone?: string;
