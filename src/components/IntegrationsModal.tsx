@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Globe, Save, Store, Webhook, X, Zap, Building2 } from 'lucide-react';
+import { CheckCircle2, Globe, Save, Store, Webhook, X, Zap, Building2, Copy, Check, Info } from 'lucide-react';
 import { StoreIntegrationConfig, StoreIntegrations, StoreBranch } from '../types';
 
 interface Props {
@@ -12,19 +12,14 @@ interface Props {
   onSimulateIncomingOrder: (channel: 'ifood' | 'cardapio_web', branchId?: string) => void;
 }
 
-const CARDAPIO_WEB_USER_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
+const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
 const emptyConfig = (): StoreIntegrationConfig => ({ enabled: false, accountId: '', webhookUrl: '' });
 const normalize = (value?: StoreIntegrations): StoreIntegrations => {
-  const cwToken = value?.cardapioWeb?.accountId;
-  const resolvedCwToken = !cwToken || cwToken === 'hope-burger-cardapio' || cwToken === 'hope-pizza-cardapio'
-    ? CARDAPIO_WEB_USER_TOKEN
-    : cwToken;
-
   return {
     ifood: { ...emptyConfig(), ...value?.ifood },
     cardapioWeb: {
-      enabled: value?.cardapioWeb?.enabled ?? true,
-      accountId: resolvedCwToken,
+      enabled: value?.cardapioWeb?.enabled ?? false,
+      accountId: value?.cardapioWeb?.accountId || '',
       webhookUrl: value?.cardapioWeb?.webhookUrl || '',
     },
   };
@@ -39,7 +34,8 @@ export const IntegrationsModal: React.FC<Props> = ({
   onSave,
   onSimulateIncomingOrder,
 }) => {
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('hope_burger');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('hope_pizza');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [draftBranches, setDraftBranches] = useState<StoreBranch[]>(() => {
     return branches && branches.length > 0
       ? branches
@@ -51,7 +47,7 @@ export const IntegrationsModal: React.FC<Props> = ({
             icon: '🍔',
             integrations: {
               ifood: { enabled: true, accountId: 'hope-burger-ifood', webhookUrl: '' },
-              cardapioWeb: { enabled: true, accountId: CARDAPIO_WEB_USER_TOKEN, webhookUrl: '' },
+              cardapioWeb: { enabled: false, accountId: '', webhookUrl: '' },
             },
           },
           {
@@ -61,7 +57,7 @@ export const IntegrationsModal: React.FC<Props> = ({
             icon: '🍕',
             integrations: {
               ifood: { enabled: true, accountId: 'hope-pizza-ifood', webhookUrl: '' },
-              cardapioWeb: { enabled: true, accountId: CARDAPIO_WEB_USER_TOKEN, webhookUrl: '' },
+              cardapioWeb: { enabled: true, accountId: CARDAPIO_WEB_HOPE_PIZZA_TOKEN, webhookUrl: '' },
             },
           },
         ];
@@ -73,15 +69,30 @@ export const IntegrationsModal: React.FC<Props> = ({
     if (isOpen) {
       if (branches && branches.length > 0) {
         const enrichedBranches = branches.map((b) => {
-          const currentToken = b.integrations?.cardapioWeb?.accountId;
-          if (!currentToken || currentToken === 'hope-burger-cardapio' || currentToken === 'hope-pizza-cardapio') {
+          if (b.id === 'hope_pizza') {
+            const currentToken = b.integrations?.cardapioWeb?.accountId;
             return {
               ...b,
               integrations: {
                 ...b.integrations,
                 cardapioWeb: {
                   enabled: true,
-                  accountId: CARDAPIO_WEB_USER_TOKEN,
+                  accountId: (!currentToken || currentToken === 'hope-pizza-cardapio') ? CARDAPIO_WEB_HOPE_PIZZA_TOKEN : currentToken,
+                  webhookUrl: b.integrations?.cardapioWeb?.webhookUrl || '',
+                },
+              },
+            };
+          }
+          if (b.id === 'hope_burger') {
+            const currentToken = b.integrations?.cardapioWeb?.accountId;
+            const isDefaultOrPizza = currentToken === CARDAPIO_WEB_HOPE_PIZZA_TOKEN || currentToken === 'hope-burger-cardapio';
+            return {
+              ...b,
+              integrations: {
+                ...b.integrations,
+                cardapioWeb: {
+                  enabled: isDefaultOrPizza ? false : Boolean(currentToken),
+                  accountId: isDefaultOrPizza ? '' : (currentToken || ''),
                   webhookUrl: b.integrations?.cardapioWeb?.webhookUrl || '',
                 },
               },
@@ -97,6 +108,18 @@ export const IntegrationsModal: React.FC<Props> = ({
 
   const currentBranch = draftBranches.find((b) => b.id === selectedBranchId) || draftBranches[0];
   const currentIntegrations = normalize(currentBranch?.integrations || integrations);
+
+  const originUrl = typeof window !== 'undefined' ? window.location.origin : '';
+
+  const copyToClipboard = (text: string, key: string) => {
+    try {
+      navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2500);
+    } catch {
+      // Fallback
+    }
+  };
 
   const activeCount = useMemo(() => {
     return [currentIntegrations.ifood, currentIntegrations.cardapioWeb].filter((item) => item?.enabled).length;
@@ -154,6 +177,12 @@ export const IntegrationsModal: React.FC<Props> = ({
         ? 'bg-red-500/15 text-red-300 border-red-500/40'
         : 'bg-blue-500/15 text-blue-300 border-blue-500/40';
 
+    const systemWebhookUrl = provider === 'cardapioWeb'
+      ? `${originUrl}/api/webhook/cardapio-web/${currentBranch.id}`
+      : `${originUrl}/api/webhook/ifood/${currentBranch.id}`;
+
+    const isCwCopied = copiedKey === `webhook_${provider}_${currentBranch.id}`;
+
     return (
       <section className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-4">
         <div className="flex items-start justify-between gap-4">
@@ -182,6 +211,30 @@ export const IntegrationsModal: React.FC<Props> = ({
           </button>
         </div>
 
+        {/* Webhook URL Box for Cardápio Web */}
+        <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>URL de Webhook para cadastrar no {name} ({currentBranch.name}):</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => copyToClipboard(systemWebhookUrl, `webhook_${provider}_${currentBranch.id}`)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[11px] font-bold transition-all cursor-pointer border border-emerald-500/30"
+            >
+              {isCwCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{isCwCopied ? 'URL Copiada!' : 'Copiar URL'}</span>
+            </button>
+          </div>
+          <div className="bg-slate-950 px-3 py-2 rounded-lg border border-slate-800 font-mono text-[11px] text-emerald-400 break-all select-all">
+            {systemWebhookUrl}
+          </div>
+          <p className="text-[10px] text-slate-400">
+            Cole essa URL no painel do {name} da <strong>{currentBranch.name}</strong> em <em>Configurações &gt; Integrações &gt; Webhook</em> para receber os pedidos instantaneamente.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1.5">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">{accountLabel}</span>
@@ -193,7 +246,7 @@ export const IntegrationsModal: React.FC<Props> = ({
             />
           </label>
           <label className="space-y-1.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">URL do Webhook / API</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">URL Personalizada (Opcional)</span>
             <input
               type="url"
               value={config.webhookUrl || ''}
@@ -206,7 +259,7 @@ export const IntegrationsModal: React.FC<Props> = ({
 
         <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-800">
           <p className="text-[11px] text-slate-400">
-            Origem: <strong>{currentBranch.name}</strong> • Conexão direta via API
+            Origem: <strong>{currentBranch.name}</strong> • Conexão em tempo real
           </p>
           <button
             type="button"

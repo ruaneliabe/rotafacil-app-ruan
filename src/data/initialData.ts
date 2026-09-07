@@ -36,7 +36,7 @@ export const INITIAL_STORE_SHIFT: StoreShift = {
       lng: -49.0661,
       integrations: {
         ifood: { enabled: true, accountId: 'hope-burger-ifood', webhookUrl: '' },
-        cardapioWeb: { enabled: true, accountId: 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx', webhookUrl: '' },
+        cardapioWeb: { enabled: false, accountId: '', webhookUrl: '' },
       },
     },
     {

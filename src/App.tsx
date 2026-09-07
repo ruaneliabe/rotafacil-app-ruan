@@ -178,19 +178,44 @@ export default function App() {
       setCloudSynced(true);
     });
 
-    const CARDAPIO_WEB_USER_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
+    const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
     const unsubShift = subscribeToShift((cloudShift) => {
       const mergedShift = { ...cloudShift };
-      const currentToken = mergedShift.integrations?.cardapioWeb?.accountId;
-      if (!currentToken || currentToken === 'hope-burger-cardapio' || currentToken === 'hope-pizza-cardapio') {
-        mergedShift.integrations = {
-          ...mergedShift.integrations,
-          cardapioWeb: {
-            enabled: true,
-            accountId: CARDAPIO_WEB_USER_TOKEN,
-            webhookUrl: mergedShift.integrations?.cardapioWeb?.webhookUrl || '',
-          },
-        };
+      // Ensure branches reflect Pizza's token specifically
+      if (mergedShift.branches && mergedShift.branches.length > 0) {
+        mergedShift.branches = mergedShift.branches.map((b) => {
+          if (b.id === 'hope_pizza') {
+            const currentToken = b.integrations?.cardapioWeb?.accountId;
+            return {
+              ...b,
+              integrations: {
+                ...b.integrations,
+                cardapioWeb: {
+                  enabled: true,
+                  accountId: (!currentToken || currentToken === 'hope-pizza-cardapio') ? CARDAPIO_WEB_HOPE_PIZZA_TOKEN : currentToken,
+                  webhookUrl: b.integrations?.cardapioWeb?.webhookUrl || '',
+                },
+              },
+            };
+          }
+          if (b.id === 'hope_burger') {
+            const currentToken = b.integrations?.cardapioWeb?.accountId;
+            if (currentToken === CARDAPIO_WEB_HOPE_PIZZA_TOKEN || currentToken === 'hope-burger-cardapio') {
+              return {
+                ...b,
+                integrations: {
+                  ...b.integrations,
+                  cardapioWeb: {
+                    enabled: false,
+                    accountId: '',
+                    webhookUrl: b.integrations?.cardapioWeb?.webhookUrl || '',
+                  },
+                },
+              };
+            }
+          }
+          return b;
+        });
       }
       setShift(mergedShift);
       setCloudSynced(true);
