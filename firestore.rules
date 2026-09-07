@@ -30,6 +30,12 @@ service cloud.firestore {
       return !('storeName' in data) || (data.storeName is string && data.storeName.size() <= 100);
     }
 
+    // 4. Store Schema Validation Helper
+    function isValidStore(data) {
+      return (!('storeName' in data) || (data.storeName is string && data.storeName.size() <= 120))
+        && (!('username' in data) || (data.username is string && data.username.size() <= 100));
+    }
+
     // Rules per Collection
     match /orders/{orderId} {
       allow read: if true;
@@ -49,6 +55,12 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isValidId(shiftId) && isValidShift(incoming());
       allow delete: if false;
+    }
+
+    match /stores/{storeId} {
+      allow read: if true;
+      allow create, update: if isValidId(storeId) && isValidStore(incoming());
+      allow delete: if isValidId(storeId);
     }
 
     // Default Deny Catch-all

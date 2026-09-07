@@ -59,6 +59,21 @@
         "assignedMotoboyName": { "type": "string" },
         "trackingCode": { "type": "string" }
       }
+    },
+    "StoreAccount": {
+      "title": "Store Account",
+      "description": "Store credentials and profile configuration",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "storeName": { "type": "string" },
+        "storePhone": { "type": "string" },
+        "storeAddress": { "type": "string" },
+        "storeLat": { "type": "number" },
+        "storeLng": { "type": "number" },
+        "createdAt": { "type": "number" }
+      }
     }
   }
 }
