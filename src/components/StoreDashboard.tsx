@@ -283,9 +283,55 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   const [mapFilter, setMapFilter] = useState<'all' | 'returning' | 'orders'>('all');
   const [isSyncBannerCollapsed, setIsSyncBannerCollapsed] = useState(true);
+  const [isSyncingCw, setIsSyncingCw] = useState(false);
 
-  // Derived metrics matching screenshot
-  const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled');
+  // Sincronização em tempo real com o Cardápio Web (remove despachados/entregues)
+  const handleSyncCardapioWeb = async (showFeedback = true) => {
+    try {
+      setIsSyncingCw(true);
+      const res = await fetch('/api/cardapio-web/sync');
+      if (res.ok) {
+        const data = await res.json();
+        if (showFeedback && data.totalUpdated > 0) {
+          triggerActionToast(`🔄 Cardápio Web: ${data.totalUpdated} pedido(s) sincronizado(s) com sucesso!`);
+        } else if (showFeedback) {
+          triggerActionToast('✓ Sincronizado com Cardápio Web: Todos os pedidos estão em dia.');
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao sincronizar com Cardápio Web:', err);
+    } finally {
+      setIsSyncingCw(false);
+    }
+  };
+
+  // Auto-sync a cada 40 segundos para manter o balcão sincronizado com o Cardápio Web
+  useEffect(() => {
+    handleSyncCardapioWeb(false);
+    const interval = setInterval(() => {
+      handleSyncCardapioWeb(false);
+    }, 40000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Helper para exibir o código diferenciado (ex: HB-50 vs HP-50) sem alterar a documentação real do pedido (codeNumber)
+  const getOrderDisplayCode = (ord: Order) => {
+    if (ord.displayCode) return ord.displayCode;
+    const isBurger = ord.storeBranch === 'hope_burger' || ord.storeName?.toLowerCase().includes('burger');
+    const isPizza = ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz');
+    if (isBurger) return `HB-${ord.codeNumber}`;
+    if (isPizza) return `HP-${ord.codeNumber}`;
+    return `#${ord.codeNumber}`;
+  };
+
+  const isTakeoutOrder = (o: Order) => {
+    const addr = (o.address || '').toLowerCase();
+    const neigh = (o.neighborhood || '').toLowerCase();
+    return addr.includes('retirada') || addr.includes('balcão') || addr.includes('takeout') || neigh.includes('balcão') || (o as any).order_type === 'takeout';
+  };
+
+  // Derived metrics matching screenshot (pedidos de balcão/retirada são ignorados da fila de entrega)
+  const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled' && !isTakeoutOrder(o));
   const activeIntegrationsCount = [shift.integrations?.ifood, shift.integrations?.cardapioWeb]
     .filter((item) => item?.enabled).length;
   const hasStoreAddress = Boolean(shift.storeAddress?.trim());
@@ -299,7 +345,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const showOnboarding = completedOnboardingSteps < onboardingSteps.length;
   const nextOnboardingStepIndex = onboardingSteps.findIndex((step) => !step.done);
   const readyAtCounter = orders.filter((o) => o.status === 'ready_at_counter');
-  const unassignedOrders = activeOrders.filter((o) => !o.assignedMotoboyId);
+  // Pedidos aguardando despacho (exclui os que já foram despachados pelo Cardápio Web ou estão em trânsito)
+  const unassignedOrders = activeOrders.filter(
+    (o) => !o.assignedMotoboyId && (o.status === 'pending' || o.status === 'ready_at_counter')
+  );
   const todayDateKey = (() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -432,7 +481,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     msg += `A loja *${shift.storeName}* atribuiu *${mOrders.length}* pedido(s) a você PRONTO(S) no balcão para retirar:\n\n`;
 
     mOrders.forEach((ord, i) => {
-      msg += `📦 *${i + 1}. Pedido #${ord.codeNumber}* (${ord.clientName})\n`;
+      msg += `📦 *${i + 1}. Pedido ${getOrderDisplayCode(ord)}* (${ord.clientName})\n`;
       msg += `📍 Endereço: ${ord.address} - ${ord.neighborhood}\n`;
       msg += `💵 Cobrar: ${formattedCurrency(ord.total)} (${ord.paymentMethod.toUpperCase()})\n`;
       if (ord.clientPhone) msg += `📞 Cliente: ${ord.clientPhone}\n`;
@@ -536,6 +585,18 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           >
             <Webhook className="w-3.5 h-3.5 text-purple-400" />
             <span>Integrações</span>
+          </button>
+
+          {/* Sincronização Cardápio Web Button */}
+          <button
+            type="button"
+            onClick={() => handleSyncCardapioWeb(true)}
+            disabled={isSyncingCw}
+            className="px-3 py-2 bg-indigo-950/70 hover:bg-indigo-900 text-indigo-200 font-bold text-xs rounded-xl border border-indigo-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 disabled:opacity-50"
+            title="Sincronizar status com o Cardápio Web (remove despachados/entregues do balcão)"
+          >
+            <RotateCw className={`w-3.5 h-3.5 text-indigo-400 ${isSyncingCw ? 'animate-spin' : ''}`} />
+            <span>{isSyncingCw ? 'Sincronizando...' : 'Sincronizar CW'}</span>
           </button>
 
           {/* Reports Modal Button */}
@@ -1486,7 +1547,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 />
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-extrabold text-sm text-white">#{ord.codeNumber}</span>
+                                    <span className="font-extrabold text-sm text-white">{getOrderDisplayCode(ord)}</span>
                                     <span className="font-bold text-slate-200 truncate max-w-[110px] sm:max-w-[140px]">{ord.clientName}</span>
                                     {renderChannelBadge(ord.originChannel)}
                                     {(ord.storeBranch || ord.storeName) && (
@@ -1582,7 +1643,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 />
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="font-extrabold text-sm text-white">
-                                    #{ord.codeNumber} - {ord.clientName}
+                                    {getOrderDisplayCode(ord)} - {ord.clientName}
                                   </span>
                                   {renderChannelBadge(ord.originChannel)}
                                   {(ord.storeBranch || ord.storeName) && (
@@ -1920,7 +1981,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 id: ord.id,
                                 codeNumber: ord.codeNumber,
                                 orderIndex: idx + 1,
-                                title: `#${ord.codeNumber} - ${ord.clientName}`,
+                                title: `${getOrderDisplayCode(ord)} - ${ord.clientName}`,
                                 address: ord.address,
                                 neighborhood: ord.neighborhood,
                                 lat: ord.lat,
@@ -2128,7 +2189,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                       if (activeOrder) {
                                         const trackingUrl = `${window.location.origin}/?rastreio=${activeOrder.trackingCode || activeOrder.id}`;
                                         const cleanPhone = activeOrder.clientPhone ? activeOrder.clientPhone.replace(/\D/g, '') : '';
-                                        const msg = `Olá *${activeOrder.clientName}*! 🛵 O motoboy *${m.name}* está a caminho com seu pedido *#${activeOrder.codeNumber}*!\n\n📍 *Acompanhe no mapa em tempo real:* ${trackingUrl}`;
+                                        const msg = `Olá *${activeOrder.clientName}*! 🛵 O motoboy *${m.name}* está a caminho com seu pedido *${getOrderDisplayCode(activeOrder)}*!\n\n📍 *Acompanhe no mapa em tempo real:* ${trackingUrl}`;
                                         const url = cleanPhone
                                           ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msg)}`
                                           : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
@@ -2159,7 +2220,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                       <div className="min-w-0 flex-1 pr-2">
                                         <div className="flex items-center gap-1.5 truncate">
                                           <span className="text-slate-500 font-bold shrink-0">{numSymbol}</span>
-                                          <span className="font-extrabold text-white truncate">#{ord.codeNumber}</span>
+                                          <span className="font-extrabold text-white truncate">{getOrderDisplayCode(ord)}</span>
                                           <span className="text-slate-400 text-[11px] truncate">— {ord.street || ord.address}</span>
                                         </div>
 
@@ -2646,7 +2707,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             {orders.map((o) => (
               <div key={o.id} className="p-3 rounded-xl border border-slate-700 bg-slate-900/70 flex items-center justify-between text-xs">
                 <div>
-                  <span className="font-bold text-white">#{o.codeNumber} • {o.clientName}</span>
+                  <span className="font-bold text-white">{getOrderDisplayCode(o)} • {o.clientName}</span>
                   <p className="text-slate-400">{o.itemsSummary} — {o.address}</p>
                 </div>
                 <div className="flex items-center gap-2">

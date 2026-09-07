@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/cardapio-web/sync",
+      "destination": "/api/sync-cardapio-web"
+    },
+    {
       "source": "/api/webhook/cardapio-web/:branchId",
       "destination": "/api/webhook-cardapio-web?branchId=:branchId"
     },

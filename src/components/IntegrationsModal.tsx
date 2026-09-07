@@ -13,6 +13,7 @@ interface Props {
 }
 
 const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
+const CARDAPIO_WEB_HOPE_BURGER_TOKEN = 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
 const emptyConfig = (): StoreIntegrationConfig => ({ enabled: false, accountId: '', webhookUrl: '' });
 const normalize = (value?: StoreIntegrations): StoreIntegrations => {
   return {
@@ -47,7 +48,7 @@ export const IntegrationsModal: React.FC<Props> = ({
             icon: '🍔',
             integrations: {
               ifood: { enabled: true, accountId: 'hope-burger-ifood', webhookUrl: '' },
-              cardapioWeb: { enabled: false, accountId: '', webhookUrl: '' },
+              cardapioWeb: { enabled: true, accountId: CARDAPIO_WEB_HOPE_BURGER_TOKEN, webhookUrl: '' },
             },
           },
           {
@@ -85,14 +86,13 @@ export const IntegrationsModal: React.FC<Props> = ({
           }
           if (b.id === 'hope_burger') {
             const currentToken = b.integrations?.cardapioWeb?.accountId;
-            const isDefaultOrPizza = currentToken === CARDAPIO_WEB_HOPE_PIZZA_TOKEN || currentToken === 'hope-burger-cardapio';
             return {
               ...b,
               integrations: {
                 ...b.integrations,
                 cardapioWeb: {
-                  enabled: isDefaultOrPizza ? false : Boolean(currentToken),
-                  accountId: isDefaultOrPizza ? '' : (currentToken || ''),
+                  enabled: true,
+                  accountId: (!currentToken || currentToken === 'hope-burger-cardapio') ? CARDAPIO_WEB_HOPE_BURGER_TOKEN : currentToken,
                   webhookUrl: b.integrations?.cardapioWeb?.webhookUrl || '',
                 },
               },

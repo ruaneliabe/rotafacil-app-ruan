@@ -59,6 +59,8 @@ export interface Order {
   kitchenReadyInMin?: number;
   storeId?: string;
   storeName?: string;
+  storeBranch?: 'hope_pizza' | 'hope_burger' | string;
+  displayCode?: string;
 }
 
 export type MotoboyStatus = 'available' | 'delivering' | 'returning_to_store' | 'paused' | 'offline' | 'busy';

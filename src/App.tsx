@@ -179,9 +179,10 @@ export default function App() {
     });
 
     const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
+    const CARDAPIO_WEB_HOPE_BURGER_TOKEN = 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
     const unsubShift = subscribeToShift((cloudShift) => {
       const mergedShift = { ...cloudShift };
-      // Ensure branches reflect Pizza's token specifically
+      // Ensure branches reflect Pizza and Burger tokens specifically
       if (mergedShift.branches && mergedShift.branches.length > 0) {
         mergedShift.branches = mergedShift.branches.map((b) => {
           if (b.id === 'hope_pizza') {
@@ -200,19 +201,17 @@ export default function App() {
           }
           if (b.id === 'hope_burger') {
             const currentToken = b.integrations?.cardapioWeb?.accountId;
-            if (currentToken === CARDAPIO_WEB_HOPE_PIZZA_TOKEN || currentToken === 'hope-burger-cardapio') {
-              return {
-                ...b,
-                integrations: {
-                  ...b.integrations,
-                  cardapioWeb: {
-                    enabled: false,
-                    accountId: '',
-                    webhookUrl: b.integrations?.cardapioWeb?.webhookUrl || '',
-                  },
+            return {
+              ...b,
+              integrations: {
+                ...b.integrations,
+                cardapioWeb: {
+                  enabled: true,
+                  accountId: (!currentToken || currentToken === 'hope-burger-cardapio') ? CARDAPIO_WEB_HOPE_BURGER_TOKEN : currentToken,
+                  webhookUrl: b.integrations?.cardapioWeb?.webhookUrl || '',
                 },
-              };
-            }
+              },
+            };
           }
           return b;
         });

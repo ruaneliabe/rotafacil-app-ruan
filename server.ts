@@ -171,6 +171,106 @@ async function startServer() {
     }
   });
 
+  // Rota de Sincronização Bidirecional com Cardápio Web (Hope Pizza & Hope Burger)
+  // Atualiza automaticamente pedidos que já foram despachados ou entregues no Cardápio Web
+  // e descarta pedidos de balcão (takeout)
+  app.get(['/api/cardapio-web/sync', '/api/sync-cardapio-web'], async (_req, res) => {
+    try {
+      const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
+      const CARDAPIO_WEB_HOPE_BURGER_TOKEN = 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
+
+      const [cwPizzaRes, cwBurgerRes] = await Promise.all([
+        fetch('https://integracao.cardapioweb.com/api/partner/v1/orders', {
+          headers: { 'X-API-KEY': CARDAPIO_WEB_HOPE_PIZZA_TOKEN },
+        }),
+        fetch('https://integracao.cardapioweb.com/api/partner/v1/orders', {
+          headers: { 'X-API-KEY': CARDAPIO_WEB_HOPE_BURGER_TOKEN },
+        }),
+      ]);
+
+      const pizzaList = cwPizzaRes.ok ? await cwPizzaRes.json() : [];
+      const burgerList = cwBurgerRes.ok ? await cwBurgerRes.json() : [];
+
+      const cwList = [
+        ...(Array.isArray(pizzaList) ? pizzaList.map((o: any) => ({ ...o, _branch: 'hope_pizza' })) : []),
+        ...(Array.isArray(burgerList) ? burgerList.map((o: any) => ({ ...o, _branch: 'hope_burger' })) : []),
+      ];
+
+      const cwMap = new Map();
+      cwList.forEach((o: any) => {
+        cwMap.set(String(o.id), o.status);
+        cwMap.set(`cw_${o.id}`, o.status);
+        if (o.display_id) {
+          cwMap.set(`${o._branch}_display_${o.display_id}`, o.status);
+          cwMap.set(`display_${o.display_id}`, o.status);
+        }
+      });
+
+      const snap = await getDocs(collection(db, 'orders'));
+      let dispatchedCount = 0;
+      let deliveredCount = 0;
+      let purgedEmptyCount = 0;
+      let purgedTakeoutCount = 0;
+
+      for (const d of snap.docs) {
+        const data = d.data() as any;
+
+        // Limpeza preventiva: pedidos de balcão/retirada devem ser ignorados do balcão de entregas
+        const isTakeoutOrder = (data.address && data.address.toLowerCase().includes('retirada')) ||
+                               (data.neighborhood && data.neighborhood.toLowerCase() === 'balcão') ||
+                               data.order_type === 'takeout';
+        if (isTakeoutOrder) {
+          await setDoc(doc(db, 'orders', d.id), { status: 'cancelled' }, { merge: true });
+          purgedTakeoutCount++;
+          continue;
+        }
+
+        // Limpeza preventiva: pedidos vazios/fantasmas com total 0 e sem cliente
+        const isGhost = (!data.clientName || data.clientName === 'Cliente Cardápio Web' || data.clientName === 'Cliente não informado') && (!data.total || Number(data.total) <= 0);
+        if (isGhost) {
+          await setDoc(doc(db, 'orders', d.id), { status: 'cancelled' }, { merge: true });
+          purgedEmptyCount++;
+          continue;
+        }
+
+        const branchKey = data.storeBranch || (data.storeName?.toLowerCase().includes('burger') ? 'hope_burger' : 'hope_pizza');
+        const cwStatus = cwMap.get(d.id) ||
+                         (data.codeNumber ? cwMap.get(`${branchKey}_display_${data.codeNumber}`) : null) ||
+                         (data.codeNumber ? cwMap.get(`display_${data.codeNumber}`) : null);
+        if (!cwStatus) continue;
+
+        let targetStatus: string | null = null;
+        if (cwStatus === 'closed') {
+          targetStatus = 'delivered';
+        } else if (cwStatus === 'released') {
+          targetStatus = 'dispatched';
+        } else if (cwStatus === 'canceled' || cwStatus === 'cancelled') {
+          targetStatus = 'failed';
+        }
+
+        if (targetStatus && targetStatus !== data.status) {
+          console.log(`[Sync CW] Atualizando pedido #${data.codeNumber} [${data.displayCode || branchKey}] (${data.clientName}): ${data.status} -> ${targetStatus} (CW: ${cwStatus})`);
+          await setDoc(doc(db, 'orders', d.id), { status: targetStatus }, { merge: true });
+          if (targetStatus === 'dispatched') dispatchedCount++;
+          if (targetStatus === 'delivered') deliveredCount++;
+        }
+      }
+
+      res.json({
+        success: true,
+        totalCwOrders: cwList.length,
+        dispatchedCount,
+        deliveredCount,
+        purgedEmptyCount,
+        purgedTakeoutCount,
+        totalUpdated: dispatchedCount + deliveredCount,
+      });
+    } catch (err: any) {
+      console.error('[Cardápio Web Sync] Erro:', err);
+      res.status(500).json({ error: err?.message || String(err) });
+    }
+  });
+
   // Webhook Cardápio Web (suporta tanto /api/webhook/cardapio-web/:branchId quanto /api/webhook/cardapio-web)
   app.post(['/api/webhook/cardapio-web', '/api/webhook/cardapio-web/:branchId'], async (req, res) => {
     // Responder HTTP 200 imediato para o Cardápio Web
@@ -180,28 +280,41 @@ async function startServer() {
       const payload = req.body || {};
       const branchParam = (req.params.branchId || req.query.branch || '').toString().toLowerCase();
 
-      // Identificar se o pedido pertence à Hope Burger ou Hope Pizza
-      let branch: 'hope_burger' | 'hope_pizza' = 'hope_burger';
-      if (branchParam.includes('pizza') || JSON.stringify(payload).toLowerCase().includes('pizza')) {
-        branch = 'hope_pizza';
-      }
+      const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
+      const CARDAPIO_WEB_HOPE_BURGER_TOKEN = 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
 
       const cwOrderId = payload.id || payload.order_id || (payload.data && payload.data.id);
-      const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
-      const apiKey = branch === 'hope_pizza' ? CARDAPIO_WEB_HOPE_PIZZA_TOKEN : '';
-
+      let branch: 'hope_burger' | 'hope_pizza' = branchParam.includes('burger') ? 'hope_burger' : 'hope_pizza';
       let orderData: any = payload;
 
-      // Se o webhook enviou apenas id/evento, buscar os dados completos da API oficial
-      if (cwOrderId && apiKey) {
+      // Se o webhook enviou apenas id/evento, consultar API oficial com fallback inteligente entre Pizza e Burger
+      if (cwOrderId) {
+        const isExplicitBurger = branchParam.includes('burger');
+        const firstToken = isExplicitBurger ? CARDAPIO_WEB_HOPE_BURGER_TOKEN : CARDAPIO_WEB_HOPE_PIZZA_TOKEN;
+        const secondToken = isExplicitBurger ? CARDAPIO_WEB_HOPE_PIZZA_TOKEN : CARDAPIO_WEB_HOPE_BURGER_TOKEN;
+
         try {
-          const cwRes = await fetch(`https://integracao.cardapioweb.com/api/partner/v1/orders/${cwOrderId}`, {
-            headers: { 'X-API-KEY': apiKey },
+          let cwRes = await fetch(`https://integracao.cardapioweb.com/api/partner/v1/orders/${cwOrderId}`, {
+            headers: { 'X-API-KEY': firstToken },
           });
+
           if (cwRes.ok) {
             const fetchedJson = await cwRes.json();
             if (fetchedJson && fetchedJson.id) {
               orderData = fetchedJson;
+              branch = isExplicitBurger ? 'hope_burger' : 'hope_pizza';
+            }
+          } else {
+            // Tenta a outra loja caso o id não pertença à primeira
+            const altRes = await fetch(`https://integracao.cardapioweb.com/api/partner/v1/orders/${cwOrderId}`, {
+              headers: { 'X-API-KEY': secondToken },
+            });
+            if (altRes.ok) {
+              const fetchedJson = await altRes.json();
+              if (fetchedJson && fetchedJson.id) {
+                orderData = fetchedJson;
+                branch = isExplicitBurger ? 'hope_pizza' : 'hope_burger';
+              }
             }
           }
         } catch (cwErr) {
@@ -209,24 +322,45 @@ async function startServer() {
         }
       }
 
+      // REGRA MÁXIMA: Pedidos de balcão (takeout / indoor) DEVEM SER IGNORADOS!
+      const isTakeout = orderData.order_type === 'takeout' ||
+                        orderData.order_type === 'indoor' ||
+                        orderData.order_type === 'balcao' ||
+                        payload.order_type === 'takeout' ||
+                        (!orderData.delivery_address && orderData.order_type !== 'delivery');
+
+      if (isTakeout) {
+        console.log(`[Cardápio Web Webhook] Pedido de BALCÃO / RETIRADA ignorado com sucesso (CW ID: ${cwOrderId}, Código: ${orderData.display_id || 'N/A'}).`);
+        return;
+      }
+
       const customer = orderData.customer || payload.customer || payload.cliente || {};
       const address = orderData.delivery_address || payload.delivery_address || payload.endereco || payload.address || {};
-      const isTakeout = orderData.order_type === 'takeout' || (!orderData.delivery_address && orderData.order_type);
 
-      const clientName = customer.name || customer.nome || payload.client_name || 'Cliente Cardápio Web';
+      const clientName = customer.name || customer.nome || payload.client_name || '';
       const clientPhone = customer.phone ? `${customer.ddi || '55'}${customer.phone}` : (customer.telefone || customer.cellphone || '');
 
-      const street = address.street || address.rua || address.logradouro || (isTakeout ? 'Retirada no Balcão' : 'Rua não informada');
+      const deliveryFee = Number(orderData.delivery_fee ?? payload.delivery_fee ?? payload.taxa_entrega ?? 0);
+      const total = Number(orderData.total ?? payload.total ?? payload.valor_total ?? 0);
+      const subtotal = total > 0 ? (total - deliveryFee) : (Number(payload.subtotal || 0));
+
+      // REGRA DE SEGURANÇA: Nunca criar registros fantasmas zerados e sem nome!
+      if (total <= 0 && (!clientName || clientName.trim() === '')) {
+        console.warn(`[Cardápio Web Webhook] Ignorando evento vazio sem dados de cliente e sem valor (ID: ${cwOrderId}).`);
+        return;
+      }
+
+      const finalClientName = clientName.trim() || 'Cliente Cardápio Web';
+
+      const street = address.street || address.rua || address.logradouro || 'Rua não informada';
       const houseNumber = address.number || address.numero || '';
       const complement = address.complement || address.complemento || '';
-      const neighborhood = address.neighborhood || address.bairro || (isTakeout ? 'Balcão' : 'Centro');
+      const neighborhood = address.neighborhood || address.bairro || 'Centro';
       const reference = address.reference ? ` (${address.reference.trim()})` : '';
-      const fullAddress = isTakeout
-        ? 'Retirada no Balcão (Takeout)'
-        : `${street}${houseNumber ? `, ${houseNumber}` : ''}${complement ? ` - ${complement}` : ''} - ${neighborhood}${reference}`;
+      const fullAddress = `${street}${houseNumber ? `, ${houseNumber}` : ''}${complement ? ` - ${complement}` : ''} - ${neighborhood}${reference}`;
 
       // Geocodificação inteligente com endereços de Blumenau e Nominatim
-      const { lat, lng } = await resolveCoordinates(address, Boolean(isTakeout), branch);
+      const { lat, lng } = await resolveCoordinates(address, false, branch);
 
       // Mapeamento de itens com opções/sabores/bordas
       const rawItems = orderData.items || payload.items || payload.itens || payload.products || [];
@@ -248,10 +382,6 @@ async function startServer() {
         ? items.map((i: any) => `${i.quantity}x ${i.name}`).join(' | ')
         : (orderData.observation || payload.notes || payload.observacoes || 'Pedido Cardápio Web');
 
-      const deliveryFee = Number(orderData.delivery_fee ?? payload.delivery_fee ?? payload.taxa_entrega ?? 0);
-      const total = Number(orderData.total ?? payload.total ?? payload.valor_total ?? 0);
-      const subtotal = total > 0 ? (total - deliveryFee) : (Number(payload.subtotal || 0));
-
       // Pagamento
       const payments = orderData.payments || [];
       const rawPayment = payments[0] || payload.payment || payload.pagamento || {};
@@ -265,16 +395,37 @@ async function startServer() {
         paymentMethod = 'card_credit';
       }
 
+      // Mapeamento inteligente de status sincronizado com Cardápio Web
+      const cwStatus = String(orderData.status || payload.status || '').toLowerCase();
+      let mappedStatus: 'pending' | 'dispatched' | 'delivered' | 'failed' = 'pending';
+      if (cwStatus === 'closed') {
+        mappedStatus = 'delivered';
+      } else if (cwStatus === 'released' || cwStatus === 'dispatched') {
+        mappedStatus = 'dispatched';
+      } else if (cwStatus === 'canceled' || cwStatus === 'cancelled') {
+        mappedStatus = 'failed';
+      }
+
       const today = new Date();
       const localDateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-      const codeNumber = orderData.display_id || payload.code || payload.codigo || payload.id_curto || Math.floor(100 + Math.random() * 900);
+
+      // PRESERVAÇÃO RIGOROSA DA DOCUMENTAÇÃO REAL:
+      // codeNumber é o número real do documento no Cardápio Web (ex: 50)
+      // displayCode é o código diferenciado visualmente (ex: HB-50 para Hope Burger, HP-50 para Hope Pizza)
+      const displayId = orderData.display_id || payload.code || payload.codigo || payload.id_curto;
+      const codeNumber = displayId ? Number(displayId) : (orderData.id ? Number(String(orderData.id).slice(-4)) : Math.floor(100 + Math.random() * 900));
+      const branchPrefix = branch === 'hope_burger' ? 'HB' : 'HP';
+      const displayCode = `${branchPrefix}-${codeNumber}`;
+      const storeName = branch === 'hope_burger' ? 'Hope Burger' : 'Hope Pizza';
+
       const orderId = `cw_${cwOrderId || Date.now()}`;
-      const trackingCode = `CW-${branch === 'hope_pizza' ? 'HP' : 'HB'}-${codeNumber}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const trackingCode = `CW-${branchPrefix}-${codeNumber}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
       const completeOrder = {
         id: orderId,
         codeNumber: Number(codeNumber),
-        clientName,
+        displayCode,
+        clientName: finalClientName,
         clientPhone,
         address: fullAddress,
         street,
@@ -290,17 +441,18 @@ async function startServer() {
         total,
         paymentMethod,
         changeFor: rawPayment.change_for || rawPayment.troco_para || undefined,
-        status: 'pending',
+        status: mappedStatus,
         createdAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         createdDate: localDateKey,
         originChannel: 'cardapio_web',
         storeBranch: branch,
+        storeName,
         operationalEpoch: STORE_PILOT_RESET_VERSION,
         trackingCode,
       };
 
       await setDoc(doc(db, 'orders', orderId), completeOrder, { merge: true });
-      console.log(`[Cardápio Web Webhook] Pedido #${codeNumber} (${clientName}) salvo com sucesso para ${branch}!`);
+      console.log(`[Cardápio Web Webhook] Pedido ${displayCode} #${codeNumber} (${finalClientName}) salvo com status ${mappedStatus}!`);
     } catch (err) {
       console.error('[Cardápio Web Webhook] Erro ao processar webhook:', err);
     }
