@@ -1,13 +1,24 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, setDoc } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
 
 const STORE_PILOT_RESET_VERSION = 'zeroed_store_pilot_2026_08_17_v10';
 
-const fbApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
-  ? getFirestore(fbApp, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(fbApp);
+const FIREBASE_CONFIG = {
+  projectId: "gentle-country-q2l12",
+  appId: "1:1093185971024:web:0d69aec4e35fcbaae24255",
+  apiKey: "AIzaSyCvh0-Qr7HWJSX3NozYqHyfBY9ZaNEAejg",
+  authDomain: "gentle-country-q2l12.firebaseapp.com",
+  firestoreDatabaseId: "ai-studio-rotafcildelivery-495fd3be-5974-4310-960a-26a794361d3b",
+  storageBucket: "gentle-country-q2l12.firebasestorage.app",
+  messagingSenderId: "1093185971024",
+};
+
+function getDbInstance() {
+  const fbApp = getApps().length > 0 ? getApp() : initializeApp(FIREBASE_CONFIG);
+  return FIREBASE_CONFIG.firestoreDatabaseId && FIREBASE_CONFIG.firestoreDatabaseId !== '(default)'
+    ? getFirestore(fbApp, FIREBASE_CONFIG.firestoreDatabaseId)
+    : getFirestore(fbApp);
+}
 
 export default async function handler(req: any, res: any) {
   // Configurar CORS
@@ -28,7 +39,15 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const payload = req.body || {};
+    const db = getDbInstance();
+    let payload = req.body || {};
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        payload = {};
+      }
+    }
     const branchParam = (req.query?.branchId || req.query?.branch || '').toString().toLowerCase();
 
     // Identificar se o pedido pertence à Hope Burger ou Hope Pizza
