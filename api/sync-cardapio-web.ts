@@ -91,17 +91,15 @@ export default async function handler(req: any, res: any) {
       if (!cwStatus) continue;
 
       let targetStatus: string | null = null;
-      if (cwStatus === 'closed') {
+      if (cwStatus === 'closed' || cwStatus === 'released' || cwStatus === 'delivered') {
+        // Pedido já foi despachado ou entregue no Cardápio Web: deve sumir da fila ativa do Rota Fácil
         targetStatus = 'delivered';
-      } else if (cwStatus === 'released') {
-        targetStatus = 'dispatched';
       } else if (cwStatus === 'canceled' || cwStatus === 'cancelled') {
         targetStatus = 'failed';
       }
 
       if (targetStatus && targetStatus !== data.status) {
         await setDoc(doc(db, 'orders', d.id), { status: targetStatus }, { merge: true });
-        if (targetStatus === 'dispatched') dispatchedCount++;
         if (targetStatus === 'delivered') deliveredCount++;
       }
     }

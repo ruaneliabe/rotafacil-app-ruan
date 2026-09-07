@@ -1375,19 +1375,88 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     </div>
                   </div>
 
-                  {/* Smart Proximity Grouping Alert */}
+                  {/* Smart Proximity & Time Window Grouping Alert */}
                   {(() => {
-                    const neighMap: Record<string, Order[]> = {};
+                    // REGRA OPERACIONAL CRÍTICA:
+                    // Agrupar por Bairro e por Janela Temporal (máximo 15 min de diferença).
+                    // Jamais misturar pedidos distantes no tempo (ex: pedido #40 com pedido #70)!
+                    const getOrderMinutes = (o: Order) => {
+                      const [h, m] = (o.createdAt || '00:00').split(':').map(Number);
+                      return (h || 0) * 60 + (m || 0);
+                    };
+
+                    interface TimeBatch {
+                      key: string;
+                      neighborhood: string;
+                      timeLabel: string;
+                      isUrgentEarlyOrder: boolean;
+                      orders: Order[];
+                    }
+
+                    const byNeigh: Record<string, Order[]> = {};
                     unassignedOrders.forEach((o) => {
                       const neigh = o.neighborhood.trim() || 'Centro';
-                      if (!neighMap[neigh]) neighMap[neigh] = [];
-                      neighMap[neigh].push(o);
+                      if (!byNeigh[neigh]) byNeigh[neigh] = [];
+                      byNeigh[neigh].push(o);
                     });
 
-                    const proximityGroups = Object.entries(neighMap).filter(([neigh, list]) => {
-                      const groupKey = `${neigh}:${list.map((order) => order.id).sort().join(',')}`;
-                      return list.length >= 2 && !dismissedProximityGroups.includes(groupKey);
-                    }).sort(([, a], [, b]) => b.length - a.length);
+                    const timeBatches: TimeBatch[] = [];
+
+                    Object.entries(byNeigh).forEach(([neigh, orderList]) => {
+                      const sorted = [...orderList].sort((a, b) => {
+                        const mA = getOrderMinutes(a);
+                        const mB = getOrderMinutes(b);
+                        if (mA !== mB) return mA - mB;
+                        return (a.codeNumber || 0) - (b.codeNumber || 0);
+                      });
+
+                      let currentBatch: Order[] = [];
+                      sorted.forEach((ord) => {
+                        if (currentBatch.length === 0) {
+                          currentBatch.push(ord);
+                        } else {
+                          const firstTime = getOrderMinutes(currentBatch[0]);
+                          const ordTime = getOrderMinutes(ord);
+                          const diff = Math.abs(ordTime - firstTime);
+                          const codeDiff = Math.abs((ord.codeNumber || 0) - (currentBatch[0].codeNumber || 0));
+
+                          // Só agrupa se estiver dentro de 15 minutos ou no máximo 12 números de diferença
+                          if (diff <= 15 || (codeDiff <= 12 && diff <= 25)) {
+                            currentBatch.push(ord);
+                          } else {
+                            const firstOrd = currentBatch[0];
+                            timeBatches.push({
+                              key: `${neigh}:${firstOrd.id}:${currentBatch.length}`,
+                              neighborhood: neigh,
+                              timeLabel: firstOrd.createdAt || 'Horário',
+                              isUrgentEarlyOrder: currentBatch.some((o) => (o.codeNumber || 0) <= 50),
+                              orders: [...currentBatch],
+                            });
+                            currentBatch = [ord];
+                          }
+                        }
+                      });
+
+                      if (currentBatch.length > 0) {
+                        const firstOrd = currentBatch[0];
+                        timeBatches.push({
+                          key: `${neigh}:${firstOrd.id}:${currentBatch.length}`,
+                          neighborhood: neigh,
+                          timeLabel: firstOrd.createdAt || 'Horário',
+                          isUrgentEarlyOrder: currentBatch.some((o) => (o.codeNumber || 0) <= 50),
+                          orders: [...currentBatch],
+                        });
+                      }
+                    });
+
+                    const proximityGroups = timeBatches.filter((batch) => {
+                      const isCandidate = batch.orders.length >= 2 || (batch.orders.length === 1 && batch.isUrgentEarlyOrder);
+                      return isCandidate && !dismissedProximityGroups.includes(batch.key);
+                    }).sort((a, b) => {
+                      if (a.isUrgentEarlyOrder && !b.isUrgentEarlyOrder) return -1;
+                      if (!a.isUrgentEarlyOrder && b.isUrgentEarlyOrder) return 1;
+                      return b.orders.length - a.orders.length;
+                    });
 
                     if (proximityGroups.length === 0) return null;
 
@@ -1395,8 +1464,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 text-xs space-y-1.5 shadow-2xs">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <span className="text-[10px] font-extrabold uppercase text-amber-300 block">📍 Bags sugeridas por proximidade</span>
-                            <span className="text-[10px] text-slate-400">{proximityGroups.length} bairros com pedidos próximos · revise antes de despachar</span>
+                            <span className="text-[10px] font-extrabold uppercase text-amber-300 block">⏱️ Despacho Inteligente por Janela de Tempo e Bairro</span>
+                            <span className="text-[10px] text-slate-400">
+                              {proximityGroups.length} lotes de pedidos sincronizados por horário · pedidos antigos têm prioridade
+                            </span>
                           </div>
                           {proximityGroups.length > 3 && (
                             <button type="button" onClick={() => setShowAllProximityGroups((value) => !value)} className="shrink-0 px-2.5 py-1 rounded-lg border border-slate-600 text-[10px] font-bold text-slate-200 hover:bg-slate-700 cursor-pointer">
@@ -1404,29 +1475,49 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             </button>
                           )}
                         </div>
-                        {(showAllProximityGroups ? proximityGroups : proximityGroups.slice(0, 3)).map(([neigh, list]) => (
-                          <div key={neigh} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-900/80 p-2 rounded-lg border border-slate-700">
-                            <span className="text-[11px] font-bold text-slate-200">
-                              {list.length} pedidos no bairro <strong>{neigh}</strong>
-                            </span>
+                        {(showAllProximityGroups ? proximityGroups : proximityGroups.slice(0, 3)).map((batch) => (
+                          <div key={batch.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-slate-700">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {batch.isUrgentEarlyOrder ? (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-black uppercase rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                    🚨 Alta Prioridade
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-black uppercase rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                    Lote {batch.timeLabel}
+                                  </span>
+                                )}
+                                <span className="text-[11px] font-bold text-slate-200">
+                                  {batch.orders.length} {batch.orders.length === 1 ? 'pedido' : 'pedidos'} no bairro <strong>{batch.neighborhood}</strong>
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-400 flex items-center gap-1 flex-wrap">
+                                <span>Pedidos:</span>
+                                {batch.orders.map((o) => (
+                                  <span key={o.id} className="text-emerald-400 font-extrabold bg-slate-800 px-1 rounded">
+                                    {getOrderDisplayCode(o)} ({o.createdAt})
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setSelectedOrderIds(list.map((o) => o.id));
+                                  setSelectedOrderIds(batch.orders.map((o) => o.id));
                                 }}
-                                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-2xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1"
+                                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-2xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1"
                               >
-                                <Zap className="w-3 h-3 text-slate-950" /> Revisar Bag
+                                <Zap className="w-3 h-3 text-slate-950" /> Revisar Lote
                               </button>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const groupKey = `${neigh}:${list.map((order) => order.id).sort().join(',')}`;
-                                  setDismissedProximityGroups((current) => [...current, groupKey]);
+                                  setDismissedProximityGroups((current) => [...current, batch.key]);
                                 }}
-                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg border border-slate-600 cursor-pointer whitespace-nowrap"
-                                aria-label={`Ignorar sugestão de agrupamento para ${neigh}`}
+                                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg border border-slate-600 cursor-pointer whitespace-nowrap"
+                                aria-label={`Ignorar sugestão de agrupamento para ${batch.neighborhood}`}
                               >
                                 Ignorar
                               </button>

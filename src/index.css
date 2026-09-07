@@ -10,9 +10,10 @@
   background-color: #0f172a !important;
 }
 
-/* High-performance Dark Mode filter for OpenStreetMap tiles (eliminates API Key watermarks) */
+/* Crisp tiles styling */
 .map-tiles-dark {
-  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+  /* Native dark tiles or crisp tiles do not need color destruction */
+  filter: contrast(1.05);
 }
 
 /* Custom Leaflet Dark Mode popups and zoom controls */

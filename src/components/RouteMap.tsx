@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { Maximize2, Minimize2, Search, Layers, X, Navigation } from 'lucide-react';
 import { LocationPoint, Stop, Motoboy } from '../types';
 import { calculateDistanceKm } from '../utils/geoUtils';
 
@@ -37,8 +38,46 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
 
-  // Initialize Map with Dark Tile Theme
+  // Estados de visualização e estilo do mapa
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [mapStyle, setMapStyle] = useState<'voyager' | 'dark' | 'satellite'>('voyager');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Retorna configurações do provedor de mapas (alta nitidez sem distorções visuais)
+  const getTileConfig = (style: 'voyager' | 'dark' | 'satellite') => {
+    if (style === 'voyager') {
+      return {
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        options: {
+          maxZoom: 19,
+          subdomains: ['a', 'b', 'c', 'd'],
+          attribution: '© CARTO © OpenStreetMap',
+        },
+      };
+    }
+    if (style === 'satellite') {
+      return {
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        options: {
+          maxZoom: 19,
+          attribution: 'Tiles © Esri',
+        },
+      };
+    }
+    // dark
+    return {
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      options: {
+        maxZoom: 19,
+        subdomains: ['a', 'b', 'c', 'd'],
+        attribution: '© CARTO © OpenStreetMap',
+      },
+    };
+  };
+
+  // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -48,13 +87,10 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         attributionControl: false,
       }).setView([origin.lat, origin.lng], 14);
 
-      // OpenStreetMap with high-contrast dark theme filter (zero watermarks, no external API key needed)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        subdomains: ['a', 'b', 'c'],
-        attribution: '© OpenStreetMap contributors',
-        className: 'map-tiles-dark',
-      }).addTo(map);
+      // CartoDB Voyager por padrão: ruas claras, nomes nítidos, alta legibilidade
+      const tileCfg = getTileConfig(mapStyle);
+      const layer = L.tileLayer(tileCfg.url, tileCfg.options).addTo(map);
+      tileLayerRef.current = layer;
 
       L.control.zoom({ position: 'topright' }).addTo(map);
 
@@ -81,6 +117,70 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       resizeObserver.disconnect();
     };
   }, []);
+
+  // Alternar estilo dos tiles dinamicamente
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (tileLayerRef.current) {
+      map.removeLayer(tileLayerRef.current);
+    }
+    const tileCfg = getTileConfig(mapStyle);
+    const newLayer = L.tileLayer(tileCfg.url, tileCfg.options).addTo(map);
+    newLayer.bringToBack();
+    tileLayerRef.current = newLayer;
+  }, [mapStyle]);
+
+  // Invalidar dimensões ao alternar tela cheia / expandir
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const t1 = setTimeout(() => map.invalidateSize(), 50);
+    const t2 = setTimeout(() => map.invalidateSize(), 200);
+    const t3 = setTimeout(() => map.invalidateSize(), 450);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [isExpanded]);
+
+  // Tecla Escape fecha tela cheia
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isExpanded) {
+        setIsExpanded(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isExpanded]);
+
+  // Busca rápida de endereço ou pedido no mapa
+  const handleQuickSearch = (query: string) => {
+    setSearchQuery(query);
+    const map = mapInstanceRef.current;
+    if (!map || !query.trim()) return;
+    const q = query.toLowerCase().trim();
+
+    // Tentar achar parada correspondente
+    const foundStop = stops.find((s) => {
+      const codeStr = s.codeNumber ? String(s.codeNumber) : '';
+      return (
+        codeStr === q ||
+        codeStr.includes(q) ||
+        s.neighborhood?.toLowerCase().includes(q) ||
+        s.address?.toLowerCase().includes(q) ||
+        s.recipientName?.toLowerCase().includes(q) ||
+        s.title?.toLowerCase().includes(q)
+      );
+    });
+
+    if (foundStop && foundStop.lat && foundStop.lng) {
+      map.setView([foundStop.lat, foundStop.lng], 16, { animate: true });
+      if (onSelectStop) onSelectStop(foundStop);
+    }
+  };
 
   // Update Markers and Polyline when origin/stops/selection change
   useEffect(() => {
@@ -600,52 +700,198 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   );
 
   return (
-    <div className="relative w-full h-full min-h-[350px] bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-xl">
-      <div ref={mapContainerRef} className="w-full h-full" />
+    <div
+      className={
+        isExpanded
+          ? 'fixed inset-0 z-[9999] w-screen h-screen bg-slate-950 p-2 sm:p-4 flex flex-col gap-2.5 animate-fade-in'
+          : 'relative w-full h-full min-h-[350px] bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-xl flex flex-col'
+      }
+    >
+      {/* Expanded Mode Top Toolbar */}
+      {isExpanded && (
+        <div className="bg-slate-900/95 border border-slate-700/80 rounded-xl p-2.5 sm:px-4 flex flex-wrap items-center justify-between gap-2.5 shadow-xl shrink-0">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">🗺️</span>
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                Mapa Operacional Ampliado
+                <span className="text-xs text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-600/40">
+                  {stops.length} {stops.length === 1 ? 'parada ativa' : 'paradas ativas'}
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-400 hidden sm:block">
+                Visualização detalhada de ruas, bairros e motoboys de Blumenau em tempo real.
+              </p>
+            </div>
+          </div>
 
-      {isStoreAddressConfigured && stops.length === 0 && (!motoboysList || motoboysList.length === 0) && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 w-[calc(100%-2rem)] max-w-sm bg-slate-900/95 border border-slate-700 rounded-xl p-3 text-center shadow-xl backdrop-blur-md pointer-events-none">
-          <p className="text-xs font-black text-white">Mapa pronto para a primeira entrega</p>
-          <p className="text-[11px] text-slate-300 mt-0.5">A loja está centralizada. Pedidos e motoboys aparecerão aqui em tempo real.</p>
-        </div>
-      )}
+          {/* Search Box inside Expanded View */}
+          <div className="relative min-w-[200px] sm:min-w-[280px] flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleQuickSearch(e.target.value)}
+              placeholder="Buscar rua, bairro ou pedido (#40, HB-37)..."
+              className="w-full pl-8 pr-7 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 font-medium"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => handleQuickSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
-      {/* Unconfigured Store Address Banner */}
-      {!isStoreAddressConfigured && (
-        <div className="absolute top-12 left-3 right-3 z-30 bg-slate-900/95 border-2 border-amber-500/80 rounded-xl p-2.5 shadow-2xl flex items-center gap-2.5 text-xs text-amber-200 backdrop-blur-md">
-          <span className="p-1 rounded-lg bg-amber-500/20 text-amber-400 text-base shrink-0">📍</span>
-          <div>
-            <p className="font-extrabold text-white text-xs">Endereço da loja não cadastrado!</p>
-            <p className="text-[11px] text-slate-300 font-medium">
-              Cadastre o endereço da sua loja em <strong>Configurar Loja (⚙️)</strong> para que ela apareça no mapa.
-            </p>
+          <div className="flex items-center gap-2">
+            {/* Tile Switcher */}
+            <div className="bg-slate-950 border border-slate-700 rounded-lg p-0.5 flex items-center text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setMapStyle('voyager')}
+                className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                  mapStyle === 'voyager' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Ruas Claras com Alta Legibilidade"
+              >
+                🏙️ Ruas
+              </button>
+              <button
+                type="button"
+                onClick={() => setMapStyle('dark')}
+                className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                  mapStyle === 'dark' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Modo Noturno Nítido"
+              >
+                🌙 Noturno
+              </button>
+              <button
+                type="button"
+                onClick={() => setMapStyle('satellite')}
+                className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                  mapStyle === 'satellite' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Imagens de Satélite"
+              >
+                🛰️ Satélite
+              </button>
+            </div>
+
+            {/* Minimize / Close Button */}
+            <button
+              type="button"
+              onClick={() => setIsExpanded(false)}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-white text-xs font-black rounded-lg border border-slate-600 flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+              <span>Minimizar (Esc)</span>
+            </button>
           </div>
         </div>
       )}
 
-      {/* Fleet counters only belong to the store's operational overview. */}
-      {motoboysList && (
-      <div className="absolute top-3 left-3 z-20 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-[11px] text-slate-300 flex items-center gap-3 font-extrabold shadow-lg">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full inline-block ring-2 ring-emerald-500/30"></span>
-          <span>Na loja ({atStoreCount})</span>
-        </div>
-        {outsideAvailableCount > 0 && (
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 bg-teal-400 rounded-full inline-block ring-2 ring-teal-400/30"></span>
-            <span>Disponível fora ({outsideAvailableCount})</span>
+      {/* Map View Canvas Container */}
+      <div className="relative flex-1 w-full min-h-[300px] overflow-hidden rounded-xl">
+        <div ref={mapContainerRef} className="w-full h-full" />
+
+        {/* Non-Expanded Floating Controls (Top Right) */}
+        {!isExpanded && (
+          <div className="absolute top-3 right-3 z-[400] flex items-center gap-1.5">
+            {/* Tile Switcher Dropdown/Pill */}
+            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-0.5 flex items-center text-[10px] font-bold shadow-lg">
+              <button
+                type="button"
+                onClick={() => setMapStyle('voyager')}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  mapStyle === 'voyager' ? 'bg-indigo-600 text-white font-black' : 'text-slate-300 hover:text-white'
+                }`}
+                title="Ruas Claras (Legível)"
+              >
+                🏙️ Ruas
+              </button>
+              <button
+                type="button"
+                onClick={() => setMapStyle('dark')}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  mapStyle === 'dark' ? 'bg-indigo-600 text-white font-black' : 'text-slate-300 hover:text-white'
+                }`}
+                title="Modo Escuro Nítido"
+              >
+                🌙 Escuro
+              </button>
+              <button
+                type="button"
+                onClick={() => setMapStyle('satellite')}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  mapStyle === 'satellite' ? 'bg-indigo-600 text-white font-black' : 'text-slate-300 hover:text-white'
+                }`}
+                title="Satélite"
+              >
+                🛰️
+              </button>
+            </div>
+
+            {/* Expand Map Button */}
+            <button
+              type="button"
+              onClick={() => setIsExpanded(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-[11px] font-black px-2.5 py-1.5 rounded-xl border border-indigo-400/40 shadow-lg flex items-center gap-1.5 cursor-pointer transition-all"
+              title="Abrir mapa em tela cheia para visualizar melhor todos os lugares"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Expandir Mapa</span>
+            </button>
           </div>
         )}
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 bg-blue-500 rounded-full inline-block ring-2 ring-blue-500/30"></span>
-          <span>Em rota ({deliveringCount})</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 bg-amber-500 rounded-full inline-block ring-2 ring-amber-500/30"></span>
-          <span>Voltando ({returningCount})</span>
-        </div>
+
+        {isStoreAddressConfigured && stops.length === 0 && (!motoboysList || motoboysList.length === 0) && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[400] w-[calc(100%-2rem)] max-w-sm bg-slate-900/95 border border-slate-700 rounded-xl p-3 text-center shadow-xl backdrop-blur-md pointer-events-none">
+            <p className="text-xs font-black text-white">Mapa pronto para a primeira entrega</p>
+            <p className="text-[11px] text-slate-300 mt-0.5">A loja está centralizada. Pedidos e motoboys aparecerão aqui em tempo real.</p>
+          </div>
+        )}
+
+        {/* Unconfigured Store Address Banner */}
+        {!isStoreAddressConfigured && (
+          <div className="absolute top-12 left-3 right-3 z-[400] bg-slate-900/95 border-2 border-amber-500/80 rounded-xl p-2.5 shadow-2xl flex items-center gap-2.5 text-xs text-amber-200 backdrop-blur-md">
+            <span className="p-1 rounded-lg bg-amber-500/20 text-amber-400 text-base shrink-0">📍</span>
+            <div>
+              <p className="font-extrabold text-white text-xs">Endereço da loja não cadastrado!</p>
+              <p className="text-[11px] text-slate-300 font-medium">
+                Cadastre o endereço da sua loja em <strong>Configurar Loja (⚙️)</strong> para que ela apareça no mapa.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Fleet counters only belong to the store's operational overview */}
+        {motoboysList && (
+          <div className="absolute top-3 left-3 z-[400] bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-800 text-[11px] text-slate-300 flex items-center gap-3 font-extrabold shadow-lg">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full inline-block ring-2 ring-emerald-500/30"></span>
+              <span>Na loja ({atStoreCount})</span>
+            </div>
+            {outsideAvailableCount > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 bg-teal-400 rounded-full inline-block ring-2 ring-teal-400/30"></span>
+                <span>Disponível fora ({outsideAvailableCount})</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 bg-blue-500 rounded-full inline-block ring-2 ring-blue-500/30"></span>
+              <span>Em rota ({deliveringCount})</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 bg-amber-500 rounded-full inline-block ring-2 ring-amber-500/30"></span>
+              <span>Voltando ({returningCount})</span>
+            </div>
+          </div>
+        )}
       </div>
-      )}
     </div>
   );
 };

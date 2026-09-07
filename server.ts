@@ -240,10 +240,9 @@ async function startServer() {
         if (!cwStatus) continue;
 
         let targetStatus: string | null = null;
-        if (cwStatus === 'closed') {
+        if (cwStatus === 'closed' || cwStatus === 'released' || cwStatus === 'delivered') {
+          // Pedido já foi despachado ou entregue no Cardápio Web: deve sumir da tela ativa do Rota Fácil
           targetStatus = 'delivered';
-        } else if (cwStatus === 'released') {
-          targetStatus = 'dispatched';
         } else if (cwStatus === 'canceled' || cwStatus === 'cancelled') {
           targetStatus = 'failed';
         }
@@ -251,7 +250,6 @@ async function startServer() {
         if (targetStatus && targetStatus !== data.status) {
           console.log(`[Sync CW] Atualizando pedido #${data.codeNumber} [${data.displayCode || branchKey}] (${data.clientName}): ${data.status} -> ${targetStatus} (CW: ${cwStatus})`);
           await setDoc(doc(db, 'orders', d.id), { status: targetStatus }, { merge: true });
-          if (targetStatus === 'dispatched') dispatchedCount++;
           if (targetStatus === 'delivered') deliveredCount++;
         }
       }
@@ -398,10 +396,9 @@ async function startServer() {
       // Mapeamento inteligente de status sincronizado com Cardápio Web
       const cwStatus = String(orderData.status || payload.status || '').toLowerCase();
       let mappedStatus: 'pending' | 'dispatched' | 'delivered' | 'failed' = 'pending';
-      if (cwStatus === 'closed') {
+      if (cwStatus === 'closed' || cwStatus === 'released' || cwStatus === 'dispatched' || cwStatus === 'delivered') {
+        // Se já foi despachado no Cardápio Web, não entra na fila ativa de entrega
         mappedStatus = 'delivered';
-      } else if (cwStatus === 'released' || cwStatus === 'dispatched') {
-        mappedStatus = 'dispatched';
       } else if (cwStatus === 'canceled' || cwStatus === 'cancelled') {
         mappedStatus = 'failed';
       }
@@ -413,7 +410,7 @@ async function startServer() {
       // codeNumber é o número real do documento no Cardápio Web (ex: 50)
       // displayCode é o código diferenciado visualmente (ex: HB-50 para Hope Burger, HP-50 para Hope Pizza)
       const displayId = orderData.display_id || payload.code || payload.codigo || payload.id_curto;
-      const codeNumber = displayId ? Number(displayId) : (orderData.id ? Number(String(orderData.id).slice(-4)) : Math.floor(100 + Math.random() * 900));
+      const codeNumber = displayId ? Number(displayId) : (orderData.id ? Number(String(orderData.id).slice(-4)) : 0);
       const branchPrefix = branch === 'hope_burger' ? 'HB' : 'HP';
       const displayCode = `${branchPrefix}-${codeNumber}`;
       const storeName = branch === 'hope_burger' ? 'Hope Burger' : 'Hope Pizza';

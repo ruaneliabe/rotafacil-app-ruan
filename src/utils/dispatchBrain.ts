@@ -59,9 +59,17 @@ export function analyzeOperationalBrain(
   };
 
   // Active pending/ready orders needing dispatch (unassigned only)
-  const pendingOrders = orders.filter(
-    (o) => !o.assignedMotoboyId && (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready_at_counter')
-  );
+  // Ordenar prioritariamente por ordem cronológica (FIFO - pedidos mais antigos despachados primeiro)
+  const pendingOrders = orders
+    .filter(
+      (o) => !o.assignedMotoboyId && (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready_at_counter')
+    )
+    .sort((a, b) => {
+      const timeA = getOrderCreatedTimestamp(a);
+      const timeB = getOrderCreatedTimestamp(b);
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.codeNumber || 0) - (b.codeNumber || 0);
+    });
 
   const hasAssignedActiveOrders = (m: Motoboy): boolean => {
     return orders.some(
@@ -94,9 +102,23 @@ export function analyzeOperationalBrain(
       const cluster: Order[] = [seedOrder];
 
       // Find up to 2 other nearby orders (< 2.5 km away from seed or existing cluster)
+      // REGRA CRÍTICA DE TEMPO: Só agrupa pedidos que tenham entrado em horários compatíveis (janela de no máximo 15 minutos).
+      // Jamais misturar um pedido inicial (ex: #40) com um pedido que acabou de entrar (ex: #70)!
       for (let i = unassignedOrders.length - 1; i >= 0; i--) {
         if (cluster.length >= 3) break;
         const candidate = unassignedOrders[i];
+
+        const seedTimestamp = getOrderCreatedTimestamp(seedOrder);
+        const candidateTimestamp = getOrderCreatedTimestamp(candidate);
+        const timeDiffMinutes = Math.abs(seedTimestamp - candidateTimestamp) / (1000 * 60);
+        const codeDiff = Math.abs((seedOrder.codeNumber || 0) - (candidate.codeNumber || 0));
+
+        // Pedidos só podem ser combinados se estiverem na mesma janela temporal (<= 15 min de diferença ou <= 12 códigos de distância)
+        const isTimeCompatible = timeDiffMinutes <= 15 || (codeDiff <= 12 && timeDiffMinutes <= 25);
+        if (!isTimeCompatible) {
+          continue; // Pula este candidato para evitar atrasar o pedido mais antigo!
+        }
+
         const distFromSeed = calculateRoadDistanceKm(
           seedOrder.lat,
           seedOrder.lng,
@@ -104,7 +126,7 @@ export function analyzeOperationalBrain(
           candidate.lng
         );
 
-        if (distFromSeed <= 2.5 || seedOrder.neighborhood === candidate.neighborhood) {
+        if (distFromSeed <= 2.5 || (seedOrder.neighborhood && candidate.neighborhood && seedOrder.neighborhood === candidate.neighborhood)) {
           cluster.push(candidate);
           unassignedOrders.splice(i, 1);
         }

@@ -271,10 +271,9 @@ export default async function handler(req: any, res: any) {
     // Mapeamento inteligente de status sincronizado com Cardápio Web
     const cwStatus = String(orderData.status || payload.status || '').toLowerCase();
     let mappedStatus: 'pending' | 'dispatched' | 'delivered' | 'failed' = 'pending';
-    if (cwStatus === 'closed') {
+    if (cwStatus === 'closed' || cwStatus === 'released' || cwStatus === 'dispatched' || cwStatus === 'delivered') {
+      // Se já foi despachado no Cardápio Web, não entra na fila ativa de entrega
       mappedStatus = 'delivered';
-    } else if (cwStatus === 'released' || cwStatus === 'dispatched') {
-      mappedStatus = 'dispatched';
     } else if (cwStatus === 'canceled' || cwStatus === 'cancelled') {
       mappedStatus = 'failed';
     }
@@ -286,7 +285,7 @@ export default async function handler(req: any, res: any) {
     // codeNumber é o número real do documento no Cardápio Web (ex: 50)
     // displayCode é o código diferenciado visualmente (ex: HB-50 para Hope Burger, HP-50 para Hope Pizza)
     const displayId = orderData.display_id || payload.code || payload.codigo || payload.id_curto;
-    const codeNumber = displayId ? Number(displayId) : (orderData.id ? Number(String(orderData.id).slice(-4)) : Math.floor(100 + Math.random() * 900));
+    const codeNumber = displayId ? Number(displayId) : (orderData.id ? Number(String(orderData.id).slice(-4)) : 0);
     const branchPrefix = branch === 'hope_burger' ? 'HB' : 'HP';
     const displayCode = `${branchPrefix}-${codeNumber}`;
     const storeName = branch === 'hope_burger' ? 'Hope Burger' : 'Hope Pizza';
