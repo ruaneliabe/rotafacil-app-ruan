@@ -48,11 +48,12 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         attributionControl: false,
       }).setView([origin.lat, origin.lng], 14);
 
-      // CartoDB Dark Matter tiles matching sleek Uber/Linear SaaS theme
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // OpenStreetMap with high-contrast dark theme filter (zero watermarks, no external API key needed)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        subdomains: 'abcd',
-        attribution: '© OpenStreetMap contributors © CARTO',
+        subdomains: ['a', 'b', 'c'],
+        attribution: '© OpenStreetMap contributors',
+        className: 'map-tiles-dark',
       }).addTo(map);
 
       L.control.zoom({ position: 'topright' }).addTo(map);

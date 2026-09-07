@@ -12,11 +12,23 @@ interface Props {
   onSimulateIncomingOrder: (channel: 'ifood' | 'cardapio_web', branchId?: string) => void;
 }
 
+const CARDAPIO_WEB_USER_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
 const emptyConfig = (): StoreIntegrationConfig => ({ enabled: false, accountId: '', webhookUrl: '' });
-const normalize = (value?: StoreIntegrations): StoreIntegrations => ({
-  ifood: { ...emptyConfig(), ...value?.ifood },
-  cardapioWeb: { ...emptyConfig(), ...value?.cardapioWeb },
-});
+const normalize = (value?: StoreIntegrations): StoreIntegrations => {
+  const cwToken = value?.cardapioWeb?.accountId;
+  const resolvedCwToken = !cwToken || cwToken === 'hope-burger-cardapio' || cwToken === 'hope-pizza-cardapio'
+    ? CARDAPIO_WEB_USER_TOKEN
+    : cwToken;
+
+  return {
+    ifood: { ...emptyConfig(), ...value?.ifood },
+    cardapioWeb: {
+      enabled: value?.cardapioWeb?.enabled ?? true,
+      accountId: resolvedCwToken,
+      webhookUrl: value?.cardapioWeb?.webhookUrl || '',
+    },
+  };
+};
 
 export const IntegrationsModal: React.FC<Props> = ({
   isOpen,
@@ -39,7 +51,7 @@ export const IntegrationsModal: React.FC<Props> = ({
             icon: '🍔',
             integrations: {
               ifood: { enabled: true, accountId: 'hope-burger-ifood', webhookUrl: '' },
-              cardapioWeb: { enabled: true, accountId: 'hope-burger-cardapio', webhookUrl: '' },
+              cardapioWeb: { enabled: true, accountId: CARDAPIO_WEB_USER_TOKEN, webhookUrl: '' },
             },
           },
           {
@@ -49,7 +61,7 @@ export const IntegrationsModal: React.FC<Props> = ({
             icon: '🍕',
             integrations: {
               ifood: { enabled: true, accountId: 'hope-pizza-ifood', webhookUrl: '' },
-              cardapioWeb: { enabled: true, accountId: 'hope-pizza-cardapio', webhookUrl: '' },
+              cardapioWeb: { enabled: true, accountId: CARDAPIO_WEB_USER_TOKEN, webhookUrl: '' },
             },
           },
         ];
@@ -60,7 +72,24 @@ export const IntegrationsModal: React.FC<Props> = ({
   useEffect(() => {
     if (isOpen) {
       if (branches && branches.length > 0) {
-        setDraftBranches(branches);
+        const enrichedBranches = branches.map((b) => {
+          const currentToken = b.integrations?.cardapioWeb?.accountId;
+          if (!currentToken || currentToken === 'hope-burger-cardapio' || currentToken === 'hope-pizza-cardapio') {
+            return {
+              ...b,
+              integrations: {
+                ...b.integrations,
+                cardapioWeb: {
+                  enabled: true,
+                  accountId: CARDAPIO_WEB_USER_TOKEN,
+                  webhookUrl: b.integrations?.cardapioWeb?.webhookUrl || '',
+                },
+              },
+            };
+          }
+          return b;
+        });
+        setDraftBranches(enrichedBranches);
       }
       setSaved(false);
     }

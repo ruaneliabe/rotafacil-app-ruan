@@ -65,7 +65,7 @@ interface StoreDashboardProps {
   onDeleteMotoboy?: (motoboyId: string) => void;
   onDeleteAllMotoboys?: () => void;
   onAddOrder?: (newOrder: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'>) => void;
-  onSaveIntegrations?: (integrations: StoreIntegrations) => void;
+  onSaveIntegrations?: (integrations: StoreIntegrations, branches?: StoreBranch[]) => void;
 }
 
 export const StoreDashboard: React.FC<StoreDashboardProps> = ({
@@ -559,119 +559,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
         </div>
       </div>
-
-      {shift.pilotMode ? (
-        <section className="rounded-2xl border border-emerald-500/40 bg-emerald-950/35 px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-2" aria-label="Status do piloto real">
-          <div className="flex items-center gap-3">
-            <span className="h-9 w-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-lg">🧪</span>
-            <div>
-              <p className="text-xs font-black uppercase tracking-wide text-emerald-300">Piloto real ativo</p>
-              <p className="text-xs text-slate-300">Dados reais da loja • integrações externas continuam em simulação • use apenas um operador no painel</p>
-            </div>
-          </div>
-          <span className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-black ${activeOrders.length >= 5 ? 'border-amber-500/50 bg-amber-500/15 text-amber-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'}`}>
-            {activeOrders.length}/5 pedidos simultâneos
-          </span>
-        </section>
-      ) : (
-        <section className="rounded-2xl border border-amber-500/35 bg-amber-950/25 px-4 py-3 flex items-center gap-3" aria-label="Ambiente de demonstração">
-          <AlertTriangle className="w-5 h-5 text-amber-300 shrink-0" />
-          <div>
-            <p className="text-xs font-black uppercase tracking-wide text-amber-200">Ambiente de demonstração</p>
-            <p className="text-xs text-slate-300">Não cadastre clientes reais antes de ativar o Piloto Real em Configurar Loja.</p>
-          </div>
-        </section>
-      )}
-
-      {showOnboarding && (
-        <section className="bg-gradient-to-r from-blue-950/80 to-slate-900 border border-blue-500/35 rounded-2xl p-4 shadow-sm" aria-label="Checklist para iniciar a operação">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-300" />
-                <h3 className="font-black text-sm text-white">Prepare a loja para operar hoje</h3>
-                <span className="text-[10px] font-black text-blue-200 bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 rounded-full">{completedOnboardingSteps}/4</span>
-              </div>
-              <p className="text-xs text-slate-300">Complete estes passos antes de receber os primeiros pedidos.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 flex-1 lg:max-w-3xl">
-              {onboardingSteps.map((step, index) => (
-                <button
-                  key={step.label}
-                  type="button"
-                  disabled={step.done}
-                  onClick={() => {
-                    if (index === 0) onOpenStoreSettings();
-                    if (index === 1) onOpenMotoboyModal();
-                    if (index === 2) onToggleShift();
-                    if (index === 3) onOpenNewOrderModal();
-                  }}
-                  className={`relative text-left px-3 py-2 rounded-xl border text-xs font-bold transition-all ${step.done ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300 cursor-default' : index === nextOnboardingStepIndex ? 'bg-blue-500/15 border-blue-400 text-white ring-2 ring-blue-500/20 shadow-md shadow-blue-950/40 cursor-pointer' : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300 cursor-pointer'}`}
-                >
-                  {index === nextOnboardingStepIndex && <span className="absolute -top-2 right-2 bg-blue-500 text-white text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full">Próximo</span>}
-                  <span className="mr-1.5">{step.done ? '✓' : index + 1}</span>{step.label}
-                  {index === nextOnboardingStepIndex && <ChevronRight className="w-3.5 h-3.5 inline ml-1 text-blue-300" />}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* 🔌 INTEGRATIONS VALUE POSITIONING BANNER (COLLAPSIBLE / COMPACT) */}
-      {isSyncBannerCollapsed ? (
-        <div className="bg-slate-900/80 border border-purple-500/30 rounded-xl p-2.5 px-3.5 flex items-center justify-between gap-2 shadow-2xs text-xs">
-          <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase tracking-wide flex items-center gap-1.5 shrink-0 shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              ONLINE
-            </span>
-            <span className="font-extrabold text-white shrink-0">☁️ Dados sincronizados:</span>
-            <span className="text-slate-300 font-medium truncate">Pedidos, motoboys e rastreio em tempo real</span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-slate-500 hidden sm:inline">Nuvem ativa</span>
-            <button
-              type="button"
-              onClick={() => setIsSyncBannerCollapsed(false)}
-              className="text-[11px] font-extrabold text-slate-300 hover:text-white px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 transition-all cursor-pointer flex items-center gap-1"
-            >
-              <span>▼ Detalhes</span>
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-slate-900/90 border border-purple-500/30 rounded-2xl p-3 px-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center justify-center font-bold text-sm shrink-0">
-              🔌
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-white">Sincronização em tempo real</span>
-                <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/40 uppercase">
-                  Firebase Online
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                Pedidos, equipe, status e localização são sincronizados entre os dispositivos conectados à loja.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <span className="text-xs font-bold text-slate-400 shrink-0">
-              Integrações externas: {activeIntegrationsCount === 0 ? 'nenhuma ativa' : `${activeIntegrationsCount} ${activeIntegrationsCount === 1 ? 'ativa' : 'ativas'}`}
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsSyncBannerCollapsed(true)}
-              className="text-[11px] font-extrabold text-slate-400 hover:text-white px-2 py-0.5 rounded-xl bg-slate-800 border border-slate-700 transition-all cursor-pointer"
-            >
-              ▲ Ocultar
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 🛎️ ACTIVE 30-SECOND COUNTER CALL BANNER (Substitui painel de senhas) */}
       {callingCounterTimer && (
@@ -1247,76 +1134,86 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             </div>
           )}
 
-          {/* 4. STRIPE-STYLE OPERATIONAL METRICS CARDS */}
+          {/* 4. OPERATIONAL METRICS CARDS */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 rounded-2xl border border-slate-800/80 bg-slate-950/35 overflow-hidden">
-            {/* CARD 1: Espera Médio na Fila */}
-            <div title="Tempo médio que um motoboy disponível permanece na fila antes de receber um despacho." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
+            {/* CARD 1: Motoboys Disponíveis */}
+            <div title="Entregadores livres na fila prontos para receber pedidos." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-400 shrink-0" /> Espera Médio Fila
+                  <Bike className="w-4 h-4 text-emerald-400 shrink-0" /> Entregadores Livres
                 </span>
-                <span className="hidden xl:inline-flex px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-slate-900 text-slate-600 border border-slate-800">
-                  ⚡ Otimizado
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">{averageQueueWaitMinutes === null ? '—' : `~${averageQueueWaitMinutes.toFixed(1)} min`}</span>
-                <span className="text-[11px] text-slate-500 font-medium">{averageQueueWaitMinutes === null ? 'sem histórico ainda' : 'espera atual da fila'}</span>
-              </div>
-            </div>
-
-            {/* CARD 2: Tempo até Retirada */}
-            <div title="Tempo médio entre a chamada do motoboy no balcão e a confirmação da saída." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-emerald-400 shrink-0" /> Tempo até Retirada
-                </span>
-                <span className="hidden xl:inline-flex px-1.5 py-0.5 rounded-md text-[9px] font-medium bg-slate-900 text-slate-600 border border-slate-800">
-                  Balcão
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">—</span>
-                <span className="text-[11px] text-slate-500 font-medium">sem retiradas ainda</span>
-              </div>
-            </div>
-
-            {/* CARD 3: Motoboys Disponíveis / Parados */}
-            <div title="Motoboys disponíveis na fila agora. O total cadastrado também inclui quem está em rota, retornando, pausado ou offline." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                  <Bike className="w-4 h-4 text-blue-400 shrink-0" /> Motoboys Fila Agora
-                </span>
-                <span className={`px-2 py-0.5 rounded text-[11px] font-extrabold ${
-                  motoboysAvailable.length > 0 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  motoboysAvailable.length > 0 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
                 }`}>
-                  {motoboysAvailable.length} {motoboysAvailable.length === 1 ? 'disponível' : 'disponíveis'}
+                  {motoboysAvailable.length} na fila
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
-                  {motoboysAvailable.length} na fila
+                  {motoboysAvailable.length} {motoboysAvailable.length === 1 ? 'disponível' : 'disponíveis'}
                 </span>
                 <span className="text-[11px] text-slate-500 font-medium truncate">
-                  {motoboys.length} cadastrados · {motoboys.filter((motoboy) => motoboy.status !== 'offline').length} trabalhando
+                  {motoboys.length} na equipe · {motoboys.filter((m) => m.status !== 'offline').length} ativos
                 </span>
               </div>
             </div>
 
-            {/* CARD 4: Faturamento & Entregas Hoje */}
-            <div title="Total financeiro dos pedidos criados hoje. Em andamento inclui pedidos na cozinha, prontos, vinculados e em rota." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
+            {/* CARD 2: Pedidos em Aberto */}
+            <div title="Pedidos em andamento na loja." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" /> Entregas Hoje
+                  <Package className="w-4 h-4 text-amber-400 shrink-0" /> Pedidos em Aberto
                 </span>
-                <span className="px-2 py-0.5 rounded text-[11px] font-extrabold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  unassignedOrders.length > 0 ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {unassignedOrders.length} pendentes
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
+                  {activeOrders.length} {activeOrders.length === 1 ? 'pedido ativo' : 'pedidos ativos'}
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {unassignedOrders.length} aguardando despacho · {readyAtCounter.length} no balcão
+                </span>
+              </div>
+            </div>
+
+            {/* CARD 3: Entregas Concluídas Hoje */}
+            <div title="Total de entregas finalizadas com sucesso hoje." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" /> Entregas Hoje
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                  {deliveredToday.length} {deliveredToday.length === 1 ? 'concluída' : 'concluídas'}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
                   {deliveredToday.length} {deliveredToday.length === 1 ? 'entregue' : 'entregues'}
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium truncate">
+                  {todayOrders.length} pedidos hoje · {inProgressToday} em andamento
+                </span>
+              </div>
+            </div>
+
+            {/* CARD 4: Faturamento do Dia */}
+            <div title="Total financeiro dos pedidos de hoje." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" /> Faturamento Hoje
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  Ao vivo
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">{formattedCurrency(totalRevenue)}</span>
                 <span className="text-[11px] text-slate-400 font-medium">
-                  {todayOrders.length} {todayOrders.length === 1 ? 'pedido hoje' : 'pedidos hoje'} · {inProgressToday} em andamento
+                  {todayOrders.length} {todayOrders.length === 1 ? 'pedido total' : 'pedidos totais'}
                 </span>
               </div>
             </div>
@@ -2813,9 +2710,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         onClose={() => setIsIntegrationsOpen(false)}
         storeName={shift.storeName}
         integrations={shift.integrations}
-        onSave={(integrations) => {
-          onSaveIntegrations?.(integrations);
-          triggerActionToast('Configurações de integração atualizadas para esta loja.');
+        branches={shift.branches}
+        onSave={(integrations, updatedBranches) => {
+          onSaveIntegrations?.(integrations, updatedBranches);
+          triggerActionToast('Configurações de integração salvas com sucesso!');
         }}
         onSimulateIncomingOrder={handleSimulateIncomingOrder}
       />

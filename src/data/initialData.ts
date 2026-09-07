@@ -22,7 +22,7 @@ export const INITIAL_STORE_SHIFT: StoreShift = {
   demoDataDisabled: true,
   integrations: {
     ifood: { enabled: false, accountId: '', webhookUrl: '' },
-    cardapioWeb: { enabled: false, accountId: '', webhookUrl: '' },
+    cardapioWeb: { enabled: true, accountId: 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx', webhookUrl: '' },
   },
   branches: [
     {
@@ -36,7 +36,7 @@ export const INITIAL_STORE_SHIFT: StoreShift = {
       lng: -49.0661,
       integrations: {
         ifood: { enabled: true, accountId: 'hope-burger-ifood', webhookUrl: '' },
-        cardapioWeb: { enabled: true, accountId: 'hope-burger-cardapio', webhookUrl: '' },
+        cardapioWeb: { enabled: true, accountId: 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx', webhookUrl: '' },
       },
     },
     {
@@ -50,7 +50,7 @@ export const INITIAL_STORE_SHIFT: StoreShift = {
       lng: -49.0630,
       integrations: {
         ifood: { enabled: true, accountId: 'hope-pizza-ifood', webhookUrl: '' },
-        cardapioWeb: { enabled: true, accountId: 'hope-pizza-cardapio', webhookUrl: '' },
+        cardapioWeb: { enabled: true, accountId: 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx', webhookUrl: '' },
       },
     },
   ],
