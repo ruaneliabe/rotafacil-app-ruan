@@ -69,6 +69,18 @@ textarea {
   font-weight: 400;
 }
 
+/*
+ * Central de Despacho: mapa compacto no dashboard.
+ * O modo "Expandir Mapa" continua usando tela cheia dentro do RouteMap.
+ */
+.min-h-\[680px\] {
+  min-height: 500px !important;
+}
+
+.min-h-\[580px\] {
+  min-height: 420px !important;
+}
+
 /* Leaflet map custom fixes */
 .leaflet-container {
   width: 100%;
