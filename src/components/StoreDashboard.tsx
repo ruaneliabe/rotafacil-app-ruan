@@ -41,11 +41,16 @@ import { ThermalTicketModal } from './ThermalTicketModal';
 import { MotoboySettlementModal } from './MotoboySettlementModal';
 import { DeliveryHistoryModal } from './DeliveryHistoryModal';
 import { IntegrationsModal } from './IntegrationsModal';
+import { KanbanBoard } from './KanbanBoard';
 import { getSoundEnabled, setSoundEnabled, playNewOrderSound } from '../utils/soundUtils';
+import { PaymentBadge, getPaymentMethodLabel } from '../utils/paymentUtils';
 import { calculateDistanceKm, calculateRoadDistanceKm } from '../utils/geoUtils';
 import { analyzeOperationalBrain, DispatchRecommendation, OperationalAlert } from '../utils/dispatchBrain';
+import { buildSmartRouteBatches } from '../utils/routeCorridorUtils';
+import { FleetBottleneckBanner } from './FleetBottleneckBanner';
 import { getMotoboyStatusPresentation } from '../utils/motoboyStatusUtils';
 import { saveMotoboyLocationToCloud, saveMotoboyToCloud } from '../lib/firebase';
+import { getBrazilDateKey, isOrderInCurrentShift } from '../utils/dateUtils';
 
 interface StoreDashboardProps {
   shift: StoreShift;
@@ -88,7 +93,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   onAddOrder,
   onSaveIntegrations,
 }) => {
-  const [activeTab, setActiveTab] = useState<'operacao' | 'equipe' | 'financeiro' | 'historico'>('operacao');
+  const [activeTab, setActiveTab] = useState<'operacao' | 'kanban' | 'equipe' | 'financeiro' | 'historico'>('operacao');
   const [selectedMotoboyId, setSelectedMotoboyId] = useState<string | null>(null);
   const [selectedOrderIdOnMap, setSelectedOrderIdOnMap] = useState<string | null>(null);
 
@@ -160,7 +165,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       (o) =>
         o.assignedMotoboyId === nextMotoboy.id &&
         o.status !== 'delivered' &&
-        o.status !== 'cancelled'
+        o.status !== 'cancelled' &&
+        o.status !== 'failed'
     );
 
     // Scenario A: User manually selected checkboxes in the order list
@@ -305,12 +311,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     }
   };
 
-  // Auto-sync a cada 40 segundos para manter o balcão sincronizado com o Cardápio Web
+  // Auto-sync a cada 15 segundos para manter o mapa e balcão 100% sincronizados com o Cardápio Web
   useEffect(() => {
     handleSyncCardapioWeb(false);
     const interval = setInterval(() => {
       handleSyncCardapioWeb(false);
-    }, 40000);
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -330,8 +336,18 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     return addr.includes('retirada') || addr.includes('balcão') || addr.includes('takeout') || neigh.includes('balcão') || (o as any).order_type === 'takeout';
   };
 
-  // Derived metrics matching screenshot (pedidos de balcão/retirada são ignorados da fila de entrega)
-  const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled' && !isTakeoutOrder(o));
+  const todayDateKey = getBrazilDateKey();
+
+  // Pedidos ativos de entrega da operação atual:
+  // Se a loja estiver fechada, não há entregas ativas do dia.
+  // Se a loja estiver aberta, inclui apenas pedidos ativos pertencentes ao turno operacional atual.
+  const activeOrders = orders.filter((o) => {
+    if (o.status === 'delivered' || o.status === 'cancelled' || o.status === 'failed') return false;
+    if (isTakeoutOrder(o)) return false;
+    if (!shift.isOpen) return false;
+    if (!isOrderInCurrentShift(o, shift)) return false;
+    return true;
+  });
   const activeIntegrationsCount = [shift.integrations?.ifood, shift.integrations?.cardapioWeb]
     .filter((item) => item?.enabled).length;
   const hasStoreAddress = Boolean(shift.storeAddress?.trim());
@@ -344,19 +360,22 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const completedOnboardingSteps = onboardingSteps.filter((step) => step.done).length;
   const showOnboarding = completedOnboardingSteps < onboardingSteps.length;
   const nextOnboardingStepIndex = onboardingSteps.findIndex((step) => !step.done);
-  const readyAtCounter = orders.filter((o) => o.status === 'ready_at_counter');
+  const readyAtCounter = activeOrders.filter((o) => o.status === 'ready_at_counter');
   // Pedidos aguardando despacho (exclui os que já foram despachados pelo Cardápio Web ou estão em trânsito)
   const unassignedOrders = activeOrders.filter(
     (o) => !o.assignedMotoboyId && (o.status === 'pending' || o.status === 'ready_at_counter')
   );
-  const todayDateKey = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  })();
-  const deliveredToday = orders.filter((o) => o.status === 'delivered' && o.deliveredDate === todayDateKey);
-  const todayOrders = orders.filter((o) => o.createdDate === todayDateKey || o.deliveredDate === todayDateKey);
-  const inProgressToday = todayOrders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled').length;
-  const totalRevenue = todayOrders.reduce((acc, o) => acc + o.total, 0);
+
+  // Pedidos e faturamento vinculados estritamente ao turno operacional ativo
+  // Quando a loja estiver fechada, o faturamento do turno ativo permanece zerado (R$ 0,00)
+  const currentShiftOrders = shift.isOpen
+    ? orders.filter((o) => isOrderInCurrentShift(o, shift) && o.status !== 'cancelled' && o.status !== 'failed')
+    : [];
+
+  const deliveredToday = currentShiftOrders.filter((o) => o.status === 'delivered');
+  const todayOrders = currentShiftOrders;
+  const inProgressToday = currentShiftOrders.filter((o) => o.status !== 'delivered').length;
+  const totalRevenue = currentShiftOrders.reduce((acc, o) => acc + (o.total || 0), 0);
   const getMotoboyLoad = (motoboyId: string) => activeOrders.filter((o) => o.assignedMotoboyId === motoboyId).length;
   const motoboysAvailable = motoboys
     .filter((m) => m.status === 'available')
@@ -388,7 +407,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   // Calculate Motoboys returning to store (~5 min / <= 4.2 km road distance away without active orders, or explicitly 'returning_to_store')
   const returningMotoboysWithDistance = motoboys.map((m) => {
     const mActiveOrders = orders.filter(
-      (o) => o.status !== 'delivered' && o.status !== 'cancelled' && o.assignedMotoboyId === m.id
+      (o) => o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'failed' && o.assignedMotoboyId === m.id
     );
     let distKm = 0;
     if (m.currentLat && m.currentLng && shift.storeLat && shift.storeLng) {
@@ -406,18 +425,29 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   }).filter((m) => m.isReturning);
 
   const returningMotoboys = motoboys.filter((m) => m.status === 'returning_to_store');
+  const availableMotoboys = motoboys.filter((m) => m.status === 'available');
 
   // 🧠 Operational AI Brain Analysis
   const brainAnalysis = analyzeOperationalBrain(orders, motoboys, shift);
   const operationalProblemAlerts = brainAnalysis.alerts.filter((alert) => alert.type !== 'savings' && alert.severity !== 'info');
 
   const handleApplyBrainRecommendation = (rec: DispatchRecommendation) => {
+    const targetDriver = motoboys.find((m) => m.id === rec.motoboyId);
+    if (targetDriver && targetDriver.status === 'returning_to_store') {
+      triggerActionToast(
+        `📦 Lote pré-organizado para ${rec.motoboyName} (${rec.orderIds.length} pedidos)! Entregador ainda a caminho da loja (~${rec.motoboyEtaMin || 5} min). Não despache antes do motoboy pisar no pátio.`
+      );
+    } else {
+      triggerActionToast(
+        `⚡ Despacho Recomendado Aplicado! ${rec.orderIds.length} pedidos vinculados a ${rec.motoboyName}.`
+      );
+    }
+
     if (onAssignBatchToMotoboy) {
       onAssignBatchToMotoboy(rec.orderIds, rec.motoboyId);
     } else {
       rec.orderIds.forEach((id) => onAssignOrderToMotoboy(id, rec.motoboyId));
     }
-    triggerActionToast(`⚡ Despacho Recomendado Aplicado! ${rec.orderIds.length} pedidos vinculados a ${rec.motoboyName}.`);
   };
 
   const renderChannelBadge = (channel?: string) => {
@@ -459,7 +489,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   const handleNotifyMotoboyInApp = (m: Motoboy) => {
-    const mOrders = orders.filter((o) => o.assignedMotoboyId === m.id && o.status !== 'delivered' && o.status !== 'cancelled');
+    const mOrders = orders.filter((o) => o.assignedMotoboyId === m.id && o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'failed');
     if (mOrders.length === 0) return;
 
     mOrders.forEach((ord) => {
@@ -472,7 +502,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   };
 
   const handleSendWhatsAppToMotoboy = (m: Motoboy) => {
-    const mOrders = orders.filter((o) => o.assignedMotoboyId === m.id && o.status !== 'delivered' && o.status !== 'cancelled');
+    const mOrders = orders.filter((o) => o.assignedMotoboyId === m.id && o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'failed');
     if (mOrders.length === 0) return;
 
     const cleanedPhone = (m.phone || '').replace(/\D/g, '');
@@ -483,7 +513,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
     mOrders.forEach((ord, i) => {
       msg += `📦 *${i + 1}. Pedido ${getOrderDisplayCode(ord)}* (${ord.clientName})\n`;
       msg += `📍 Endereço: ${ord.address} - ${ord.neighborhood}\n`;
-      msg += `💵 Cobrar: ${formattedCurrency(ord.total)} (${ord.paymentMethod.toUpperCase()})\n`;
+      msg += `💵 Cobrar: ${formattedCurrency(ord.total)} (${getPaymentMethodLabel(ord.paymentMethod)})\n`;
       if (ord.clientPhone) msg += `📞 Cliente: ${ord.clientPhone}\n`;
       msg += `\n`;
     });
@@ -522,6 +552,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               }`}>
                 {shift.isOpen ? '● Aberto' : '○ Fechado'}
               </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700/80 flex items-center gap-1.5" title="Status no Cardápio Web">
+                <span className={`w-1.5 h-1.5 rounded-full ${shift.cardapioWebStatus?.isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+                <span>CW: {shift.cardapioWebStatus?.isOpen ? 'Aberto' : 'Fechado (Abre 18h)'}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => handleSyncCardapioWeb(true)}
+                disabled={isSyncingCw}
+                className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[11px] font-semibold transition-all border border-slate-700 flex items-center gap-1 cursor-pointer"
+                title="Sincronizar status da loja e pedidos com o Cardápio Web"
+              >
+                <RotateCw className={`w-3 h-3 ${isSyncingCw ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
+                <span>{isSyncingCw ? 'Sincronizando...' : 'Sincronizar CW'}</span>
+              </button>
               <button
                 type="button"
                 onClick={onToggleShift}
@@ -535,7 +579,16 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               </button>
             </div>
             <p className="text-xs text-slate-400 font-medium mt-0.5">
-              <strong className="text-slate-100 font-bold">{activeOrders.length} pedidos ativos</strong> • <strong className="text-slate-100 font-bold">{motoboysAvailable.length} motoboy{motoboysAvailable.length !== 1 ? 's' : ''} livre{motoboysAvailable.length !== 1 ? 's' : ''}</strong> • <strong className="text-emerald-400 font-bold">{formattedCurrency(totalRevenue)} hoje</strong>
+              {shift.isOpen ? (
+                <>
+                  <strong className="text-slate-100 font-bold">{activeOrders.length} pedidos ativos</strong> • <strong className="text-slate-100 font-bold">{motoboysAvailable.length} motoboy{motoboysAvailable.length !== 1 ? 's' : ''} livre{motoboysAvailable.length !== 1 ? 's' : ''}</strong> • <strong className="text-emerald-400 font-bold">{formattedCurrency(totalRevenue)} hoje</strong>
+                </>
+              ) : (
+                <>
+                  <span className="inline-block w-2 h-2 rounded-full bg-slate-500 mr-1.5 align-middle" />
+                  <strong className="text-slate-300 font-bold">Loja Fechada</strong> • <strong className="text-slate-400 font-medium">{motoboys.length} motoboys</strong> • <strong className="text-slate-300 font-bold">Turno Atual: R$ 0,00</strong>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -546,21 +599,21 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           <button
             type="button"
             onClick={handleCallNextMotoboy}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer border border-emerald-400/60 uppercase tracking-wide shrink-0"
-            title="Sinaliza o celular do 1º motoboy da fila para retirar o pedido no balcão"
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-extrabold text-xs sm:text-sm rounded-xl transition-all flex items-center gap-2 cursor-pointer border border-emerald-500 shadow-sm shrink-0"
+            title="Chama o 1º motoboy da fila para retirar o pedido no balcão"
           >
-            <Zap className="w-4 h-4 text-amber-300 fill-amber-300 shrink-0 animate-pulse" />
+            <Zap className="w-4 h-4 text-emerald-100 shrink-0" />
             <span>Despachar 1º da Fila</span>
           </button>
 
-          {/* Map Button - Highlighted in Indigo */}
+          {/* Map Button */}
           <button
             type="button"
             onClick={() => setIsRouteModalOpen(true)}
-            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-black text-xs rounded-xl border border-indigo-400/50 shadow-md shadow-indigo-950/30 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-            title="Abrir mapa com localização de todos os pedidos e entregadores"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            title="Abrir mapa com localização dos pedidos e entregadores"
           >
-            <Map className="w-3.5 h-3.5 text-indigo-200" />
+            <Map className="w-3.5 h-3.5 text-blue-400" />
             <span>Mapa de Pedidos</span>
           </button>
 
@@ -569,22 +622,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             type="button"
             onClick={onOpenNewOrderModal}
             disabled={Boolean(shift.pilotMode && activeOrders.length >= 5)}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 shrink-0"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 shrink-0"
             title="Lançar pedido manual avulso"
           >
-            <Plus className="w-3.5 h-3.5 text-blue-400" />
+            <Plus className="w-3.5 h-3.5 text-emerald-400" />
             <span>Novo Pedido</span>
-          </button>
-
-          {/* Integrations Modal Button */}
-          <button
-            type="button"
-            onClick={() => setIsIntegrationsOpen(true)}
-            className="px-3 py-2 bg-purple-950/70 hover:bg-purple-900 text-purple-200 font-bold text-xs rounded-xl border border-purple-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
-            title="Integrações Cardápio Web, iFood e Webhooks"
-          >
-            <Webhook className="w-3.5 h-3.5 text-purple-400" />
-            <span>Integrações</span>
           </button>
 
           {/* Sincronização Cardápio Web Button */}
@@ -592,11 +634,22 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
             type="button"
             onClick={() => handleSyncCardapioWeb(true)}
             disabled={isSyncingCw}
-            className="px-3 py-2 bg-indigo-950/70 hover:bg-indigo-900 text-indigo-200 font-bold text-xs rounded-xl border border-indigo-500/40 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 disabled:opacity-50"
-            title="Sincronizar status com o Cardápio Web (remove despachados/entregues do balcão)"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 disabled:opacity-50"
+            title="Sincronizar status com o Cardápio Web"
           >
-            <RotateCw className={`w-3.5 h-3.5 text-indigo-400 ${isSyncingCw ? 'animate-spin' : ''}`} />
+            <RotateCw className={`w-3.5 h-3.5 text-blue-400 ${isSyncingCw ? 'animate-spin' : ''}`} />
             <span>{isSyncingCw ? 'Sincronizando...' : 'Sincronizar CW'}</span>
+          </button>
+
+          {/* Integrations Modal Button */}
+          <button
+            type="button"
+            onClick={() => setIsIntegrationsOpen(true)}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+            title="Integrações Cardápio Web, iFood e Webhooks"
+          >
+            <Webhook className="w-3.5 h-3.5 text-slate-400" />
+            <span>Integrações</span>
           </button>
 
           {/* Reports Modal Button */}
@@ -686,62 +739,78 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
       )}
 
       {/* 2. SUB NAVIGATION TABS */}
-      <div className="bg-slate-950/40 p-1.5 rounded-2xl border border-slate-800/70 flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-slate-500 shadow-sm">
-        <div className="flex items-center gap-1">
+      <div className="bg-slate-900 p-1.5 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-slate-400 shadow-xs">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
             onClick={() => setActiveTab('operacao')}
-            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer font-bold ${
               activeTab === 'operacao'
-                ? 'bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/70'
-                : 'hover:text-slate-200'
+                ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
+                : 'hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
-            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-            Operação
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+            <Bike className="w-3.5 h-3.5 text-blue-400" />
+            <span>Fila & Balcão</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
               unassignedOrders.length > 0
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : activeTab === 'operacao' ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-800 text-slate-400'
+                : 'bg-slate-800 text-slate-400'
             }`}>
-              {unassignedOrders.length > 0 ? `${unassignedOrders.length} pendentes` : `${activeOrders.length} ativos`}
+              {unassignedOrders.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('kanban')}
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer font-bold ${
+              activeTab === 'kanban'
+                ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
+                : 'hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Visão Kanban</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              {activeOrders.length}
             </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('equipe')}
-            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer font-bold ${
               activeTab === 'equipe'
-                ? 'bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/70'
-                : 'hover:text-slate-200'
+                ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
+                : 'hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
-            Equipe ({motoboys.length})
+            <span>Equipe ({motoboys.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('financeiro')}
-            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer font-bold ${
               activeTab === 'financeiro'
-                ? 'bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/70'
-                : 'hover:text-slate-200'
+                ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
+                : 'hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
-            Financeiro
+            <span>Financeiro</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('historico')}
-            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer font-bold ${
               activeTab === 'historico'
-                ? 'bg-slate-800/80 text-white font-semibold shadow-sm border border-slate-700/70'
-                : 'hover:text-slate-200'
+                ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
+                : 'hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
-            Histórico
+            <span>Histórico</span>
           </button>
         </div>
 
@@ -1253,24 +1322,36 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               </div>
             </div>
 
-            {/* CARD 4: Faturamento do Dia */}
-            <div title="Total financeiro dos pedidos de hoje." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
+            {/* CARD 4: Faturamento do Turno */}
+            <div title="Total financeiro dos pedidos pertencentes ao turno de hoje." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" /> Faturamento Hoje
+                  <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" /> Faturamento Turno
                 </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                  Ao vivo
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${shift.isOpen ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                  {shift.isOpen ? 'Ao vivo' : 'Fechado'}
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">{formattedCurrency(totalRevenue)}</span>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  {todayOrders.length} {todayOrders.length === 1 ? 'pedido total' : 'pedidos totais'}
+                <span className="text-[11px] text-slate-400 font-medium truncate">
+                  {shift.isOpen
+                    ? `${todayOrders.length} ${todayOrders.length === 1 ? 'pedido hoje' : 'pedidos hoje'}`
+                    : (shift.lastShiftSummary
+                        ? `Último: ${formattedCurrency(shift.lastShiftSummary.totalRevenue)}`
+                        : 'Aguardando abertura')}
                 </span>
               </div>
             </div>
           </div>
+
+          {/* 🚨 ALERTA DE GARGALO DE FROTA E ATRASO OPERACIONAL */}
+          <FleetBottleneckBanner
+            orders={orders}
+            motoboys={motoboys}
+            shift={shift}
+            onSelectOrders={(orderIds) => setSelectedOrderIds(orderIds)}
+          />
 
           {/* 5. DESPACHO VISUAL SECTION */}
           <div className="bg-slate-950/25 rounded-2xl border border-slate-800/70 shadow-sm p-3.5 space-y-3">
@@ -1377,126 +1458,141 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
                   {/* Smart Proximity & Time Window Grouping Alert */}
                   {(() => {
-                    // REGRA OPERACIONAL CRÍTICA:
-                    // Agrupar por Bairro e por Janela Temporal (máximo 15 min de diferença).
-                    // Jamais misturar pedidos distantes no tempo (ex: pedido #40 com pedido #70)!
-                    const getOrderMinutes = (o: Order) => {
-                      const [h, m] = (o.createdAt || '00:00').split(':').map(Number);
-                      return (h || 0) * 60 + (m || 0);
-                    };
+                    // NOVO MOTOR DE DESPACHO INTELIGENTE (Corredores Viários + Janela Temporal Estrita)
+                    // - Agrupa pedidos no mesmo caminho / trajeto (mesmo em bairros diferentes!)
+                    // - Respeita rigorosamente a janela de tempo (diferença máx 8 min)
+                    // - Alerta pedidos em atraso que não podem ficar parados esperando
+                    const smartBatches = buildSmartRouteBatches(unassignedOrders);
 
-                    interface TimeBatch {
+                    // Pedidos isolados em atraso crítico (>= 20 min) que não puderam ser agrupados com segurança
+                    const groupedOrderIds = new Set(smartBatches.flatMap((b) => b.orderIds));
+                    const isolatedUrgentOrders = unassignedOrders.filter((o) => {
+                      if (groupedOrderIds.has(o.id)) return false;
+                      const [h, m] = (o.createdAt || '00:00').split(':').map(Number);
+                      const ordMinutes = (h || 0) * 60 + (m || 0);
+                      const now = new Date();
+                      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+                      let diff = nowMinutes - ordMinutes;
+                      if (diff < 0) diff += 24 * 60;
+                      return diff >= 20;
+                    });
+
+                    interface ProximityViewItem {
                       key: string;
-                      neighborhood: string;
+                      corridorName: string;
+                      neighborhoodSummary: string;
                       timeLabel: string;
+                      isUrgentDelayedOrder: boolean;
                       isUrgentEarlyOrder: boolean;
+                      maxWaitMinutes: number;
+                      interOrderDistanceKm: number;
+                      timeSpreadMinutes: number;
                       orders: Order[];
                     }
 
-                    const byNeigh: Record<string, Order[]> = {};
-                    unassignedOrders.forEach((o) => {
-                      const neigh = o.neighborhood.trim() || 'Centro';
-                      if (!byNeigh[neigh]) byNeigh[neigh] = [];
-                      byNeigh[neigh].push(o);
+                    const proximityGroups: ProximityViewItem[] = [];
+
+                    smartBatches.forEach((batch) => {
+                      proximityGroups.push({
+                        key: `smart:${batch.id}`,
+                        corridorName: batch.corridorName,
+                        neighborhoodSummary: batch.neighborhoodSummary,
+                        timeLabel: batch.orders[0]?.createdAt || '--:--',
+                        isUrgentDelayedOrder: batch.isUrgent,
+                        isUrgentEarlyOrder: batch.orders.some((o) => (o.codeNumber || 0) <= 50),
+                        maxWaitMinutes: batch.maxWaitMinutes,
+                        interOrderDistanceKm: batch.interOrderDistanceKm,
+                        timeSpreadMinutes: batch.timeSpreadMinutes,
+                        orders: batch.orders,
+                      });
                     });
 
-                    const timeBatches: TimeBatch[] = [];
+                    // Adiciona pedidos individuais com atraso crítico para alerta de saída imediata
+                    isolatedUrgentOrders.forEach((o) => {
+                      const [h, m] = (o.createdAt || '00:00').split(':').map(Number);
+                      const ordMinutes = (h || 0) * 60 + (m || 0);
+                      const now = new Date();
+                      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+                      let diff = nowMinutes - ordMinutes;
+                      if (diff < 0) diff += 24 * 60;
 
-                    Object.entries(byNeigh).forEach(([neigh, orderList]) => {
-                      const sorted = [...orderList].sort((a, b) => {
-                        const mA = getOrderMinutes(a);
-                        const mB = getOrderMinutes(b);
-                        if (mA !== mB) return mA - mB;
-                        return (a.codeNumber || 0) - (b.codeNumber || 0);
+                      proximityGroups.push({
+                        key: `urgent-single:${o.id}`,
+                        corridorName: o.neighborhood || 'Centro',
+                        neighborhoodSummary: o.neighborhood || 'Centro',
+                        timeLabel: o.createdAt || '--:--',
+                        isUrgentDelayedOrder: true,
+                        isUrgentEarlyOrder: (o.codeNumber || 0) <= 50,
+                        maxWaitMinutes: diff,
+                        interOrderDistanceKm: 0,
+                        timeSpreadMinutes: 0,
+                        orders: [o],
                       });
-
-                      let currentBatch: Order[] = [];
-                      sorted.forEach((ord) => {
-                        if (currentBatch.length === 0) {
-                          currentBatch.push(ord);
-                        } else {
-                          const firstTime = getOrderMinutes(currentBatch[0]);
-                          const ordTime = getOrderMinutes(ord);
-                          const diff = Math.abs(ordTime - firstTime);
-                          const codeDiff = Math.abs((ord.codeNumber || 0) - (currentBatch[0].codeNumber || 0));
-
-                          // Só agrupa se estiver dentro de 15 minutos ou no máximo 12 números de diferença
-                          if (diff <= 15 || (codeDiff <= 12 && diff <= 25)) {
-                            currentBatch.push(ord);
-                          } else {
-                            const firstOrd = currentBatch[0];
-                            timeBatches.push({
-                              key: `${neigh}:${firstOrd.id}:${currentBatch.length}`,
-                              neighborhood: neigh,
-                              timeLabel: firstOrd.createdAt || 'Horário',
-                              isUrgentEarlyOrder: currentBatch.some((o) => (o.codeNumber || 0) <= 50),
-                              orders: [...currentBatch],
-                            });
-                            currentBatch = [ord];
-                          }
-                        }
-                      });
-
-                      if (currentBatch.length > 0) {
-                        const firstOrd = currentBatch[0];
-                        timeBatches.push({
-                          key: `${neigh}:${firstOrd.id}:${currentBatch.length}`,
-                          neighborhood: neigh,
-                          timeLabel: firstOrd.createdAt || 'Horário',
-                          isUrgentEarlyOrder: currentBatch.some((o) => (o.codeNumber || 0) <= 50),
-                          orders: [...currentBatch],
-                        });
-                      }
                     });
 
-                    const proximityGroups = timeBatches.filter((batch) => {
-                      const isCandidate = batch.orders.length >= 2 || (batch.orders.length === 1 && batch.isUrgentEarlyOrder);
-                      return isCandidate && !dismissedProximityGroups.includes(batch.key);
-                    }).sort((a, b) => {
-                      if (a.isUrgentEarlyOrder && !b.isUrgentEarlyOrder) return -1;
-                      if (!a.isUrgentEarlyOrder && b.isUrgentEarlyOrder) return 1;
+                    const activeGroups = proximityGroups.filter((g) => !dismissedProximityGroups.includes(g.key)).sort((a, b) => {
+                      if (a.isUrgentDelayedOrder && !b.isUrgentDelayedOrder) return -1;
+                      if (!a.isUrgentDelayedOrder && b.isUrgentDelayedOrder) return 1;
                       return b.orders.length - a.orders.length;
                     });
 
-                    if (proximityGroups.length === 0) return null;
+                    if (activeGroups.length === 0) return null;
 
                     return (
                       <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 text-xs space-y-1.5 shadow-2xs">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <span className="text-[10px] font-extrabold uppercase text-amber-300 block">⏱️ Despacho Inteligente por Janela de Tempo e Bairro</span>
+                            <span className="text-[10px] font-extrabold uppercase text-amber-300 flex items-center gap-1.5">
+                              <Zap className="w-3.5 h-3.5 text-amber-300" />
+                              Despacho Inteligente por Rota & Janela de Horário
+                            </span>
                             <span className="text-[10px] text-slate-400">
-                              {proximityGroups.length} lotes de pedidos sincronizados por horário · pedidos antigos têm prioridade
+                              {activeGroups.length} lotes de rota compatível · pedidos no mesmo caminho com horários sincronizados
                             </span>
                           </div>
-                          {proximityGroups.length > 3 && (
+                          {activeGroups.length > 3 && (
                             <button type="button" onClick={() => setShowAllProximityGroups((value) => !value)} className="shrink-0 px-2.5 py-1 rounded-lg border border-slate-600 text-[10px] font-bold text-slate-200 hover:bg-slate-700 cursor-pointer">
-                              {showAllProximityGroups ? 'Mostrar menos' : `Ver todas (${proximityGroups.length})`}
+                              {showAllProximityGroups ? 'Mostrar menos' : `Ver todas (${activeGroups.length})`}
                             </button>
                           )}
                         </div>
-                        {(showAllProximityGroups ? proximityGroups : proximityGroups.slice(0, 3)).map((batch) => (
+                        {(showAllProximityGroups ? activeGroups : activeGroups.slice(0, 3)).map((batch) => (
                           <div key={batch.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-slate-700">
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                {batch.isUrgentEarlyOrder ? (
+                                {batch.isUrgentDelayedOrder ? (
                                   <span className="px-1.5 py-0.5 text-[10px] font-black uppercase rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                                    🚨 Alta Prioridade
+                                    {availableMotoboys.length > 0
+                                      ? `🚨 Saída Imediata (~${batch.maxWaitMinutes}m de espera)`
+                                      : `🚨 Saída Imediata (1º da Fila · Aguardando Motoboy)`}
+                                  </span>
+                                ) : batch.isUrgentEarlyOrder ? (
+                                  <span className="px-1.5 py-0.5 text-[10px] font-black uppercase rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    ⚡ Alta Prioridade
                                   </span>
                                 ) : (
-                                  <span className="px-1.5 py-0.5 text-[10px] font-black uppercase rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                    Lote {batch.timeLabel}
+                                  <span className="px-1.5 py-0.5 text-[10px] font-black uppercase rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                    {batch.corridorName}
                                   </span>
                                 )}
                                 <span className="text-[11px] font-bold text-slate-200">
-                                  {batch.orders.length} {batch.orders.length === 1 ? 'pedido' : 'pedidos'} no bairro <strong>{batch.neighborhood}</strong>
+                                  {batch.orders.length === 1 ? (
+                                    <>Pedido individual prioritário em <strong>{batch.neighborhoodSummary}</strong></>
+                                  ) : (
+                                    <>{batch.orders.length} pedidos no mesmo caminho: <strong>{batch.neighborhoodSummary}</strong></>
+                                  )}
                                 </span>
+                                {batch.orders.length > 1 && (
+                                  <span className="text-[10px] text-emerald-300 font-semibold bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                                    {batch.interOrderDistanceKm}km entre paradas · Δt {batch.timeSpreadMinutes}m
+                                  </span>
+                                )}
                               </div>
                               <div className="text-[11px] text-slate-400 flex items-center gap-1 flex-wrap">
                                 <span>Pedidos:</span>
                                 {batch.orders.map((o) => (
                                   <span key={o.id} className="text-emerald-400 font-extrabold bg-slate-800 px-1 rounded">
-                                    {getOrderDisplayCode(o)} ({o.createdAt})
+                                    {getOrderDisplayCode(o)} ({o.createdAt} - {o.neighborhood})
                                   </span>
                                 ))}
                               </div>
@@ -1517,7 +1613,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                   setDismissedProximityGroups((current) => [...current, batch.key]);
                                 }}
                                 className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg border border-slate-600 cursor-pointer whitespace-nowrap"
-                                aria-label={`Ignorar sugestão de agrupamento para ${batch.neighborhood}`}
+                                aria-label={`Ignorar sugestão de rota para ${batch.corridorName}`}
                               >
                                 Ignorar
                               </button>
@@ -1577,18 +1673,40 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           onClick={() => {
                             const selectElem = document.getElementById('batchMotoboySelect') as HTMLSelectElement;
                             const availableFirst = motoboys.find((m) => m.status === 'available');
-                            const targetId = selectElem?.value || availableFirst?.id || motoboys[0]?.id;
-                            if (targetId && onAssignBatchToMotoboy) {
+                            const targetId = selectElem?.value || availableFirst?.id;
+                            const targetDriver = motoboys.find((m) => m.id === targetId);
+
+                            if (!targetDriver || targetDriver.status !== 'available') {
+                              triggerActionToast(
+                                '⚠️ Despacho protegido: O entregador selecionado não está livre no pátio da loja. Selecione um motoboy disponível ou aguarde o retorno para evitar saídas fictícias.'
+                              );
+                              return;
+                            }
+
+                            if (onAssignBatchToMotoboy) {
                               onAssignBatchToMotoboy(selectedOrderIds, targetId);
                               setSelectedOrderIds([]);
-                            } else if (targetId) {
+                            } else {
                               selectedOrderIds.forEach((id) => onAssignOrderToMotoboy(id, targetId));
                               setSelectedOrderIds([]);
                             }
+                            triggerActionToast(
+                              `🚀 Bag despachada com sucesso com ${targetDriver.name}! (${selectedOrderIds.length} pedidos)`
+                            );
                           }}
-                          className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-lg shadow-2xs shrink-0 flex items-center gap-1 cursor-pointer"
+                          className={`px-3 py-2 font-black text-xs rounded-lg shadow-2xs shrink-0 flex items-center gap-1 cursor-pointer ${
+                            availableMotoboys.length > 0
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                              : 'bg-amber-600 hover:bg-amber-500 text-white'
+                          }`}
+                          title={
+                            availableMotoboys.length === 0
+                              ? 'Atenção: Nenhum motoboy disponível no pátio da loja'
+                              : 'Despachar pedidos selecionados com o entregador escolhido'
+                          }
                         >
-                          <Zap className="w-3.5 h-3.5 text-amber-300" /> Despachar Bag
+                          <Zap className="w-3.5 h-3.5 text-amber-300" />
+                          {availableMotoboys.length > 0 ? 'Despachar Bag' : 'Aguardando Motoboy'}
                         </button>
                       </div>
                     </div>
@@ -2063,6 +2181,14 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                                 if (ord.address?.toLowerCase().includes('retirada') || ord.neighborhood?.toLowerCase() === 'balcão') {
                                   return false;
                                 }
+                                // Pedidos já despachados sem motoboy ativo ou despachados externamente não devem poluir o mapa
+                                if (ord.status === 'dispatched' && !ord.assignedMotoboyId) {
+                                  return false;
+                                }
+                                // Quando a visualização for de pedidos pendentes, não exibir já despachados
+                                if (mapFilter === 'orders' && (ord.status === 'dispatched' || ord.status === 'delivered')) {
+                                  return false;
+                                }
                                 if (typeof ord.lat !== 'number' || isNaN(ord.lat) || ord.lat === 0) return false;
                                 if (typeof ord.lng !== 'number' || isNaN(ord.lng) || ord.lng === 0) return false;
                                 if (!selectedMotoboyId || mapFilter === 'orders') return true;
@@ -2142,6 +2268,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             (o) =>
                               o.status !== 'delivered' &&
                               o.status !== 'cancelled' &&
+                              o.status !== 'failed' &&
                               o.assignedMotoboyId === m.id
                           )
                           .sort((a, b) => (a.routeSequence || 0) - (b.routeSequence || 0));
@@ -2504,6 +2631,26 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         </div>
       )}
 
+      {/* KANBAN BOARD TAB */}
+      {activeTab === 'kanban' && (
+        <KanbanBoard
+          orders={orders}
+          motoboys={motoboys}
+          shift={shift}
+          storeFilter={storeFilter as any}
+          onSetStoreFilter={(filter) => setStoreFilter(filter)}
+          onUpdateOrderStatus={onUpdateOrderStatus}
+          onAssignOrderToMotoboy={onAssignOrderToMotoboy}
+          onAssignBatchToMotoboy={onAssignBatchToMotoboy}
+          onSelectOrderForTracking={onSelectOrderForTracking}
+          onOpenThermalTicket={(order) => {
+            setTicketOrder(order);
+            setIsTicketOpen(true);
+          }}
+          onOpenNewOrderModal={onOpenNewOrderModal}
+        />
+      )}
+
       {/* TEAM TAB */}
       {activeTab === 'equipe' && (
         <div className="bg-slate-800 rounded-2xl border border-slate-700/80 p-5 space-y-4">
@@ -2756,11 +2903,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
       {/* FINANCE TAB */}
       {activeTab === 'financeiro' && (
-        <div className="bg-slate-800 rounded-2xl border border-slate-700/80 p-5 space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="bg-slate-800 rounded-2xl border border-slate-700/80 p-5 space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h3 className="font-bold text-lg text-white">Resumo Financeiro do Turno</h3>
-              <p className="text-xs text-slate-400">Controle de faturamento e fechamento de caixa com os motoboys.</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-lg text-white">Resumo Financeiro do Turno</h3>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${shift.isOpen ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
+                  {shift.isOpen ? '● Turno em Andamento' : '○ Loja Fechada (Faturamento Zerado)'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {shift.isOpen 
+                  ? 'Faturamento e controle de entregas em tempo real deste turno.' 
+                  : 'O faturamento do turno ativo é mantido em R$ 0,00 até a abertura oficial da loja.'}
+              </p>
             </div>
             <button
               type="button"
@@ -2773,20 +2929,57 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-700">
-              <span className="text-xs font-bold text-slate-400 block">Faturamento Bruto</span>
+              <span className="text-xs font-bold text-slate-400 block">Faturamento Bruto (Turno Atual)</span>
               <span className="text-2xl font-black text-emerald-400">{formattedCurrency(totalRevenue)}</span>
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                {shift.isOpen ? 'Calculado durante o expediente aberto' : 'Turno fechado • Zera automaticamente'}
+              </span>
             </div>
             <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-700">
-              <span className="text-xs font-bold text-slate-400 block">Total de Vendas (Pedidos)</span>
+              <span className="text-xs font-bold text-slate-400 block">Total de Vendas (Pedidos do Turno)</span>
               <span className="text-2xl font-black text-white">{todayOrders.length} pedidos</span>
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                {deliveredToday.length} entregas concluídas
+              </span>
             </div>
             <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-800/60">
               <span className="text-xs font-bold text-amber-300 block">Comissão Motoboys (A pagar)</span>
               <span className="text-2xl font-black text-amber-200">
-                {formattedCurrency(motoboys.reduce((acc, m) => acc + m.totalEarnedToday, 0))}
+                {formattedCurrency(shift.isOpen ? motoboys.reduce((acc, m) => acc + (m.totalEarnedToday || 0), 0) : 0)}
+              </span>
+              <span className="text-[11px] text-amber-400/80 mt-1 block">
+                {shift.isOpen ? 'Taxas acumuladas neste turno' : 'Sem taxas pendentes no turno fechado'}
               </span>
             </div>
           </div>
+
+          {/* Card do Último Turno Encerrado */}
+          {shift.lastShiftSummary && (
+            <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-indigo-400" /> Resumo do Último Turno Encerrado ({shift.lastShiftSummary.date})
+                </span>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Expediente das <strong className="text-white">{shift.lastShiftSummary.openedAt}</strong> às <strong className="text-white">{shift.lastShiftSummary.closedAt}</strong>
+                </p>
+              </div>
+              <div className="flex items-center gap-4 text-xs">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Faturamento Final</span>
+                  <strong className="text-emerald-400 font-bold text-sm">{formattedCurrency(shift.lastShiftSummary.totalRevenue)}</strong>
+                </div>
+                <div className="border-l border-slate-700 pl-4">
+                  <span className="text-slate-400 block text-[10px]">Total de Pedidos</span>
+                  <strong className="text-white font-bold text-sm">{shift.lastShiftSummary.totalOrders} pedidos</strong>
+                </div>
+                <div className="border-l border-slate-700 pl-4">
+                  <span className="text-slate-400 block text-[10px]">Entregas Feitas</span>
+                  <strong className="text-slate-200 font-bold text-sm">{shift.lastShiftSummary.deliveredCount} entregues</strong>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2802,9 +2995,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   <p className="text-slate-400">{o.itemsSummary} — {o.address}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="text-right">
+                  <div className="text-right flex flex-col items-end gap-1">
                     <span className="font-bold text-emerald-400 block">{formattedCurrency(o.total)}</span>
-                    <span className="text-[10px] uppercase font-bold text-slate-400">{o.paymentMethod}</span>
+                    <PaymentBadge method={o.paymentMethod} changeFor={o.changeFor} total={o.total} size="xs" />
                   </div>
                   <button
                     type="button"
@@ -2986,19 +3179,41 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               type="button"
               onClick={() => {
                 const availableFirst = motoboys.find((m) => m.status === 'available');
-                const targetId = availableFirst?.id || motoboys[0]?.id;
-                if (targetId && onAssignBatchToMotoboy) {
+                if (!availableFirst) {
+                  triggerActionToast(
+                    '⚠️ Despacho bloqueado: Nenhum motoboy disponível no pátio da loja no momento. Aguarde o retorno de um entregador para evitar saídas fictícias.'
+                  );
+                  return;
+                }
+                const targetId = availableFirst.id;
+                if (onAssignBatchToMotoboy) {
                   onAssignBatchToMotoboy(selectedOrderIds, targetId);
                   setSelectedOrderIds([]);
-                } else if (targetId) {
+                } else {
                   selectedOrderIds.forEach((id) => onAssignOrderToMotoboy(id, targetId));
                   setSelectedOrderIds([]);
                 }
+                triggerActionToast(
+                  `🚀 ${selectedOrderIds.length} pedidos despachados com ${availableFirst.name} (1º da fila)!`
+                );
               }}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5 uppercase tracking-wide border border-emerald-400/40"
+              className={`px-3.5 py-2 active:scale-95 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5 uppercase tracking-wide border ${
+                availableMotoboys.length > 0
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/40'
+                  : 'bg-amber-600 hover:bg-amber-500 text-white border-amber-400/40'
+              }`}
+              title={
+                availableMotoboys.length === 0
+                  ? 'Atenção: Nenhum motoboy disponível no pátio da loja'
+                  : 'Despachar com o primeiro motoboy livre da fila'
+              }
             >
               <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300 shrink-0" />
-              <span>Despachar Selecionados</span>
+              <span>
+                {availableMotoboys.length > 0
+                  ? `Despachar (${availableMotoboys[0].name.split(' ')[0]})`
+                  : 'Aguardando Motoboy'}
+              </span>
             </button>
 
             <button

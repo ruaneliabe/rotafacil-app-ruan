@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Motoboy, Order } from '../types';
 import { DollarSign, CheckCircle2, Printer, X, Bike, AlertCircle, FileText, Download } from 'lucide-react';
+import { isCashPayment, PaymentBadge, getPaymentMethodLabel } from '../utils/paymentUtils';
 
 
 const logoImg = '/hope-burger-logo.jpg';
@@ -47,11 +48,11 @@ export const MotoboySettlementModal: React.FC<MotoboySettlementModalProps> = ({
   });
 
   const cashOrders = motoboyOrders.filter(
-    (o) => o.paymentMethod.toLowerCase() === 'dinheiro'
+    (o) => isCashPayment(o.paymentMethod)
   );
 
   const cardPixOrders = motoboyOrders.filter(
-    (o) => o.paymentMethod.toLowerCase() !== 'dinheiro'
+    (o) => !isCashPayment(o.paymentMethod)
   );
 
   // Total cash collected by motoboy from clients
@@ -249,11 +250,9 @@ export const MotoboySettlementModal: React.FC<MotoboySettlementModalProps> = ({
                           <span className="font-bold text-white">#{o.codeNumber} - {o.clientName}</span>
                           <span className="text-[11px] text-slate-400 block">{o.address} ({o.neighborhood})</span>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex flex-col items-end gap-1">
                           <span className="font-extrabold text-emerald-400 block">R$ {o.total.toFixed(2)}</span>
-                          <span className="text-[10px] font-bold uppercase text-slate-400">
-                            {o.paymentMethod}
-                          </span>
+                          <PaymentBadge method={o.paymentMethod} changeFor={o.changeFor} total={o.total} size="xs" />
                         </div>
                       </div>
                     ))

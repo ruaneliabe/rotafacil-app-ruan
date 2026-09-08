@@ -1,5 +1,6 @@
 import { Order, Motoboy, StoreShift } from '../types';
 import { calculateRoadDistanceKm } from './geoUtils';
+import { analyzeRouteTrajectory, findOrderCorridor, getOrderWaitMinutes } from './routeCorridorUtils';
 
 export interface DispatchRecommendation {
   id: string;
@@ -101,32 +102,27 @@ export function analyzeOperationalBrain(
       const seedOrder = unassignedOrders.shift()!;
       const cluster: Order[] = [seedOrder];
 
-      // Find up to 2 other nearby orders (< 2.5 km away from seed or existing cluster)
-      // REGRA CRÍTICA DE TEMPO: Só agrupa pedidos que tenham entrado em horários compatíveis (janela de no máximo 15 minutos).
-      // Jamais misturar um pedido inicial (ex: #40) com um pedido que acabou de entrar (ex: #70)!
+      const seedTimestamp = getOrderCreatedTimestamp(seedOrder);
+      const nowTimestamp = Date.now();
+      const seedWaitMinutes = Math.max(0, (nowTimestamp - seedTimestamp) / (1000 * 60));
+
+      // REGRA OPERACIONAL:
+      // Se um pedido já está esperando há 20+ minutos, ele é prioritário e NÃO pode ser retido
+      // para esperar pedidos recém-chegados! Só pode agrupar se o outro também for do mesmo momento (<= 10 min de diferença).
+      const maxAllowedTimeDiff = seedWaitMinutes >= 20 ? 8 : 12;
+
+      // Find nearby orders in the same route corridor with strictly compatible times
       for (let i = unassignedOrders.length - 1; i >= 0; i--) {
-        if (cluster.length >= 3) break;
+        if (cluster.length >= 2) break; // Limite de 2 entregas para manter a agilidade e não atrasar o cliente
         const candidate = unassignedOrders[i];
 
-        const seedTimestamp = getOrderCreatedTimestamp(seedOrder);
-        const candidateTimestamp = getOrderCreatedTimestamp(candidate);
-        const timeDiffMinutes = Math.abs(seedTimestamp - candidateTimestamp) / (1000 * 60);
-        const codeDiff = Math.abs((seedOrder.codeNumber || 0) - (candidate.codeNumber || 0));
+        // Análise de rota (mesmo caminho/corredor até bairros vizinhos) e compatibilidade estrita de tempo
+        const trajectory = analyzeRouteTrajectory(seedOrder, candidate, storeLat, storeLng);
 
-        // Pedidos só podem ser combinados se estiverem na mesma janela temporal (<= 15 min de diferença ou <= 12 códigos de distância)
-        const isTimeCompatible = timeDiffMinutes <= 15 || (codeDiff <= 12 && timeDiffMinutes <= 25);
-        if (!isTimeCompatible) {
-          continue; // Pula este candidato para evitar atrasar o pedido mais antigo!
-        }
-
-        const distFromSeed = calculateRoadDistanceKm(
-          seedOrder.lat,
-          seedOrder.lng,
-          candidate.lat,
-          candidate.lng
-        );
-
-        if (distFromSeed <= 2.5 || (seedOrder.neighborhood && candidate.neighborhood && seedOrder.neighborhood === candidate.neighborhood)) {
+        // REGRA DE OURO LOGÍSTICA:
+        // 1. Podem compartilhar a rota (mesmo trajeto, avenida principal ou corredor contíguo)
+        // 2. Compatibilidade temporal estrita (NUNCA junta pedido de 30m com pedido de 2m)
+        if (trajectory.canShareRoute && trajectory.timeCompatible) {
           cluster.push(candidate);
           unassignedOrders.splice(i, 1);
         }
@@ -181,9 +177,19 @@ export function analyzeOperationalBrain(
         // Check if cluster has a ready order and an order preparing in kitchen
         const readyOrder = cluster.find((c) => c.status === 'ready_at_counter' || (c.kitchenReadyInMin || 0) === 0);
         const kitchenWaitOrder = cluster.find((c) => (c.kitchenReadyInMin || 0) > 0);
+        const readyOrderTimestamp = readyOrder ? getOrderCreatedTimestamp(readyOrder) : 0;
+        const readyOrderWaitMins = readyOrder ? Math.max(0, (Date.now() - readyOrderTimestamp) / (1000 * 60)) : 0;
         let waitSuggestion;
 
-        if (readyOrder && kitchenWaitOrder) {
+        if (readyOrder && readyOrderWaitMins >= 18) {
+          // Pedido já está aguardando há bastante tempo: NUNCA sugere esperar outro pedido que acabou de entrar!
+          waitSuggestion = {
+            suggestWait: false,
+            waitMinutes: 0,
+            reason: `Pedido #${readyOrder.codeNumber} já aguarda há ${Math.round(readyOrderWaitMins)} min no balcão.`,
+            subReason: `Prioridade de saída imediata para não atrasar o cliente. Não reter para novos pedidos.`,
+          };
+        } else if (readyOrder && kitchenWaitOrder) {
           const waitMins = kitchenWaitOrder.kitchenReadyInMin || 3;
           const distLabel = interOrderDist > 0 ? `${interOrderDist} km` : 'mesmo bairro';
           waitSuggestion = {
@@ -217,16 +223,25 @@ export function analyzeOperationalBrain(
 
         let rationale = '';
         if (cluster.length === 1) {
+          const ord = cluster[0];
+          const wait = getOrderWaitMinutes(ord);
+          const corridor = findOrderCorridor(ord);
+          const corridorLabel = corridor ? ` (${corridor.shortName})` : '';
           if (chosenMotoboy.status === 'returning_to_store') {
-            rationale = `${chosenMotoboy.name} é a melhor opção. Chega à loja em ~${chosenMotoboy.eta} min e assume a entrega para ${cluster[0].clientName} (${neighborhoods}).`;
+            rationale = `${chosenMotoboy.name} chega em ~${chosenMotoboy.eta} min e assume o pedido #${ord.codeNumber || ord.displayCode || ''} (${ord.neighborhood}${corridorLabel}, aguarda há ${wait}m).`;
           } else {
-            rationale = `${chosenMotoboy.name} é a melhor opção para este pedido. Está na loja e a entrega leva aproximadamente ${estimatedTripMin} min.`;
+            rationale = `${chosenMotoboy.name} está disponível na loja. Entrega rápida em ~${estimatedTripMin} min para ${ord.neighborhood}${corridorLabel} (aguarda há ${wait}m).`;
           }
         } else {
+          const corridor = findOrderCorridor(cluster[0]);
+          const corridorLabel = corridor ? `no ${corridor.shortName}` : `no mesmo trajeto (${neighborhoods})`;
+          const waits = cluster.map((c) => `${getOrderWaitMinutes(c)}m`);
+          const timeLabel = `tempos compatíveis (${waits.join(' e ')})`;
+
           if (chosenMotoboy.status === 'returning_to_store') {
-            rationale = `Vale agrupar estes ${cluster.length} pedidos. Os destinos ficam na região do ${neighborhoods} e podem sair juntos com ${chosenMotoboy.name} assim que ele chegar à loja (~${chosenMotoboy.eta} min).`;
+            rationale = `Lote no mesmo caminho ${corridorLabel} com ${timeLabel}. Podem sair juntos com ${chosenMotoboy.name} assim que chegar (~${chosenMotoboy.eta} min) sem atrasar pedidos antigos.`;
           } else {
-            rationale = `Vale agrupar estes ${cluster.length} pedidos. Os destinos estão próximos (${neighborhoods}) e seguem na mesma direção com ${chosenMotoboy.name}.`;
+            rationale = `Lote no mesmo trajeto ${corridorLabel} com ${timeLabel}. ${chosenMotoboy.name} assume a rota unificada (~${estimatedTripMin} min total) com máxima agilidade.`;
           }
         }
 
@@ -274,20 +289,29 @@ export function analyzeOperationalBrain(
     }
   });
 
-  // Alert B: Fleet Bottleneck (Ready orders but no available motoboys)
+  // Alert B: Fleet Bottleneck (Ready orders or urgent delays but no available motoboys)
   const readyOrders = orders.filter((o) => o.status === 'ready_at_counter');
-  if (readyOrders.length >= 2 && availableMotoboys.length === 0) {
+  const criticalWaitOrders = orders.filter(
+    (o) =>
+      (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready_at_counter') &&
+      getOrderWaitMinutes(o) >= 25
+  );
+
+  if ((readyOrders.length >= 1 || criticalWaitOrders.length >= 1) && availableMotoboys.length === 0) {
     const nextReturning = returningMotoboys[0];
-    const nextEtaText = nextReturning ? `Próximo a voltar: ${nextReturning.name}` : 'Ninguém voltando agora';
+    const nextEtaText = nextReturning
+      ? `Próximo a retornar ao pátio: ${nextReturning.name}`
+      : 'Nenhum motoboy retornando no momento';
     const activeDriverCount = motoboys.filter((m) => m.status !== 'offline').length;
+    const isCritical = criticalWaitOrders.length > 0 || readyOrders.length >= 3;
 
     alerts.push({
       id: 'alert-fleet-bottleneck',
       type: 'fleet_bottleneck',
-      severity: 'medium',
-      title: `🟠 ${readyOrders.length} pedidos prontos esperando motoboy`,
-      description: `${activeDriverCount} ${activeDriverCount === 1 ? 'motoboy ativo está' : 'motoboys ativos estão'} fora da loja. ${nextEtaText}.`,
-      actionText: 'Ver fila de entregas',
+      severity: isCritical ? 'high' : 'medium',
+      title: `${isCritical ? '🚨' : '🟠'} Gargalo de Frota: ${readyOrders.length} prontos sem motoboy no pátio`,
+      description: `A loja está com ${readyOrders.length} pedidos no balcão e ${criticalWaitOrders.length} em atraso crítico (+25m). ${activeDriverCount} entregador(es) na rua. ${nextEtaText}. Despacho protegido ativo.`,
+      actionText: 'Ver fila de saída prioritária',
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     });
   }

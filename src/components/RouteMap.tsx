@@ -42,21 +42,12 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
   // Estados de visualização e estilo do mapa
   const [isExpanded, setIsExpanded] = useState(false);
-  const [mapStyle, setMapStyle] = useState<'voyager' | 'dark' | 'satellite'>('voyager');
+  const [mapStyle, setMapStyle] = useState<'streets' | 'dark' | 'satellite'>('streets');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Retorna configurações do provedor de mapas (alta nitidez sem distorções visuais)
-  const getTileConfig = (style: 'voyager' | 'dark' | 'satellite') => {
-    if (style === 'voyager') {
-      return {
-        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-        options: {
-          maxZoom: 19,
-          subdomains: ['a', 'b', 'c', 'd'],
-          attribution: '© CARTO © OpenStreetMap',
-        },
-      };
-    }
+  // Provedores 100% livres e sem necessidade de API KEY:
+  // OpenStreetMap oficial para ruas nítidas e Esri ArcGIS para satélite.
+  const getTileConfig = (style: 'streets' | 'dark' | 'satellite') => {
     if (style === 'satellite') {
       return {
         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -66,13 +57,24 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         },
       };
     }
-    // dark
+    if (style === 'dark') {
+      return {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        options: {
+          maxZoom: 19,
+          subdomains: ['a', 'b', 'c'],
+          attribution: '© OpenStreetMap contributors',
+          className: 'map-tiles-dark',
+        },
+      };
+    }
+    // streets (padrão claro oficial OpenStreetMap)
     return {
-      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       options: {
         maxZoom: 19,
-        subdomains: ['a', 'b', 'c', 'd'],
-        attribution: '© CARTO © OpenStreetMap',
+        subdomains: ['a', 'b', 'c'],
+        attribution: '© OpenStreetMap contributors',
       },
     };
   };
@@ -87,7 +89,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         attributionControl: false,
       }).setView([origin.lat, origin.lng], 14);
 
-      // CartoDB Voyager por padrão: ruas claras, nomes nítidos, alta legibilidade
+      // OpenStreetMap oficial por padrão (zero API key, zero marcas d'água)
       const tileCfg = getTileConfig(mapStyle);
       const layer = L.tileLayer(tileCfg.url, tileCfg.options).addTo(map);
       tileLayerRef.current = layer;
@@ -751,9 +753,9 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             <div className="bg-slate-950 border border-slate-700 rounded-lg p-0.5 flex items-center text-[11px] font-bold">
               <button
                 type="button"
-                onClick={() => setMapStyle('voyager')}
+                onClick={() => setMapStyle('streets')}
                 className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
-                  mapStyle === 'voyager' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-white'
+                  mapStyle === 'streets' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-white'
                 }`}
                 title="Ruas Claras com Alta Legibilidade"
               >
@@ -805,9 +807,9 @@ export const RouteMap: React.FC<RouteMapProps> = ({
             <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-0.5 flex items-center text-[10px] font-bold shadow-lg">
               <button
                 type="button"
-                onClick={() => setMapStyle('voyager')}
+                onClick={() => setMapStyle('streets')}
                 className={`px-2 py-1 rounded transition-colors cursor-pointer ${
-                  mapStyle === 'voyager' ? 'bg-indigo-600 text-white font-black' : 'text-slate-300 hover:text-white'
+                  mapStyle === 'streets' ? 'bg-indigo-600 text-white font-black' : 'text-slate-300 hover:text-white'
                 }`}
                 title="Ruas Claras (Legível)"
               >

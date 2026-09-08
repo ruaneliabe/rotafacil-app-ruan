@@ -61,6 +61,9 @@ export interface Order {
   storeName?: string;
   storeBranch?: 'hope_pizza' | 'hope_burger' | string;
   displayCode?: string;
+  createdTimestamp?: number;
+  shiftId?: string;
+  shiftDate?: string;
 }
 
 export type MotoboyStatus = 'available' | 'delivering' | 'returning_to_store' | 'paused' | 'offline' | 'busy';
@@ -158,6 +161,19 @@ export interface StoreShift {
   id: string;
   isOpen: boolean;
   openedAt: string;
+  closedAt?: string;
+  shiftId?: string;
+  shiftDate?: string;
+  openedTimestamp?: number;
+  closedTimestamp?: number;
+  lastShiftSummary?: {
+    date: string;
+    openedAt: string;
+    closedAt: string;
+    totalRevenue: number;
+    totalOrders: number;
+    deliveredCount: number;
+  };
   initialCash: number;
   currentCash: number;
   totalOrdersCount: number;
@@ -183,6 +199,22 @@ export interface StoreShift {
   integrations?: StoreIntegrations;
   branches?: StoreBranch[];
   activeBranchId?: string;
+  cardapioWebStatus?: {
+    isOpen: boolean;
+    lastCheckedAt: string;
+    pizza?: {
+      isOpen: boolean;
+      status: string;
+      reason: string;
+      hours?: string[][];
+    };
+    burger?: {
+      isOpen: boolean;
+      status: string;
+      reason: string;
+      hours?: string[][];
+    };
+  };
 }
 
 export type UserRole = 'store_admin' | 'master_admin' | 'motoboy' | 'customer';

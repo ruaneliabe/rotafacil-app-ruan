@@ -10,6 +10,7 @@ import { LoginModal } from './components/LoginModal';
 import { StoreAccountSettingsModal } from './components/StoreAccountSettingsModal';
 import { OrderTrackingModal } from './components/OrderTrackingModal';
 import { playNewOrderSound, playDispatchSound, playDeliverySuccessSound } from './utils/soundUtils';
+import { getBrazilDateKey, getBrazilTimeString, isOrderInCurrentShift } from './utils/dateUtils';
 import {
   subscribeToOrders,
   subscribeToMotoboys,
@@ -251,9 +252,11 @@ export default function App() {
 
   // Order Handlers
   const handleAddOrder = (newOrderData: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'> | Order) => {
-    const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+    const today = getBrazilDateKey();
+    const nowTime = getBrazilTimeString();
+    const nowTs = Date.now();
     const nextCode = (newOrderData as any).codeNumber || (orders.reduce((max, o) => Math.max(max, o.codeNumber || 0), 100) + 1);
-    const orderId = (newOrderData as any).id || `ord_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const orderId = (newOrderData as any).id || `ord_${nowTs}_${Math.random().toString(36).substring(2, 6)}`;
     const tracking = (newOrderData as any).trackingCode || `ROTA-${nextCode}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
     const completeOrder: Order = {
@@ -276,8 +279,11 @@ export default function App() {
       paymentMethod: newOrderData.paymentMethod || 'pix',
       changeFor: newOrderData.changeFor,
       status: (newOrderData as any).status || 'pending',
-      createdAt: (newOrderData as any).createdAt || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      createdAt: (newOrderData as any).createdAt || nowTime,
       createdDate: (newOrderData as any).createdDate || today,
+      createdTimestamp: nowTs,
+      shiftId: shift.shiftId || (shift.isOpen ? `shift_${today}_${shift.openedTimestamp || nowTs}` : undefined),
+      shiftDate: shift.shiftDate || today,
       estimatedMinutes: newOrderData.estimatedMinutes || 25,
       assignedMotoboyId: newOrderData.assignedMotoboyId || null,
       assignedMotoboyName: newOrderData.assignedMotoboyName || null,
@@ -335,7 +341,7 @@ export default function App() {
           );
 
           if (remainingOrders.length === 0) {
-            const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+            const today = getBrazilDateKey();
             const isDifferentDay = driver.statsDate !== today;
             const updatedDriver: Motoboy = {
               ...driver,
@@ -448,18 +454,69 @@ export default function App() {
   };
 
   const handleToggleShift = () => {
-    const updatedShift: StoreShift = {
-      ...shift,
-      isOpen: !shift.isOpen,
-      openedAt: !shift.isOpen ? new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : shift.openedAt,
-    };
-    setShift(updatedShift);
-    saveShiftToCloud(updatedShift);
-    showToast(updatedShift.isOpen ? 'Turno aberto! Loja pronta para receber pedidos.' : 'Turno fechado.');
+    const isOpening = !shift.isOpen;
+    const nowTime = getBrazilTimeString();
+    const todayKey = getBrazilDateKey();
+    const nowTs = Date.now();
+
+    if (isOpening) {
+      const newShiftId = `shift_${todayKey}_${nowTs}`;
+      const updatedShift: StoreShift = {
+        ...shift,
+        isOpen: true,
+        openedAt: nowTime,
+        openedTimestamp: nowTs,
+        shiftId: newShiftId,
+        shiftDate: todayKey,
+        closedAt: undefined,
+        closedTimestamp: undefined,
+        totalOrdersCount: 0,
+        totalDeliveriesValue: 0,
+        currentCash: shift.initialCash || 0,
+      };
+      setShift(updatedShift);
+      saveShiftToCloud(updatedShift);
+
+      // Zera contadores diários dos entregadores para o novo turno
+      motoboys.forEach((m) => {
+        saveMotoboyToCloud({
+          ...m,
+          deliveriesCountToday: 0,
+          totalEarnedToday: 0,
+          statsDate: todayKey,
+        });
+      });
+
+      showToast('Turno aberto! Faturamento zerado e pronto para os pedidos de hoje. 🟢');
+    } else {
+      // Fechamento de turno
+      const shiftOrders = orders.filter((o) => isOrderInCurrentShift(o, shift));
+      const shiftDelivered = shiftOrders.filter((o) => o.status === 'delivered');
+      const shiftRevenue = shiftOrders.reduce((acc, o) => acc + (o.total || 0), 0);
+
+      const updatedShift: StoreShift = {
+        ...shift,
+        isOpen: false,
+        closedAt: nowTime,
+        closedTimestamp: nowTs,
+        lastShiftSummary: {
+          date: shift.shiftDate || todayKey,
+          openedAt: shift.openedAt || nowTime,
+          closedAt: nowTime,
+          totalRevenue: Number(shiftRevenue.toFixed(2)),
+          totalOrders: shiftOrders.length,
+          deliveredCount: shiftDelivered.length,
+        },
+      };
+      setShift(updatedShift);
+      saveShiftToCloud(updatedShift);
+
+      showToast(`Turno fechado! Resumo: ${shiftOrders.length} pedidos e ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(shiftRevenue)} faturados. 🛑`);
+    }
   };
 
   const handleAddMotoboy = (newMotoboyData: Omit<Motoboy, 'id' | 'status' | 'activeOrdersCount' | 'totalEarnedToday'> | Motoboy) => {
-    const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+    const today = getBrazilDateKey();
     const motoboyId = (newMotoboyData as any).id || `mb_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const completeMotoboy: Motoboy = {
       id: motoboyId,

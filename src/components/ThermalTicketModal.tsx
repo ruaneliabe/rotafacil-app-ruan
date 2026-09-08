@@ -1,6 +1,7 @@
 import React from 'react';
 import { Order, StoreShift, Motoboy } from '../types';
 import { Printer, Share2, X, ExternalLink, CheckCircle2, DollarSign, MapPin, Bike, User } from 'lucide-react';
+import { getPaymentMethodLabel } from '../utils/paymentUtils';
 
 
 const logoImg = '/hope-burger-logo.jpg';
@@ -86,7 +87,7 @@ export const ThermalTicketModal: React.FC<ThermalTicketModalProps> = ({
           </div>
           <div class="flex">
             <span>Forma Pagto:</span>
-            <span class="bold">${order.paymentMethod.toUpperCase()}</span>
+            <span class="bold">${getPaymentMethodLabel(order.paymentMethod).toUpperCase()}</span>
           </div>
           ${
             order.changeFor
@@ -185,7 +186,7 @@ export const ThermalTicketModal: React.FC<ThermalTicketModalProps> = ({
               </div>
               <div className="flex justify-between font-bold text-purple-900">
                 <span>Forma de Pagamento:</span>
-                <span>{order.paymentMethod.toUpperCase()}</span>
+                <span>{getPaymentMethodLabel(order.paymentMethod).toUpperCase()}</span>
               </div>
               {order.changeFor ? (
                 <div className="flex justify-between text-pink-700 font-bold">

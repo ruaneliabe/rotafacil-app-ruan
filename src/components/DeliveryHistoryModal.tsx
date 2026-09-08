@@ -18,6 +18,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { Order, Motoboy } from '../types';
+import { PaymentBadge, getPaymentMethodLabel, normalizePaymentMethod } from '../utils/paymentUtils';
 
 interface DeliveryHistoryModalProps {
   isOpen: boolean;
@@ -82,8 +83,14 @@ export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
       }
 
       // Payment filter
-      if (selectedPayment !== 'all' && o.paymentMethod !== selectedPayment) {
-        return false;
+      if (selectedPayment !== 'all') {
+        const norm = normalizePaymentMethod(o.paymentMethod);
+        if (selectedPayment === 'pix' && norm !== 'pix') return false;
+        if (selectedPayment === 'dinheiro' && norm !== 'dinheiro') return false;
+        if (selectedPayment === 'card_credit' && norm !== 'card_credit') return false;
+        if (selectedPayment === 'card_debit' && norm !== 'card_debit') return false;
+        if (selectedPayment === 'cards_all' && norm !== 'card_credit' && norm !== 'card_debit' && norm !== 'cartao_maquininha') return false;
+        if (selectedPayment === 'voucher' && norm !== 'voucher') return false;
       }
 
       // Search term
@@ -193,7 +200,7 @@ export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
       `"${o.address.replace(/"/g, '""')}"`,
       `"${(o.neighborhood || '').replace(/"/g, '""')}"`,
       `"${(o.assignedMotoboyName || 'N/A').replace(/"/g, '""')}"`,
-      `"${o.paymentMethod.toUpperCase()}"`,
+      `"${getPaymentMethodLabel(o.paymentMethod).replace(/"/g, '""')}"`,
       (o.subtotal || 0).toFixed(2).replace('.', ','),
       (o.deliveryFee || 0).toFixed(2).replace('.', ','),
       (o.total || 0).toFixed(2).replace('.', ',')
@@ -213,19 +220,6 @@ export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
   // Print Report
   const handlePrint = () => {
     window.print();
-  };
-
-  const getPaymentBadge = (method: string) => {
-    switch (method) {
-      case 'pix':
-        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-teal-950/80 text-teal-300 border border-teal-500/30">PIX</span>;
-      case 'cartao_maquininha':
-        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-950/80 text-blue-300 border border-blue-500/30">Cartão</span>;
-      case 'dinheiro':
-        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-950/80 text-amber-300 border border-amber-500/30">Dinheiro</span>;
-      default:
-        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-800 text-slate-300">{method}</span>;
-    }
   };
 
   return (
@@ -383,10 +377,13 @@ export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
               onChange={(e) => setSelectedPayment(e.target.value)}
               className="appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl pl-3 pr-8 py-2 focus:outline-none focus:border-emerald-500 cursor-pointer"
             >
-              <option value="all">💳 Todos Pagamentos</option>
+              <option value="all">💳 Todos os Pagamentos</option>
               <option value="pix">💚 PIX</option>
-              <option value="cartao_maquininha">💳 Cartão Maquininha</option>
+              <option value="cards_all">💳 Todos os Cartões (Crédito/Débito)</option>
+              <option value="card_credit">💳 Cartão Crédito</option>
+              <option value="card_debit">💳 Cartão Débito</option>
               <option value="dinheiro">💵 Dinheiro</option>
+              <option value="voucher">🍱 Vale Refeição</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
@@ -559,12 +556,12 @@ export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
                           )}
                         </td>
                         <td className="py-3 px-3 text-center whitespace-nowrap">
-                          {getPaymentBadge(o.paymentMethod)}
-                          {o.paymentMethod === 'dinheiro' && o.changeFor && (
-                            <div className="text-[10px] text-amber-400 font-extrabold mt-0.5">
-                              Troco R$ {(o.changeFor - o.total).toFixed(2).replace('.', ',')}
-                            </div>
-                          )}
+                          <PaymentBadge 
+                            method={o.paymentMethod} 
+                            changeFor={o.changeFor} 
+                            total={o.total} 
+                            size="sm" 
+                          />
                         </td>
                         <td className="py-3 px-3 text-right text-slate-300 print:text-slate-900 font-bold whitespace-nowrap">
                           R$ {(o.deliveryFee || 0).toFixed(2).replace('.', ',')}
@@ -648,7 +645,15 @@ export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
 
               <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-sm font-black">
                 <span className="text-slate-400">Total Pago:</span>
-                <span className="text-emerald-400">R$ {selectedOrderDetails.total.toFixed(2).replace('.', ',')}</span>
+                <div className="flex items-center gap-2">
+                  <PaymentBadge 
+                    method={selectedOrderDetails.paymentMethod} 
+                    changeFor={selectedOrderDetails.changeFor} 
+                    total={selectedOrderDetails.total} 
+                    size="sm" 
+                  />
+                  <span className="text-emerald-400 font-extrabold text-base">R$ {selectedOrderDetails.total.toFixed(2).replace('.', ',')}</span>
+                </div>
               </div>
             </div>
 

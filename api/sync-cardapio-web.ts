@@ -84,22 +84,29 @@ export default async function handler(req: any, res: any) {
         continue;
       }
 
+      const cleanDocId = d.id.replace(/^cw_/, '');
       const branchKey = data.storeBranch || (data.storeName?.toLowerCase().includes('burger') ? 'hope_burger' : 'hope_pizza');
       const cwStatus = cwMap.get(d.id) ||
+                       cwMap.get(cleanDocId) ||
                        (data.codeNumber ? cwMap.get(`${branchKey}_display_${data.codeNumber}`) : null) ||
                        (data.codeNumber ? cwMap.get(`display_${data.codeNumber}`) : null);
       if (!cwStatus) continue;
 
+      const normCwStatus = String(cwStatus).trim().toLowerCase();
       let targetStatus: string | null = null;
-      if (cwStatus === 'closed' || cwStatus === 'released' || cwStatus === 'delivered') {
+      if (['closed', 'released', 'delivered', 'dispatched', 'saiu_para_entrega', 'finalized', 'concluded'].includes(normCwStatus)) {
         // Pedido já foi despachado ou entregue no Cardápio Web: deve sumir da fila ativa do Rota Fácil
         targetStatus = 'delivered';
-      } else if (cwStatus === 'canceled' || cwStatus === 'cancelled') {
+      } else if (['canceled', 'cancelled', 'rejected'].includes(normCwStatus)) {
         targetStatus = 'failed';
       }
 
       if (targetStatus && targetStatus !== data.status) {
-        await setDoc(doc(db, 'orders', d.id), { status: targetStatus }, { merge: true });
+        await setDoc(doc(db, 'orders', d.id), {
+          status: targetStatus,
+          closedAt: new Date().toISOString(),
+          closedInCardapioWeb: true,
+        }, { merge: true });
         if (targetStatus === 'delivered') deliveredCount++;
       }
     }

@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from 'firebase/firestore';
 
 const STORE_PILOT_RESET_VERSION = 'zeroed_store_pilot_2026_08_17_v10';
 
@@ -171,11 +171,200 @@ async function startServer() {
     }
   });
 
-  // Rota de Sincronização Bidirecional com Cardápio Web (Hope Pizza & Hope Burger)
-  // Atualiza automaticamente pedidos que já foram despachados ou entregues no Cardápio Web
-  // e descarta pedidos de balcão (takeout)
-  app.get(['/api/cardapio-web/sync', '/api/sync-cardapio-web'], async (_req, res) => {
+  // Helper para calcular se o estabelecimento está aberto no Cardápio Web
+  function isMerchantOpen(merchant: any): { isOpen: boolean; reason: string; weekday?: string; time?: string; hours?: string[] } {
+    if (!merchant || merchant.status !== 'ACTIVE') {
+      return { isOpen: false, reason: `Status não é ACTIVE (${merchant?.status || 'nulo'})` };
+    }
+
+    const tz = merchant.opening_hours?.timezone || 'America/Sao_Paulo';
+    const now = new Date();
+
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      weekday: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+
+    let weekday = '';
+    let hour = 0;
+    let minute = 0;
+    parts.forEach((p) => {
+      if (p.type === 'weekday') weekday = p.value.toLowerCase();
+      if (p.type === 'hour') hour = parseInt(p.value, 10);
+      if (p.type === 'minute') minute = parseInt(p.value, 10);
+    });
+
+    const currentMinutes = hour * 60 + minute;
+    const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
+    // Verificação de fechamento temporário manual no Cardápio Web
+    const tempState = merchant.opening_hours?.temporary_state;
+    const tempEndAt = merchant.opening_hours?.temporary_state_end_at;
+    if (tempState === 'closed') {
+      if (tempEndAt) {
+        const endEpoch = new Date(tempEndAt).getTime();
+        if (now.getTime() < endEpoch) {
+          return { isOpen: false, reason: `Fechado temporariamente no Cardápio Web até ${new Date(tempEndAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`, time: timeStr, weekday };
+        }
+      } else {
+        return { isOpen: false, reason: 'Fechado temporariamente no Cardápio Web', time: timeStr, weekday };
+      }
+    }
+
+    // Horários regulares cadastrados na plataforma
+    const dayRanges = merchant.opening_hours?.[weekday] || [];
+    if (!Array.isArray(dayRanges) || dayRanges.length === 0) {
+      return { isOpen: false, reason: `Sem horário de entrega hoje (${weekday})`, time: timeStr, weekday };
+    }
+
+    let inRange = false;
+    for (const range of dayRanges) {
+      if (!Array.isArray(range) || range.length < 2) continue;
+      const [startH, startM] = range[0].split(':').map(Number);
+      const [endH, endM] = range[1].split(':').map(Number);
+      const startMin = startH * 60 + startM;
+      const endMin = endH * 60 + endM;
+      if (endMin < startMin) {
+        // Horário que vira a noite (ex: 18:00 às 01:00)
+        if (currentMinutes >= startMin || currentMinutes < endMin) {
+          inRange = true;
+          break;
+        }
+      } else {
+        if (currentMinutes >= startMin && currentMinutes < endMin) {
+          inRange = true;
+          break;
+        }
+      }
+    }
+
+    const formattedHours: string[] = dayRanges.map((r: any) => Array.isArray(r) ? r.join(' - ') : String(r));
+
+    if (inRange) {
+      return { isOpen: true, reason: `Aberto no Cardápio Web (${timeStr})`, time: timeStr, weekday, hours: formattedHours };
+    } else {
+      const nextOpenTime = dayRanges[0]?.[0] || '18:00';
+      return { isOpen: false, reason: `Fora do horário de funcionamento (${timeStr} - abre às ${nextOpenTime})`, time: timeStr, weekday, hours: formattedHours };
+    }
+  }
+
+  // Sincronização de Status da Loja (Aberto / Fechado) com o Cardápio Web
+  async function syncCardapioWebStoreStatus() {
     try {
+      const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
+      const CARDAPIO_WEB_HOPE_BURGER_TOKEN = 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
+
+      const [pRes, bRes] = await Promise.all([
+        fetch('https://integracao.cardapioweb.com/api/partner/v1/merchant', {
+          headers: { 'X-API-KEY': CARDAPIO_WEB_HOPE_PIZZA_TOKEN },
+        }),
+        fetch('https://integracao.cardapioweb.com/api/partner/v1/merchant', {
+          headers: { 'X-API-KEY': CARDAPIO_WEB_HOPE_BURGER_TOKEN },
+        }),
+      ]);
+
+      const pData = pRes.ok ? await pRes.json() : null;
+      const bData = bRes.ok ? await bRes.json() : null;
+
+      const pStatus = isMerchantOpen(pData);
+      const bStatus = isMerchantOpen(bData);
+
+      // A loja principal está aberta se pelo menos uma das marcas (Hope Burger ou Hope Pizza) estiver aberta
+      const shouldBeOpen = pStatus.isOpen || bStatus.isOpen;
+
+      const shiftRef = doc(db, 'shifts', 'current_shift');
+      const shiftSnap = await getDoc(shiftRef);
+      const currentShiftData = shiftSnap.exists() ? shiftSnap.data() : {};
+
+      const previousIsOpen = currentShiftData.isOpen;
+      const nowStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      const cardapioWebStatus = {
+        isOpen: shouldBeOpen,
+        lastCheckedAt: new Date().toISOString(),
+        pizza: {
+          isOpen: pStatus.isOpen,
+          status: pData?.status || 'UNKNOWN',
+          reason: pStatus.reason,
+          hours: pStatus.hours || [],
+        },
+        burger: {
+          isOpen: bStatus.isOpen,
+          status: bData?.status || 'UNKNOWN',
+          reason: bStatus.reason,
+          hours: bStatus.hours || [],
+        },
+      };
+
+      const updatePayload: any = {
+        cardapioWebStatus,
+      };
+
+      // Se o status mudou no Cardápio Web, sincroniza automaticamente no Rota Fácil
+      if (previousIsOpen !== shouldBeOpen) {
+        updatePayload.isOpen = shouldBeOpen;
+        const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+        const nowTs = Date.now();
+        if (shouldBeOpen) {
+          updatePayload.openedAt = nowStr;
+          updatePayload.openedTimestamp = nowTs;
+          updatePayload.shiftId = `shift_${todayKey}_${nowTs}`;
+          updatePayload.shiftDate = todayKey;
+          updatePayload.closedAt = null;
+          updatePayload.closedTimestamp = null;
+          updatePayload.totalOrdersCount = 0;
+          updatePayload.totalDeliveriesValue = 0;
+          updatePayload.currentCash = currentShiftData.initialCash || 0;
+          console.log(`[Cardápio Web Sync] Loja ABRIU no Cardápio Web! Sincronizando Rota Fácil como ABERTO (Turno ${updatePayload.shiftId} iniciado com faturamento zerado).`);
+
+          // Reseta contadores diários dos motoboys no novo turno
+          try {
+            const mbSnap = await getDocs(collection(db, 'motoboys'));
+            for (const mbDoc of mbSnap.docs) {
+              await setDoc(doc(db, 'motoboys', mbDoc.id), {
+                deliveriesCountToday: 0,
+                totalEarnedToday: 0,
+                statsDate: todayKey,
+              }, { merge: true });
+            }
+          } catch (e) {
+            console.warn('[Cardápio Web Sync] Erro ao resetar motoboys na abertura:', e);
+          }
+        } else {
+          updatePayload.closedAt = nowStr;
+          updatePayload.closedTimestamp = nowTs;
+          console.log(`[Cardápio Web Sync] Loja FECHOU no Cardápio Web! Sincronizando Rota Fácil como FECHADO.`);
+        }
+      }
+
+      await setDoc(shiftRef, updatePayload, { merge: true });
+
+      return {
+        success: true,
+        isOpen: shouldBeOpen,
+        previousIsOpen,
+        changed: previousIsOpen !== shouldBeOpen,
+        cardapioWebStatus,
+      };
+    } catch (err: any) {
+      console.error('[Cardápio Web Store Sync] Erro ao sincronizar status da loja:', err);
+      return { success: false, error: err?.message || String(err) };
+    }
+  }
+
+  // Rota de Sincronização Bidirecional com Cardápio Web (Hope Pizza & Hope Burger)
+  // Função central de sincronização com o Cardápio Web:
+  // 1. Sincroniza abertura/fechamento das lojas
+  // 2. Detecta pedidos que já foram despachados/entregues/cancelados
+  // 3. Limpa/arquiva pedidos pendentes de ontem para não poluir o painel com loja fechada
+  async function syncCardapioWebOrders() {
+    try {
+      // 1. Sincroniza status da loja primeiro
+      const storeStatus = await syncCardapioWebStoreStatus();
+
       const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
       const CARDAPIO_WEB_HOPE_BURGER_TOKEN = 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
 
@@ -196,21 +385,27 @@ async function startServer() {
         ...(Array.isArray(burgerList) ? burgerList.map((o: any) => ({ ...o, _branch: 'hope_burger' })) : []),
       ];
 
-      const cwMap = new Map();
+      const cwMap = new Map<string, { status: string; order_type?: string }>();
       cwList.forEach((o: any) => {
-        cwMap.set(String(o.id), o.status);
-        cwMap.set(`cw_${o.id}`, o.status);
+        const info = { status: String(o.status || '').trim().toLowerCase(), order_type: o.order_type };
+        cwMap.set(String(o.id), info);
+        cwMap.set(`cw_${o.id}`, info);
         if (o.display_id) {
-          cwMap.set(`${o._branch}_display_${o.display_id}`, o.status);
-          cwMap.set(`display_${o.display_id}`, o.status);
+          cwMap.set(`${o._branch}_display_${o.display_id}`, info);
+          cwMap.set(`display_${o.display_id}`, info);
         }
       });
+
+      const today = new Date();
+      const todayDateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
       const snap = await getDocs(collection(db, 'orders'));
       let dispatchedCount = 0;
       let deliveredCount = 0;
+      let cancelledCount = 0;
       let purgedEmptyCount = 0;
       let purgedTakeoutCount = 0;
+      let archivedYesterdayCount = 0;
 
       for (const d of snap.docs) {
         const data = d.data() as any;
@@ -220,54 +415,134 @@ async function startServer() {
                                (data.neighborhood && data.neighborhood.toLowerCase() === 'balcão') ||
                                data.order_type === 'takeout';
         if (isTakeoutOrder) {
-          await setDoc(doc(db, 'orders', d.id), { status: 'cancelled' }, { merge: true });
-          purgedTakeoutCount++;
+          if (data.status !== 'cancelled') {
+            await setDoc(doc(db, 'orders', d.id), { status: 'cancelled' }, { merge: true });
+            purgedTakeoutCount++;
+          }
           continue;
         }
 
         // Limpeza preventiva: pedidos vazios/fantasmas com total 0 e sem cliente
         const isGhost = (!data.clientName || data.clientName === 'Cliente Cardápio Web' || data.clientName === 'Cliente não informado') && (!data.total || Number(data.total) <= 0);
         if (isGhost) {
-          await setDoc(doc(db, 'orders', d.id), { status: 'cancelled' }, { merge: true });
-          purgedEmptyCount++;
+          if (data.status !== 'cancelled') {
+            await setDoc(doc(db, 'orders', d.id), { status: 'cancelled' }, { merge: true });
+            purgedEmptyCount++;
+          }
           continue;
         }
 
-        const branchKey = data.storeBranch || (data.storeName?.toLowerCase().includes('burger') ? 'hope_burger' : 'hope_pizza');
-        const cwStatus = cwMap.get(d.id) ||
-                         (data.codeNumber ? cwMap.get(`${branchKey}_display_${data.codeNumber}`) : null) ||
-                         (data.codeNumber ? cwMap.get(`display_${data.codeNumber}`) : null);
-        if (!cwStatus) continue;
+        // Limpeza preventiva: pedidos com status 'failed' devem ser normalizados como 'cancelled'
+        if (data.status === 'failed') {
+          await setDoc(doc(db, 'orders', d.id), { status: 'cancelled' }, { merge: true });
+          cancelledCount++;
+          continue;
+        }
 
+        // REGRA CRÍTICA DE FECHAMENTO / PEDIDOS DE ONTEM:
+        // Se o pedido foi criado numa data anterior a hoje (ontem ou mais antigo) e continua com status
+        // pending / preparing / ready_at_counter, ele foi abandonado ou o turno encerrou sem despacho.
+        // Deve ser finalizado para não ficar poluindo o painel ou o Kanban quando a loja abre/fecha!
+        const isFromPreviousDate = data.createdDate && data.createdDate < todayDateKey;
+        const isStillUnfinished = data.status === 'pending' || data.status === 'preparing' || data.status === 'ready_at_counter';
+        if (isFromPreviousDate && isStillUnfinished) {
+          console.log(`[Sync CW] Arquivando pedido antigo de ontem #${data.codeNumber} (${data.createdDate}) que ficou pendente após fechamento da loja.`);
+          await setDoc(doc(db, 'orders', d.id), {
+            status: 'delivered',
+            deliveredDate: data.createdDate,
+            closedAt: new Date().toISOString(),
+            closedInCardapioWeb: true,
+            archiveReason: 'shift_closed_yesterday',
+          }, { merge: true });
+          archivedYesterdayCount++;
+          continue;
+        }
+
+        const cleanDocId = d.id.replace(/^cw_/, '');
+        const branchKey = data.storeBranch || (data.storeName?.toLowerCase().includes('burger') ? 'hope_burger' : 'hope_pizza');
+        const cwInfo = cwMap.get(d.id) ||
+                       cwMap.get(cleanDocId) ||
+                       (data.codeNumber ? cwMap.get(`${branchKey}_display_${data.codeNumber}`) : null) ||
+                       (data.codeNumber ? cwMap.get(`display_${data.codeNumber}`) : null);
+
+        if (!cwInfo) continue;
+
+        const cwStatus = cwInfo.status;
         let targetStatus: string | null = null;
-        if (cwStatus === 'closed' || cwStatus === 'released' || cwStatus === 'delivered') {
-          // Pedido já foi despachado ou entregue no Cardápio Web: deve sumir da tela ativa do Rota Fácil
+
+        // No Cardápio Web:
+        // 'released' significa Despachado / Saiu para entrega.
+        // 'closed' significa Fechado / Entregue.
+        // 'delivered' / 'dispatched' / 'concluded' / 'finalized'
+        // Todos esses indicam que o pedido não está mais aguardando na loja e não deve ficar no mapa!
+        if (['closed', 'released', 'delivered', 'dispatched', 'saiu_para_entrega', 'finalized', 'concluded'].includes(cwStatus)) {
           targetStatus = 'delivered';
-        } else if (cwStatus === 'canceled' || cwStatus === 'cancelled') {
-          targetStatus = 'failed';
+        } else if (['canceled', 'cancelled', 'rejected'].includes(cwStatus)) {
+          targetStatus = 'cancelled';
         }
 
         if (targetStatus && targetStatus !== data.status) {
           console.log(`[Sync CW] Atualizando pedido #${data.codeNumber} [${data.displayCode || branchKey}] (${data.clientName}): ${data.status} -> ${targetStatus} (CW: ${cwStatus})`);
-          await setDoc(doc(db, 'orders', d.id), { status: targetStatus }, { merge: true });
+          await setDoc(doc(db, 'orders', d.id), {
+            status: targetStatus,
+            closedAt: new Date().toISOString(),
+            closedInCardapioWeb: true,
+          }, { merge: true });
           if (targetStatus === 'delivered') deliveredCount++;
+          if (targetStatus === 'cancelled') cancelledCount++;
         }
       }
 
-      res.json({
+      return {
         success: true,
+        storeStatus,
         totalCwOrders: cwList.length,
         dispatchedCount,
         deliveredCount,
+        cancelledCount,
         purgedEmptyCount,
         purgedTakeoutCount,
-        totalUpdated: dispatchedCount + deliveredCount,
-      });
+        archivedYesterdayCount,
+        totalUpdated: dispatchedCount + deliveredCount + cancelledCount + archivedYesterdayCount,
+      };
     } catch (err: any) {
-      console.error('[Cardápio Web Sync] Erro:', err);
-      res.status(500).json({ error: err?.message || String(err) });
+      console.error('[Cardápio Web Sync] Erro interno:', err);
+      return { success: false, error: err?.message || String(err) };
+    }
+  }
+
+  // Rota para consultar e forçar checagem do status da loja no Cardápio Web
+  app.get('/api/cardapio-web/store-status', async (_req, res) => {
+    const result = await syncCardapioWebStoreStatus();
+    res.json(result);
+  });
+
+  // Atualiza automaticamente pedidos que já foram despachados ou entregues no Cardápio Web
+  app.get(['/api/cardapio-web/sync', '/api/sync-cardapio-web'], async (_req, res) => {
+    const result = await syncCardapioWebOrders();
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
     }
   });
+
+  app.post(['/api/cardapio-web/sync', '/api/sync-cardapio-web'], async (_req, res) => {
+    const result = await syncCardapioWebOrders();
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  });
+
+  // Loop contínuo de background no servidor para garantir sincronização mesmo sem abas abertas
+  setInterval(async () => {
+    await syncCardapioWebOrders();
+  }, 20000);
+  setTimeout(async () => {
+    await syncCardapioWebOrders();
+  }, 3000);
 
   // Webhook Cardápio Web (suporta tanto /api/webhook/cardapio-web/:branchId quanto /api/webhook/cardapio-web)
   app.post(['/api/webhook/cardapio-web', '/api/webhook/cardapio-web/:branchId'], async (req, res) => {
@@ -380,17 +655,19 @@ async function startServer() {
         ? items.map((i: any) => `${i.quantity}x ${i.name}`).join(' | ')
         : (orderData.observation || payload.notes || payload.observacoes || 'Pedido Cardápio Web');
 
-      // Pagamento
+      // Pagamento estruturado
       const payments = orderData.payments || [];
       const rawPayment = payments[0] || payload.payment || payload.pagamento || {};
       let paymentMethod: 'pix' | 'card_credit' | 'card_debit' | 'cash' = 'pix';
       const paymentStr = JSON.stringify(rawPayment).toLowerCase();
-      if (paymentStr.includes('dinheiro') || paymentStr.includes('money') || paymentStr.includes('cash')) {
+      if (paymentStr.includes('dinheiro') || paymentStr.includes('money') || paymentStr.includes('cash') || paymentStr.includes('especie')) {
         paymentMethod = 'cash';
-      } else if (paymentStr.includes('debito') || paymentStr.includes('debit')) {
+      } else if (paymentStr.includes('card_deb') || paymentStr.includes('debito') || paymentStr.includes('debit') || paymentStr.includes('deb')) {
         paymentMethod = 'card_debit';
-      } else if (paymentStr.includes('credito') || paymentStr.includes('credit')) {
+      } else if (paymentStr.includes('card_cre') || paymentStr.includes('credito') || paymentStr.includes('credit') || paymentStr.includes('cre')) {
         paymentMethod = 'card_credit';
+      } else if (paymentStr.includes('pix')) {
+        paymentMethod = 'pix';
       }
 
       // Mapeamento inteligente de status sincronizado com Cardápio Web
@@ -418,6 +695,22 @@ async function startServer() {
       const orderId = `cw_${cwOrderId || Date.now()}`;
       const trackingCode = `CW-${branchPrefix}-${codeNumber}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
+      // Recupera dados do turno atual para vincular o pedido se o turno estiver aberto
+      let currentShiftId: string | undefined = undefined;
+      let currentShiftDate: string | undefined = localDateKey;
+      try {
+        const sSnap = await getDoc(doc(db, 'shifts', 'current_shift'));
+        if (sSnap.exists()) {
+          const sData = sSnap.data();
+          if (sData.isOpen) {
+            currentShiftId = sData.shiftId || `shift_${localDateKey}`;
+            currentShiftDate = sData.shiftDate || localDateKey;
+          }
+        }
+      } catch (err) {
+        console.warn('Não foi possível obter dados do turno no webhook:', err);
+      }
+
       const completeOrder = {
         id: orderId,
         codeNumber: Number(codeNumber),
@@ -441,6 +734,9 @@ async function startServer() {
         status: mappedStatus,
         createdAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         createdDate: localDateKey,
+        createdTimestamp: Date.now(),
+        shiftId: currentShiftId,
+        shiftDate: currentShiftDate,
         originChannel: 'cardapio_web',
         storeBranch: branch,
         storeName,
