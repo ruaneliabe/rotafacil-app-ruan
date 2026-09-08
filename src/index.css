@@ -28,22 +28,9 @@ textarea {
   letter-spacing: 0;
 }
 
-/*
- * Neutraliza o excesso de pesos pesados comuns em dashboards gerados por template.
- * Mantém hierarquia clara, mas com aparência de sistema comercial tradicional.
- */
-.font-black {
-  font-weight: 600 !important;
-}
-
-.font-extrabold {
-  font-weight: 600 !important;
-}
-
-.font-bold {
-  font-weight: 600 !important;
-}
-
+.font-black,
+.font-extrabold,
+.font-bold,
 .font-semibold {
   font-weight: 600 !important;
 }
@@ -59,29 +46,32 @@ h6 {
   letter-spacing: -0.01em;
 }
 
-button {
-  font-weight: 500;
+button { font-weight: 500; }
+input, select, textarea { font-weight: 400; }
+
+/* Dashboard operacional compacto. O mapa em tela cheia continua independente. */
+.dispatch-map-shell {
+  min-height: 0 !important;
+  height: 340px !important;
+}
+.dispatch-map-canvas {
+  min-height: 0 !important;
+  height: 285px !important;
+}
+.dispatch-side-panel {
+  height: 340px !important;
+  min-height: 0 !important;
+}
+@media (max-width: 1279px) {
+  .dispatch-map-shell,
+  .dispatch-side-panel {
+    height: auto !important;
+  }
+  .dispatch-map-canvas {
+    height: 320px !important;
+  }
 }
 
-input,
-select,
-textarea {
-  font-weight: 400;
-}
-
-/*
- * Central de Despacho: mapa compacto no dashboard.
- * O modo "Expandir Mapa" continua usando tela cheia dentro do RouteMap.
- */
-.min-h-\[680px\] {
-  min-height: 500px !important;
-}
-
-.min-h-\[580px\] {
-  min-height: 420px !important;
-}
-
-/* Leaflet map custom fixes */
 .leaflet-container {
   width: 100%;
   height: 100%;
@@ -90,12 +80,8 @@ textarea {
   background-color: #0f172a !important;
 }
 
-/* Crisp tiles styling */
-.map-tiles-dark {
-  filter: contrast(1.05);
-}
+.map-tiles-dark { filter: contrast(1.05); }
 
-/* Custom Leaflet Dark Mode popups and zoom controls */
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
   background: #1e293b !important;
   color: #f1f5f9 !important;
@@ -103,27 +89,16 @@ textarea {
   border-radius: 0.6rem !important;
   box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.55) !important;
 }
-.leaflet-popup-content {
-  margin: 10px 12px !important;
-  line-height: 1.4 !important;
-}
-.leaflet-container a.leaflet-popup-close-button {
-  color: #94a3b8 !important;
-  padding: 6px !important;
-}
-.leaflet-container a.leaflet-popup-close-button:hover {
-  color: #ffffff !important;
-}
+.leaflet-popup-content { margin: 10px 12px !important; line-height: 1.4 !important; }
+.leaflet-container a.leaflet-popup-close-button { color: #94a3b8 !important; padding: 6px !important; }
+.leaflet-container a.leaflet-popup-close-button:hover { color: #ffffff !important; }
 .leaflet-control-zoom a {
   background-color: #1e293b !important;
   color: #f1f5f9 !important;
   border-color: #334155 !important;
   font-weight: 500 !important;
 }
-.leaflet-control-zoom a:hover {
-  background-color: #334155 !important;
-  color: #ffffff !important;
-}
+.leaflet-control-zoom a:hover { background-color: #334155 !important; color: #ffffff !important; }
 .leaflet-control-zoom {
   border: 1px solid #334155 !important;
   border-radius: 0.4rem !important;
@@ -131,35 +106,16 @@ textarea {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.4);
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.7);
-}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.7); }
 
 @keyframes slideDown {
-  from {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
-
-.animate-slideDown {
-  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
+.animate-slideDown { animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
 .map-tiles-dark {
   filter: brightness(0.65) invert(1) contrast(2.8) hue-rotate(200deg) saturate(0.3);
