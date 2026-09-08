@@ -8,115 +8,52 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
-html,
-body,
-#root {
-  font-family: inherit;
-}
-
-body {
-  letter-spacing: 0;
-  font-weight: 400;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  letter-spacing: 0;
-}
-
-.font-black,
-.font-extrabold,
-.font-bold,
-.font-semibold {
-  font-weight: 600 !important;
-}
-
-strong,
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
+html, body, #root { font-family: inherit; }
+body { letter-spacing: 0; font-weight: 400; }
+button, input, select, textarea { font: inherit; letter-spacing: 0; }
+.font-black, .font-extrabold, .font-bold, .font-semibold { font-weight: 600 !important; }
+strong, h1, h2, h3, h4, h5, h6 { font-weight: 600; letter-spacing: -0.01em; }
 button { font-weight: 500; }
 input, select, textarea { font-weight: 400; }
 
-/* Dashboard operacional compacto. O mapa em tela cheia continua independente. */
-.dispatch-map-shell {
-  min-height: 0 !important;
-  height: 340px !important;
-}
-.dispatch-map-canvas {
-  min-height: 0 !important;
-  height: 285px !important;
-}
+/*
+ * O mapa fica compacto, mas a coluna de pedidos NÃO herda a altura do mapa.
+ * Ela ganha uma área operacional própria com scroll interno.
+ */
+.dispatch-map-shell { min-height: 0 !important; }
+section.dispatch-map-shell { height: 340px !important; }
+.dispatch-map-canvas { min-height: 0 !important; height: 285px !important; }
 .dispatch-side-panel {
-  height: 340px !important;
-  min-height: 0 !important;
+  height: 520px !important;
+  min-height: 420px !important;
+  align-self: start;
 }
 @media (max-width: 1279px) {
-  .dispatch-map-shell,
-  .dispatch-side-panel {
-    height: auto !important;
-  }
-  .dispatch-map-canvas {
-    height: 320px !important;
-  }
+  section.dispatch-map-shell { height: 360px !important; }
+  .dispatch-map-canvas { height: 305px !important; }
+  .dispatch-side-panel { height: 480px !important; min-height: 420px !important; }
 }
 
 .leaflet-container {
-  width: 100%;
-  height: 100%;
-  z-index: 10;
-  font-family: inherit;
+  width: 100%; height: 100%; z-index: 10; font-family: inherit;
   background-color: #0f172a !important;
 }
-
 .map-tiles-dark { filter: contrast(1.05); }
-
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-  background: #1e293b !important;
-  color: #f1f5f9 !important;
-  border: 1px solid #334155 !important;
-  border-radius: 0.6rem !important;
-  box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.55) !important;
+  background: #1e293b !important; color: #f1f5f9 !important;
+  border: 1px solid #334155 !important; border-radius: 0.6rem !important;
+  box-shadow: 0 8px 20px -6px rgba(0,0,0,.55) !important;
 }
 .leaflet-popup-content { margin: 10px 12px !important; line-height: 1.4 !important; }
-.leaflet-container a.leaflet-popup-close-button { color: #94a3b8 !important; padding: 6px !important; }
-.leaflet-container a.leaflet-popup-close-button:hover { color: #ffffff !important; }
-.leaflet-control-zoom a {
-  background-color: #1e293b !important;
-  color: #f1f5f9 !important;
-  border-color: #334155 !important;
-  font-weight: 500 !important;
-}
-.leaflet-control-zoom a:hover { background-color: #334155 !important; color: #ffffff !important; }
-.leaflet-control-zoom {
-  border: 1px solid #334155 !important;
-  border-radius: 0.4rem !important;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
-}
-
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.7); }
-
-@keyframes slideDown {
-  from { transform: translateY(-100%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-.animate-slideDown { animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-
-.map-tiles-dark {
-  filter: brightness(0.65) invert(1) contrast(2.8) hue-rotate(200deg) saturate(0.3);
-}
+.leaflet-container a.leaflet-popup-close-button { color:#94a3b8 !important; padding:6px !important; }
+.leaflet-container a.leaflet-popup-close-button:hover { color:#fff !important; }
+.leaflet-control-zoom a { background-color:#1e293b !important; color:#f1f5f9 !important; border-color:#334155 !important; font-weight:500 !important; }
+.leaflet-control-zoom a:hover { background-color:#334155 !important; color:#fff !important; }
+.leaflet-control-zoom { border:1px solid #334155 !important; border-radius:.4rem !important; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,.35) !important; }
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:rgba(148,163,184,.4); border-radius:9999px; }
+::-webkit-scrollbar-thumb:hover { background:rgba(148,163,184,.7); }
+@keyframes slideDown { from { transform:translateY(-100%); opacity:0; } to { transform:translateY(0); opacity:1; } }
+.animate-slideDown { animation:slideDown .3s cubic-bezier(.16,1,.3,1) forwards; }
+.map-tiles-dark { filter:brightness(.65) invert(1) contrast(2.8) hue-rotate(200deg) saturate(.3); }
