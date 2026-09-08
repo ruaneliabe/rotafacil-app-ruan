@@ -1,34 +1,22 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Order, Motoboy, StoreShift } from '../types';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Motoboy, Order, StoreShift } from '../types';
 import { RouteMap } from './RouteMap';
 import { saveMotoboyLocationToCloud } from '../lib/firebase';
-import { calculateDistanceKm } from '../utils/geoUtils';
-import { getMotoboyStatusPresentation } from '../utils/motoboyStatusUtils';
 import {
+  ArrowDown,
+  ArrowUp,
   Bike,
-  MapPin,
-  Phone,
-  Navigation,
   CheckCircle2,
-  Zap,
-  ShoppingBag,
-  Clock,
-  MessageCircle,
-  Building2,
-  Volume2,
-  BellRing,
-  LogOut,
+  Clock3,
   DollarSign,
-  CreditCard,
-  ChevronRight,
-  Pause,
-  Lock,
-  Users,
-  Power,
-  FileText,
-  X,
-  Copy,
-  TrendingUp,
+  History,
+  LogOut,
+  MapPin,
+  Navigation,
+  Package,
+  Phone,
+  Route,
+  ShoppingBag,
 } from 'lucide-react';
 
 interface MotoboyAppProps {
@@ -37,13 +25,20 @@ interface MotoboyAppProps {
   shift: StoreShift;
   onUpdateOrderStatus: (orderId: string, status: Order['status']) => void;
   onSimulateArrival: (order: Order) => void;
-  onReorderMotoboyRoute?: (orderedOrderIds: string[]) => void;
+  onReorderMotoboyRoute?: (motoboyId: string, orderedOrderIds: string[]) => void;
   onConfirmArrivalAtStore?: (motoboyId: string) => void;
   onUpdateMotoboyStatus?: (motoboyId: string, status: Motoboy['status']) => void;
   initialMotoboyId?: string;
   isLockedToMotoboy?: boolean;
   onLogout?: () => void;
 }
+
+type Tab = 'orders' | 'route' | 'history';
+
+const money = (value = 0) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+
+const routeStatus = (order: Order) => ['picked_up', 'in_transit', 'dispatched'].includes(order.status);
 
 export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   motoboys,
@@ -58,411 +53,284 @@ export const MotoboyApp: React.FC<MotoboyAppProps> = ({
   isLockedToMotoboy = false,
   onLogout,
 }) => {
-  const [activeMotoboyId, setActiveMotoboyId] = useState<string>(() => {
-    if (initialMotoboyId) return initialMotoboyId;
-    try {
-      return localStorage.getItem('rota_facil_active_motoboy_id') || '';
-    } catch {
-      return '';
-    }
-  });
-  const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'map'>('active');
+  const [activeTab, setActiveTab] = useState<Tab>('orders');
   const [deviceGps, setDeviceGps] = useState<{ lat: number; lng: number } | null>(null);
-  const [gpsStatusMsg, setGpsStatusMsg] = useState('Localização ativa');
-  const [showDevGpsPanel, setShowDevGpsPanel] = useState(false);
-  const [isEarningsModalOpen, setIsEarningsModalOpen] = useState(false);
-  const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
-  const [availableSince, setAvailableSince] = useState(Date.now());
-  const [shiftStartedAt, setShiftStartedAt] = useState(Date.now() - 4.5 * 3600 * 1000);
-  const [shiftEndedAt, setShiftEndedAt] = useState<string | null>(null);
-  const [isWakeLockActive, setIsWakeLockActive] = useState(false);
-  const wakeLockRef = useRef<any>(null);
-  const [expandedExtraOrderIds, setExpandedExtraOrderIds] = useState<Record<string, boolean>>({});
-  const [manualExpandedId, setManualExpandedId] = useState<string | null>(null);
   const [arrivedOrderIds, setArrivedOrderIds] = useState<Record<string, boolean>>({});
-  const [notificationPermission, setNotificationPermission] = useState<string>(
-    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
-  );
-
-  useEffect(() => {
-    if (!initialMotoboyId) return;
-    setActiveMotoboyId(initialMotoboyId);
-    try {
-      localStorage.setItem('rota_facil_active_motoboy_id', initialMotoboyId);
-    } catch {}
-  }, [initialMotoboyId]);
+  const [localRouteOrderIds, setLocalRouteOrderIds] = useState<string[]>([]);
+  const wakeLockRef = useRef<any>(null);
 
   const activeMotoboy = useMemo(() => {
     if (!motoboys.length) return undefined;
-    const target = (initialMotoboyId || activeMotoboyId || '').trim();
-    if (target) {
-      const exact = motoboys.find((m) => m.id === target);
-      if (exact) return exact;
-    }
+    if (initialMotoboyId) return motoboys.find((m) => m.id === initialMotoboyId);
     return isLockedToMotoboy ? undefined : motoboys[0];
-  }, [motoboys, activeMotoboyId, initialMotoboyId, isLockedToMotoboy]);
+  }, [motoboys, initialMotoboyId, isLockedToMotoboy]);
 
-  // A driver owns an order ONLY by immutable driver ID. Never by name/username.
-  const matchesDriver = (order: Order) => Boolean(
-    activeMotoboy?.id && order.assignedMotoboyId === activeMotoboy.id
-  );
+  const matchesDriver = (order: Order) => Boolean(activeMotoboy?.id && order.assignedMotoboyId === activeMotoboy.id);
 
-  const assignedOrders = useMemo(
-    () => orders
-      .filter((o) => o.status !== 'delivered' && o.status !== 'cancelled' && matchesDriver(o))
-      .sort((a, b) => (a.routeSequence || 0) - (b.routeSequence || 0)),
+  const assignedOrders = useMemo(() =>
+    orders
+      .filter((o) => matchesDriver(o) && !['delivered', 'cancelled'].includes(o.status))
+      .sort((a, b) => (a.routeSequence || 999) - (b.routeSequence || 999)),
     [orders, activeMotoboy?.id]
   );
 
+  const preparingOrders = useMemo(() =>
+    assignedOrders.filter((o) => o.status === 'pending' || o.status === 'preparing'),
+    [assignedOrders]
+  );
+
+  const readyOrders = useMemo(() =>
+    assignedOrders.filter((o) => o.status === 'ready_at_counter'),
+    [assignedOrders]
+  );
+
+  const rawRouteOrders = useMemo(() =>
+    assignedOrders.filter(routeStatus),
+    [assignedOrders]
+  );
+
+  useEffect(() => {
+    const currentIds = rawRouteOrders.map((o) => o.id);
+    setLocalRouteOrderIds((prev) => {
+      const kept = prev.filter((id) => currentIds.includes(id));
+      const missing = currentIds.filter((id) => !kept.includes(id));
+      return [...kept, ...missing];
+    });
+  }, [rawRouteOrders.map((o) => o.id).join('|')]);
+
+  const routeOrders = useMemo(() => {
+    const byId = new Map(rawRouteOrders.map((o) => [o.id, o]));
+    const ordered = localRouteOrderIds.map((id) => byId.get(id)).filter(Boolean) as Order[];
+    const missing = rawRouteOrders.filter((o) => !localRouteOrderIds.includes(o.id));
+    return [...ordered, ...missing];
+  }, [rawRouteOrders, localRouteOrderIds]);
+
+  const currentRouteOrder = routeOrders.find((o) => o.status === 'in_transit' || o.status === 'dispatched') || routeOrders[0];
+  const routeIsMoving = routeOrders.some((o) => o.status === 'in_transit' || o.status === 'dispatched');
+
   const completedOrders = useMemo(() => {
-    const d = new Date();
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return orders.filter((o) => o.status === 'delivered' && o.deliveredDate === today && matchesDriver(o));
+    const today = new Date().toISOString().slice(0, 10);
+    return orders.filter((o) => matchesDriver(o) && o.status === 'delivered' && (!o.deliveredDate || o.deliveredDate === today));
   }, [orders, activeMotoboy?.id]);
 
-  const routeHasStarted = assignedOrders.some((o) => o.status === 'in_transit' || o.status === 'picked_up') || activeMotoboy?.status === 'delivering';
-  const waitingForKitchen = assignedOrders.length > 0 && !routeHasStarted && assignedOrders.some((o) => o.status === 'pending' || o.status === 'preparing');
-  const readyForPickup = assignedOrders.length > 0 && !routeHasStarted && assignedOrders.every((o) => o.status === 'ready_at_counter' || o.status === 'picked_up');
-  const baseStatusPresentation = getMotoboyStatusPresentation(activeMotoboy?.status);
-  const statusPresentation = activeMotoboy?.status === 'offline' || activeMotoboy?.status === 'busy' || activeMotoboy?.status === 'returning_to_store'
-    ? baseStatusPresentation
-    : waitingForKitchen
-      ? { ...baseStatusPresentation, label: 'Aguardando cozinha', dotClass: 'bg-amber-400', textClass: 'text-amber-300' }
-      : readyForPickup
-        ? { ...baseStatusPresentation, label: 'Pedido pronto para retirada', dotClass: 'bg-amber-400', textClass: 'text-amber-300' }
-        : routeHasStarted
-          ? getMotoboyStatusPresentation('delivering')
-          : baseStatusPresentation;
-
-  const arranqueAmount = activeMotoboy?.fixedFee && activeMotoboy.fixedFee > 0 ? activeMotoboy.fixedFee : 0;
-  const deliveryFeesTotal = completedOrders.reduce(
-    (acc, o) => acc + (o.deliveryFee && o.deliveryFee > 0 ? o.deliveryFee : (activeMotoboy?.perDeliveryFee || 0)),
-    0
-  );
-  const calculatedTotalEarnings = arranqueAmount + deliveryFeesTotal;
-  const totalEarnedDisplay = calculatedTotalEarnings;
-
-  const formattedCurrency = (value: number) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
-
-  const requestWakeLock = async () => {
-    if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
-    try {
-      wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-      setIsWakeLockActive(true);
-      wakeLockRef.current.addEventListener('release', () => setIsWakeLockActive(false));
-    } catch {}
-  };
+  const totalEarned = completedOrders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
 
   useEffect(() => {
-    requestWakeLock();
-    return () => {
-      if (wakeLockRef.current) wakeLockRef.current.release().catch(() => {});
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    if (!activeMotoboy || !('geolocation' in navigator)) return;
     const success = (pos: GeolocationPosition) => {
       const lat = Number(pos.coords.latitude.toFixed(6));
       const lng = Number(pos.coords.longitude.toFixed(6));
       setDeviceGps({ lat, lng });
-      setGpsStatusMsg('GPS ativo');
-      if (activeMotoboy && (Math.abs((activeMotoboy.currentLat || 0) - lat) > 0.0001 || Math.abs((activeMotoboy.currentLng || 0) - lng) > 0.0001)) {
-        saveMotoboyLocationToCloud(activeMotoboy.id, lat, lng);
-      }
+      saveMotoboyLocationToCloud(activeMotoboy.id, lat, lng);
     };
-    const error = (err: GeolocationPositionError) => setGpsStatusMsg(`GPS pendente: ${err.message}`);
-    navigator.geolocation.getCurrentPosition(success, error, { enableHighAccuracy: true, timeout: 10000 });
-    const watchId = navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true, timeout: 15000, maximumAge: 4000 });
-    return () => navigator.geolocation.clearWatch(watchId);
+    navigator.geolocation.getCurrentPosition(success, () => {}, { enableHighAccuracy: true, timeout: 10000 });
+    const id = navigator.geolocation.watchPosition(success, () => {}, { enableHighAccuracy: true, timeout: 15000, maximumAge: 4000 });
+    return () => navigator.geolocation.clearWatch(id);
   }, [activeMotoboy?.id]);
 
   useEffect(() => {
-    if (activeMotoboy?.joinedQueueAt) setAvailableSince(activeMotoboy.joinedQueueAt);
-  }, [activeMotoboy?.joinedQueueAt]);
+    const request = async () => {
+      try {
+        if ('wakeLock' in navigator) wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      } catch {}
+    };
+    request();
+    return () => { try { wakeLockRef.current?.release?.(); } catch {} };
+  }, []);
 
-  const isBeingCalledToCounter = Boolean(
-    activeMotoboy?.callingToCounterAt && Date.now() - activeMotoboy.callingToCounterAt < 60000
-  );
-
-  const requestNotificationPermission = async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    try {
-      setNotificationPermission(await Notification.requestPermission());
-    } catch {}
+  const persistRouteOrder = (ids: string[]) => {
+    setLocalRouteOrderIds(ids);
+    if (activeMotoboy) onReorderMotoboyRoute?.(activeMotoboy.id, ids);
   };
 
-  const handleOpenWaze = (address: string, lat?: number, lng?: number) => {
-    const url = lat && lng
-      ? `https://www.waze.com/ul?ll=${lat},${lng}&navigate=yes`
-      : `https://www.waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`;
-    window.open(url, '_blank');
+  const moveRoute = (index: number, direction: -1 | 1) => {
+    if (routeIsMoving) return;
+    const next = [...routeOrders.map((o) => o.id)];
+    const target = index + direction;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    persistRouteOrder(next);
   };
 
-  const handleOpenGoogleMaps = (address: string, lat?: number, lng?: number) => {
-    const query = lat && lng ? `${lat},${lng}` : encodeURIComponent(address);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+  const routeAddress = (o: Order) => (o.lat && o.lng ? `${o.lat},${o.lng}` : o.address);
+
+  const openGoogleRoute = (fromOrderId?: string) => {
+    let remaining = routeOrders;
+    if (fromOrderId) {
+      const idx = routeOrders.findIndex((o) => o.id === fromOrderId);
+      if (idx >= 0) remaining = routeOrders.slice(idx);
+    }
+    if (!remaining.length) return;
+
+    const destination = encodeURIComponent(routeAddress(remaining[remaining.length - 1]));
+    const waypoints = remaining.slice(0, -1).map((o) => routeAddress(o)).join('|');
+    const origin = deviceGps ? `&origin=${encodeURIComponent(`${deviceGps.lat},${deviceGps.lng}`)}` : '';
+    const waypointParam = waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : '';
+    window.open(`https://www.google.com/maps/dir/?api=1${origin}&destination=${destination}${waypointParam}&travelmode=driving`, '_blank');
   };
 
-  const handleFinishShift = () => {
-    if (!activeMotoboy || !window.confirm('Tem certeza que deseja encerrar o expediente de hoje?')) return;
-    const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    setShiftEndedAt(time);
-    onUpdateMotoboyStatus?.(activeMotoboy.id, 'offline');
-    setIsDailyReportModalOpen(true);
+  const startCurrentStop = (order: Order) => {
+    routeOrders.forEach((o) => {
+      if (o.id !== order.id && (o.status === 'in_transit' || o.status === 'dispatched')) {
+        onUpdateOrderStatus(o.id, 'picked_up');
+      }
+    });
+    if (order.status === 'picked_up') onUpdateOrderStatus(order.id, 'in_transit');
+    if (activeMotoboy) onUpdateMotoboyStatus?.(activeMotoboy.id, 'delivering');
+    setArrivedOrderIds((prev) => ({ ...prev, [order.id]: false }));
+    openGoogleRoute(order.id);
   };
 
-  const handleLogoutAccount = () => {
-    if (!window.confirm('Deseja sair da conta do entregador?')) return;
-    try {
-      localStorage.removeItem('rota_facil_session');
-      localStorage.removeItem('rota_facil_active_motoboy_id');
-    } catch {}
-    onLogout?.();
+  const confirmArrival = (order: Order) => {
+    setArrivedOrderIds((prev) => ({ ...prev, [order.id]: true }));
+    onSimulateArrival(order);
   };
 
-  const availableDrivers = [...motoboys]
-    .filter((m) => m.status === 'available')
-    .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
-  const queueIndex = activeMotoboy ? availableDrivers.findIndex((m) => m.id === activeMotoboy.id) : -1;
-  const queuePos = queueIndex >= 0 ? queueIndex + 1 : 0;
+  const finishCurrentDelivery = (order: Order) => {
+    onUpdateOrderStatus(order.id, 'delivered');
+    setArrivedOrderIds((prev) => {
+      const next = { ...prev };
+      delete next[order.id];
+      return next;
+    });
+  };
 
   if (!activeMotoboy && isLockedToMotoboy) {
     return (
-      <div className="w-full max-w-md mx-auto bg-white rounded-3xl p-8 text-center border border-slate-200 shadow-md">
-        <h3 className="font-black text-slate-900 text-lg">Acesso não encontrado</h3>
-        <p className="text-sm text-slate-500 mt-2">Este cadastro de entregador não existe mais.</p>
-        <button onClick={onLogout} className="mt-5 w-full py-3 bg-slate-900 text-white rounded-xl font-black text-sm">Voltar ao login</button>
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <h3 className="text-lg font-semibold">Entregador não encontrado</h3>
+        <button onClick={onLogout} className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl">Voltar ao login</button>
       </div>
     );
   }
 
+  if (!activeMotoboy) return null;
+
   return (
-    <div className="w-full max-w-md mx-auto bg-slate-50 text-slate-900 rounded-3xl border border-slate-200 shadow-md overflow-hidden flex flex-col font-sans min-h-[680px] relative">
-      <div className="bg-slate-900 px-4 py-3 text-white flex items-center justify-between gap-3 border-b border-slate-800">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-base shrink-0 border border-amber-300">
-            {activeMotoboy?.name?.charAt(0).toUpperCase() || 'M'}
-          </div>
+    <div className="w-full max-w-md mx-auto bg-slate-100 text-slate-900 min-h-[720px] rounded-2xl overflow-hidden border border-slate-200">
+      <header className="bg-slate-950 text-white px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center font-semibold">{activeMotoboy.name.charAt(0).toUpperCase()}</div>
           <div className="min-w-0">
-            <h3 className="font-extrabold text-base text-white leading-tight truncate">{activeMotoboy?.name}</h3>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className={`w-2 h-2 rounded-full ${statusPresentation.dotClass}`} />
-              <span className={`text-[11px] font-bold ${statusPresentation.textClass}`}>
-                {statusPresentation.label}
-              </span>
-            </div>
+            <h2 className="text-sm font-semibold truncate">{activeMotoboy.name}</h2>
+            <p className="text-[11px] text-slate-400">{routeIsMoving ? 'Em rota' : readyOrders.length ? 'Pedido pronto para retirada' : preparingOrders.length ? 'Aguardando cozinha' : 'Disponível'}</p>
           </div>
         </div>
-        <div className="flex gap-1.5">
-          <button onClick={() => setIsDailyReportModalOpen(true)} className="p-2 rounded-xl bg-slate-800 text-amber-300 border border-slate-700"><FileText className="w-4 h-4" /></button>
-          <button onClick={() => setShowDevGpsPanel(!showDevGpsPanel)} className="p-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700"><Zap className="w-4 h-4" /></button>
-          <button onClick={handleLogoutAccount} className="p-2 rounded-xl bg-rose-950 text-rose-300 border border-rose-800"><LogOut className="w-4 h-4" /></button>
-        </div>
+        <button onClick={onLogout} className="p-2 rounded-lg bg-slate-900 text-slate-400"><LogOut className="w-4 h-4" /></button>
+      </header>
+
+      <div className="grid grid-cols-3 gap-2 p-3 bg-white border-b border-slate-200">
+        <div className="rounded-xl border border-slate-200 p-2 text-center"><ShoppingBag className="w-4 h-4 mx-auto text-slate-500"/><strong className="block text-lg mt-1">{routeOrders.length}</strong><span className="text-[9px] text-slate-500">na rota</span></div>
+        <div className="rounded-xl border border-slate-200 p-2 text-center"><Package className="w-4 h-4 mx-auto text-slate-500"/><strong className="block text-lg mt-1">{completedOrders.length}</strong><span className="text-[9px] text-slate-500">entregues</span></div>
+        <div className="rounded-xl border border-slate-200 p-2 text-center"><DollarSign className="w-4 h-4 mx-auto text-slate-500"/><strong className="block text-sm mt-1">{money(totalEarned)}</strong><span className="text-[9px] text-slate-500">hoje</span></div>
       </div>
 
-      {isBeingCalledToCounter && (
-        <div className="bg-amber-400 text-slate-950 px-4 py-3 font-black text-sm border-b border-amber-600">
-          🛎️ Chamado no balcão — dirija-se à loja para retirar os pedidos.
-        </div>
-      )}
+      <nav className="grid grid-cols-3 gap-1.5 p-2 bg-slate-100 border-b border-slate-200">
+        <button onClick={() => setActiveTab('orders')} className={`py-2.5 rounded-lg text-xs ${activeTab === 'orders' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-200'}`}>Pedidos ({preparingOrders.length + readyOrders.length})</button>
+        <button onClick={() => setActiveTab('route')} className={`py-2.5 rounded-lg text-xs ${activeTab === 'route' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-200'}`}>Minha rota ({routeOrders.length})</button>
+        <button onClick={() => setActiveTab('history')} className={`py-2.5 rounded-lg text-xs ${activeTab === 'history' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-200'}`}>Histórico</button>
+      </nav>
 
-      {notificationPermission !== 'granted' && (
-        <div className="bg-amber-500 text-slate-950 px-3.5 py-2 text-xs font-bold flex items-center justify-between">
-          <span className="truncate">🔔 Ative alertas de novos pedidos</span>
-          <button onClick={requestNotificationPermission} className="px-2.5 py-1 bg-slate-950 text-amber-300 rounded-lg text-[10px] font-black">ATIVAR</button>
-        </div>
-      )}
+      <main className="p-3 space-y-3">
+        {activeTab === 'orders' && (
+          <>
+            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-3 py-2.5 border-b border-slate-200 flex items-center justify-between"><div><h3 className="text-sm font-semibold">Preparando</h3><p className="text-[10px] text-slate-500">Já vinculados a você</p></div><span className="text-sm text-amber-600">{preparingOrders.length}</span></div>
+              <div className="p-2 space-y-2">
+                {preparingOrders.length === 0 ? <p className="text-xs text-slate-400 text-center py-5">Nenhum pedido em preparo.</p> : preparingOrders.map((o) => (
+                  <div key={o.id} className="rounded-lg bg-amber-50 border border-amber-200 p-3"><div className="flex items-start justify-between gap-2"><div><strong className="text-sm">#{o.codeNumber}</strong><p className="text-xs mt-1">{o.clientName}</p><p className="text-[10px] text-slate-500 mt-1">{o.neighborhood || o.address}</p></div><Clock3 className="w-4 h-4 text-amber-600"/></div><p className="text-[10px] text-amber-700 mt-2">Aguarde a loja marcar como pronto.</p></div>
+                ))}
+              </div>
+            </section>
 
-      {showDevGpsPanel && (
-        <div className="bg-slate-800 text-slate-200 px-4 py-2 text-[11px] flex items-center justify-between">
-          <span>{gpsStatusMsg}</span>
-          <span>{deviceGps ? `${deviceGps.lat}, ${deviceGps.lng}` : 'Aguardando GPS'}</span>
-        </div>
-      )}
+            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-3 py-2.5 border-b border-slate-200 flex items-center justify-between"><div><h3 className="text-sm font-semibold">Prontos para retirada</h3><p className="text-[10px] text-slate-500">Confirme cada pedido que colocou na bag</p></div><span className="text-sm text-emerald-600">{readyOrders.length}</span></div>
+              <div className="p-2 space-y-2">
+                {readyOrders.length === 0 ? <p className="text-xs text-slate-400 text-center py-5">Nenhum pedido pronto agora.</p> : readyOrders.map((o) => (
+                  <div key={o.id} className="rounded-lg border border-emerald-200 bg-emerald-50 p-3"><div className="flex items-start justify-between"><div><strong className="text-sm">#{o.codeNumber} • {o.clientName}</strong><p className="text-[10px] text-slate-500 mt-1">{o.address}</p></div><CheckCircle2 className="w-4 h-4 text-emerald-600"/></div><button onClick={() => { onUpdateOrderStatus(o.id, 'picked_up'); setActiveTab('route'); }} className="w-full mt-3 py-3 rounded-lg bg-amber-400 text-slate-950 text-sm font-medium">Confirmar retirada #{o.codeNumber}</button></div>
+                ))}
+              </div>
+            </section>
 
-      <div className="bg-slate-100 px-3.5 py-3 border-b border-slate-200">
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-white p-2.5 rounded-2xl border border-slate-200 text-center">
-            <span className="text-[10px] font-black text-slate-500 uppercase block">🎒 Na bag</span>
-            <strong className="text-2xl font-black text-slate-950 block">{assignedOrders.length}</strong>
-            <span className="text-[10px] text-slate-400 font-bold">pedidos ativos</span>
-          </div>
-          <div className="bg-white p-2.5 rounded-2xl border border-slate-200 text-center">
-            <span className="text-[10px] font-black text-slate-500 uppercase block">📦 Entregas</span>
-            <strong className="text-2xl font-black text-slate-950 block">{completedOrders.length}</strong>
-            <span className="text-[10px] text-slate-400 font-bold">concluídas hoje</span>
-          </div>
-          <button type="button" onClick={() => setIsEarningsModalOpen(true)} className="bg-amber-400 hover:bg-amber-300 p-2.5 rounded-2xl border border-amber-500 text-left transition-all shadow-sm group overflow-hidden">
-            <div className="flex items-center justify-between gap-1"><span className="text-[10px] font-black text-slate-900 uppercase tracking-wide">💰 Ganhos hoje</span><ChevronRight className="w-3.5 h-3.5 text-slate-700" /></div>
-            <strong className="text-lg font-black text-slate-950 block mt-1 leading-none whitespace-nowrap">{formattedCurrency(totalEarnedDisplay)}</strong>
-            <span className="text-[9px] text-slate-700 font-bold block mt-1">toque para ver resumo</span>
-          </button>
-        </div>
-
-        {assignedOrders.length > 0 && (
-          <div className="mt-3 pt-2 border-t border-slate-200">
-            <div className="flex items-center justify-between text-[10px] font-black mb-1">
-              <span className="text-slate-600">{routeHasStarted ? 'Rota ativa' : waitingForKitchen ? 'Pedido vinculado' : 'Retirada'}</span>
-              <span className={waitingForKitchen ? 'text-amber-700' : 'text-slate-600'}>{routeHasStarted ? `${assignedOrders.length} ${assignedOrders.length === 1 ? 'parada restante' : 'paradas restantes'}` : waitingForKitchen ? 'Aguardando cozinha' : 'Pronto para retirada'}</span>
-            </div>
-            <div className="h-1 bg-slate-200 rounded-full overflow-hidden"><div className={`h-full rounded-full ${waitingForKitchen ? 'bg-amber-400' : 'bg-slate-500'}`} style={{ width: routeHasStarted ? '70%' : waitingForKitchen ? '20%' : '40%' }} /></div>
-          </div>
+            {!preparingOrders.length && !readyOrders.length && !routeOrders.length && (
+              <div className="bg-white rounded-xl border border-slate-200 p-6 text-center">
+                {activeMotoboy.status === 'returning_to_store' ? (
+                  <><Bike className="w-8 h-8 mx-auto text-slate-400"/><h3 className="mt-3 font-semibold">Voltando para a loja</h3><button onClick={() => onConfirmArrivalAtStore?.(activeMotoboy.id)} className="w-full mt-4 py-3 bg-slate-950 text-white rounded-lg">Cheguei à loja</button></>
+                ) : (
+                  <><Package className="w-8 h-8 mx-auto text-slate-400"/><h3 className="mt-3 font-semibold">Sem pedidos vinculados</h3><p className="text-xs text-slate-500 mt-1">Aguarde a loja enviar a próxima entrega.</p></>
+                )}
+              </div>
+            )}
+          </>
         )}
-      </div>
 
-      <div className="bg-slate-100 px-2 py-2 border-b border-slate-200 flex gap-1.5">
-        <button onClick={() => setActiveTab('active')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'active' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300'}`}>{assignedOrders.length ? (routeHasStarted ? 'Minha Rota' : 'Meus Pedidos') : 'Fila'} <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950">{assignedOrders.length}</span></button>
-        <button onClick={() => setActiveTab('map')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'map' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300'}`}>Mapa</button>
-        <button onClick={() => setActiveTab('completed')} className={`flex-1 py-2.5 rounded-xl font-black text-xs ${activeTab === 'completed' ? 'bg-slate-950 text-white' : 'bg-white border border-slate-300'}`}>Histórico <span className="ml-1 text-slate-400">{completedOrders.length}</span></button>
-      </div>
-
-      <div className="p-3.5 flex-1 bg-slate-50 overflow-y-auto">
-        {activeTab === 'active' ? (
-          assignedOrders.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-4">
-              {activeMotoboy?.status === 'returning_to_store' ? (
-                <>
-                  <div className="text-4xl">🏢</div><h4 className="text-xl font-black">Voltando para a loja</h4><p className="text-xs text-slate-500">Ao chegar, confirme abaixo para entrar no final da fila.</p><button onClick={() => onConfirmArrivalAtStore?.(activeMotoboy.id)} className="w-full py-3 bg-slate-900 text-white font-black rounded-xl">📍 Cheguei à loja</button>
-                </>
-              ) : activeMotoboy?.status === 'offline' ? (
-                <><div className="text-4xl">⏱️</div><h4 className="text-xl font-black">Expediente encerrado</h4><p className="text-xs text-slate-500">Entre na fila somente quando estiver pronto para trabalhar.</p><button onClick={() => { onUpdateMotoboyStatus?.(activeMotoboy.id, 'available'); setAvailableSince(Date.now()); setShiftStartedAt(Date.now()); setShiftEndedAt(null); }} className="w-full py-3.5 bg-slate-900 text-white font-black rounded-xl">Iniciar expediente / Entrar na fila</button></>
-              ) : activeMotoboy?.status === 'busy' ? (
-                <><div className="text-4xl">⏸️</div><h4 className="text-xl font-black">Disponibilidade pausada</h4><button onClick={() => onUpdateMotoboyStatus?.(activeMotoboy.id, 'available')} className="w-full py-3 bg-slate-900 text-white font-black rounded-xl">Voltar para a fila</button></>
-              ) : (
-                <>
-                  <div className="flex justify-center gap-2 flex-wrap"><span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs font-black">● DISPONÍVEL NA LOJA</span><button onClick={requestWakeLock} className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 text-xs font-black">📱 Tela ligada: {isWakeLockActive ? 'Ativada' : 'Ativar'}</button></div>
-                  <div className="border border-slate-200 rounded-2xl p-4"><strong className="text-4xl font-black block">{queuePos || 1}º da fila</strong><span className="text-slate-600 font-black text-sm">{queuePos <= 1 ? 'Próximo a receber um pedido' : `${queuePos - 1} à sua frente`}</span><div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100"><div className="bg-slate-50 rounded-xl p-2"><span className="text-[10px] text-slate-500 font-bold block">Estimativa</span><strong>~{Math.max(2, (queuePos || 1) * 2)} min</strong></div><div className="bg-slate-50 rounded-xl p-2"><span className="text-[10px] text-slate-500 font-bold block">Na fila</span><strong>{Math.max(0, Math.floor((Date.now() - (activeMotoboy.joinedQueueAt || availableSince)) / 60000))} min</strong></div></div></div>
-                  <button onClick={() => onUpdateMotoboyStatus?.(activeMotoboy.id, 'busy')} className="w-full py-3 border border-slate-300 rounded-xl font-black">Pausar disponibilidade</button>
-                  <button onClick={handleFinishShift} className="w-full py-3 bg-slate-900 text-rose-300 border border-rose-500/40 rounded-xl font-black">Encerrar expediente</button>
-                  <div className="pt-4 border-t border-slate-200 text-left"><h6 className="text-xs font-black uppercase">Outros na fila ({Math.max(0, availableDrivers.length - 1)})</h6><div className="mt-2 space-y-1.5">{availableDrivers.filter((m) => m.id !== activeMotoboy.id).map((m) => <div key={m.id} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">{m.name}</div>)}</div></div>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3 pb-4">
-              <div className={`w-full py-3 px-4 border rounded-2xl flex items-center justify-between text-xs font-black ${waitingForKitchen ? 'bg-slate-900 border-amber-400/40 text-amber-300' : 'bg-slate-900 border-slate-700 text-slate-300'}`}><span>{waitingForKitchen ? '🍳 Aguardando cozinha' : readyForPickup ? '📦 Pronto para retirada' : '● Em rota'}</span><span className="text-slate-400">{assignedOrders.length} {assignedOrders.length === 1 ? 'pedido' : 'pedidos'}</span></div>
-              {assignedOrders.map((order, index) => {
-                const isFirstOrder = index === 0;
-                const isExpanded = isFirstOrder || manualExpandedId === order.id;
-                const hasArrived = Boolean(arrivedOrderIds[order.id]);
-                const isInTransit = order.status === 'in_transit';
-                const isKitchenWaiting = order.status === 'pending' || order.status === 'preparing';
-                const streetLine = order.street || order.address;
-                const distance = calculateDistanceKm(deviceGps?.lat || activeMotoboy?.currentLat || shift.storeLat, deviceGps?.lng || activeMotoboy?.currentLng || shift.storeLng, order.lat, order.lng);
-
-                if (!isExpanded) return <button key={order.id} onClick={() => setManualExpandedId(order.id)} className="w-full bg-white p-3 rounded-2xl border border-slate-200 text-left flex justify-between"><span><strong>#{order.codeNumber}</strong> • {order.neighborhood}</span><span className="text-slate-400 text-xs">Toque para ver</span></button>;
-
-                return (
-                  <div key={order.id} className="rounded-2xl border border-slate-300 overflow-hidden bg-white shadow-sm">
-                    <div className="bg-slate-900 text-white px-4 py-3 flex justify-between items-center"><span className="font-black text-xs text-slate-300">{isFirstOrder ? 'ENTREGA ATUAL' : `${index + 1}ª PARADA`}</span><strong className="text-amber-300">#{order.codeNumber}</strong></div>
-                    <div className="p-4 space-y-3">
-                      <div className="bg-slate-950 text-white p-4 rounded-2xl"><div className="flex justify-between text-xs font-black"><span className="text-slate-400">PEDIDO #{order.codeNumber}</span><span className="text-slate-300">📍 {(order.neighborhood || 'Centro').toUpperCase()}</span></div><h2 className="text-2xl font-black mt-2">{streetLine}</h2><div className="flex gap-2 mt-3"><span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-slate-300 text-xs font-black">~{Math.max(2, Math.round((order.estimatedMinutes || 8) * 0.5))} min</span><span className="bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-slate-300 text-xs font-black">~{distance.toFixed(1)} km</span></div></div>
-
-                      {isKitchenWaiting && <div className="bg-amber-50 border border-amber-200 rounded-2xl px-3.5 py-3 flex items-center justify-between gap-3"><div><strong className="text-amber-900 text-sm block">🍳 Aguardando cozinha</strong><span className="text-[11px] text-amber-700 font-semibold">Você já está vinculado a este pedido. Aguarde a loja avisar quando estiver pronto.</span></div><Clock className="w-5 h-5 text-amber-600 shrink-0" /></div>}
-
-                      {(order.paymentMethod === 'pix' || order.originChannel === 'ifood' || order.originChannel === 'cardapio_web') ? (
-                        <div className="bg-emerald-950/90 border border-emerald-500/50 p-3 rounded-2xl flex items-center justify-between text-emerald-100 shadow-xs">
-                          <span className="text-emerald-300 font-black text-xs sm:text-sm flex items-center gap-1.5">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                            ✓ Pago via {order.paymentMethod === 'pix' ? 'PIX' : order.originChannel === 'ifood' ? 'iFood' : 'Online'} • Não cobrar
-                          </span>
-                          <span className="bg-slate-900 border border-slate-800 text-amber-300 px-2.5 py-1 rounded-xl font-black text-xs shrink-0">
-                            Ganho: + {formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="bg-amber-950 border-2 border-amber-500 p-3 rounded-2xl text-white space-y-2 shadow-sm">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-black">
-                                {order.paymentMethod === 'dinheiro' ? <DollarSign className="w-5 h-5 stroke-[2.5]" /> : <CreditCard className="w-5 h-5 stroke-[2.5]" />}
-                              </div>
-                              <div>
-                                <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider block">
-                                  🚨 COBRAR NO LOCAL ({order.paymentMethod === 'dinheiro' ? 'DINHEIRO' : 'MAQUININHA'})
-                                </span>
-                                <span className="font-bold text-xs text-amber-100 block">
-                                  {order.paymentMethod === 'dinheiro' ? '💵 Receber em dinheiro' : '💳 Passar cartão na maquininha'}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="text-right shrink-0 bg-slate-950 px-2.5 py-1 rounded-xl border border-amber-500/40">
-                              <span className="text-[9px] font-black text-amber-300 uppercase block">Cobrar</span>
-                              <span className="font-black text-xl text-amber-400 leading-tight block">{formattedCurrency(order.total)}</span>
-                            </div>
-                          </div>
-
-                          <div className="pt-1.5 border-t border-amber-800/60 flex items-center justify-between text-xs gap-2 flex-wrap">
-                            {order.paymentMethod === 'dinheiro' && order.changeFor && order.changeFor > order.total ? (
-                              <span className="bg-amber-900/80 text-amber-100 px-2 py-0.5 rounded-lg border border-amber-700 font-bold text-[11px]">
-                                ⚠️ Troco p/ <strong>{formattedCurrency(order.changeFor)}</strong> (Devolver <strong>{formattedCurrency(order.changeFor - order.total)}</strong>)
-                              </span>
-                            ) : (
-                              <span className="text-amber-200 text-[11px] font-semibold">
-                                {order.paymentMethod === 'dinheiro' ? '✓ Valor exato (sem troco)' : '✓ Levar maquininha de cartão'}
-                              </span>
-                            )}
-                            <span className="text-[11px] font-black text-emerald-400 bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800 shrink-0">
-                              Sua taxa: +{formattedCurrency(order.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {(isInTransit || order.status === 'picked_up') && <div className="grid grid-cols-2 gap-2"><button onClick={() => handleOpenWaze(order.address, order.lat, order.lng)} className="py-3.5 bg-sky-600 text-white rounded-2xl font-black flex items-center justify-center gap-2"><Navigation className="w-5 h-5" /> Navegar</button>{order.clientPhone ? <a href={`tel:${order.clientPhone.replace(/\D/g, '')}`} className="py-3.5 bg-slate-800 text-white rounded-2xl font-black flex items-center justify-center gap-2"><Phone className="w-5 h-5 text-slate-300" /> Ligar</a> : <div className="py-3.5 bg-slate-200 rounded-2xl text-center text-slate-500 font-black">Sem telefone</div>}</div>}
-
-                      {isFirstOrder && isInTransit && !hasArrived && <button onClick={() => { setArrivedOrderIds((prev) => ({ ...prev, [order.id]: true })); onSimulateArrival(order); }} className="w-full py-4 bg-slate-900 text-white font-black text-base rounded-2xl border border-slate-700 flex items-center justify-center gap-2"><MapPin className="w-5 h-5 text-emerald-400" /> Cheguei ao local</button>}
-                      {isFirstOrder && isInTransit && hasArrived && <button onClick={() => { onUpdateOrderStatus(order.id, 'delivered'); setArrivedOrderIds((prev) => { const next = { ...prev }; delete next[order.id]; return next; }); setManualExpandedId(null); }} className="w-full py-4 bg-emerald-600 text-white font-black text-base rounded-2xl flex items-center justify-center gap-2"><CheckCircle2 className="w-5 h-5" /> Concluir entrega #{order.codeNumber}</button>}
-                      {order.status === 'ready_at_counter' && (
-                        <button
-                          type="button"
-                          onClick={() => onUpdateOrderStatus(order.id, 'picked_up')}
-                          className="w-full py-4 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-base rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all"
-                        >
-                          <span>🎒</span>
-                          <span>Confirmar Retirada #{order.codeNumber}</span>
-                        </button>
-                      )}
-                      {order.status === 'picked_up' && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            assignedOrders.forEach((o) => {
-                              if (o.status !== 'in_transit' && o.status !== 'delivered' && o.status !== 'cancelled') {
-                                onUpdateOrderStatus(o.id, 'in_transit');
-                              }
-                            });
-                            onUpdateMotoboyStatus?.(activeMotoboy.id, 'delivering');
-                          }}
-                          className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-base rounded-2xl shadow-md flex items-center justify-center gap-2 transition-all"
-                        >
-                          <span>🚀</span>
-                          <span>Iniciar Rota de Entrega</span>
-                        </button>
-                      )}
-
-                      <button onClick={() => setExpandedExtraOrderIds((prev) => ({ ...prev, [order.id]: !prev[order.id] }))} className="w-full py-2.5 bg-slate-100 border border-slate-300 rounded-xl text-slate-700 font-black text-xs">{expandedExtraOrderIds[order.id] ? 'Ocultar detalhes' : 'Ver detalhes (Itens, Rastreio, Maps)'}</button>
-                      {expandedExtraOrderIds[order.id] && <div className="bg-slate-900 text-white rounded-2xl p-3.5 space-y-3 text-xs"><strong className="text-amber-300">👤 {order.clientName}</strong>{order.items?.length ? <div className="bg-slate-950 rounded-xl p-2 space-y-1">{order.items.map((item, i) => <div key={i} className="flex justify-between"><span>{item.quantity}x {item.name}</span><span>{formattedCurrency(item.price * item.quantity)}</span></div>)}</div> : null}{order.notes && <div className="bg-amber-950 border border-amber-600/40 rounded-xl p-2.5 text-amber-200">📝 {order.notes}</div>}<div className="grid grid-cols-2 gap-2"><button onClick={() => handleOpenGoogleMaps(order.address, order.lat, order.lng)} className="py-2 bg-slate-800 rounded-lg font-black">Google Maps</button><button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/?rastreio=${order.trackingCode || order.id}`)} className="py-2 bg-slate-800 rounded-lg font-black text-amber-300 flex justify-center gap-1"><Copy className="w-3.5 h-3.5" /> Rastreio</button></div></div>}
-                    </div>
+        {activeTab === 'route' && (
+          <>
+            {routeOrders.length === 0 ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-7 text-center"><Route className="w-9 h-9 mx-auto text-slate-400"/><h3 className="mt-3 font-semibold">Sua rota está vazia</h3><p className="text-xs text-slate-500 mt-1">Confirme a retirada de um pedido para adicionar à rota.</p></div>
+            ) : (
+              <>
+                <section className="bg-slate-950 text-white rounded-xl p-3 space-y-3">
+                  <div className="flex items-center justify-between"><div><h3 className="text-sm font-semibold">Ordem da rota</h3><p className="text-[10px] text-slate-400">{routeIsMoving ? 'Rota iniciada: sequência bloqueada' : 'Escolha qual entrega será 1ª, 2ª, 3ª...'}</p></div><Navigation className="w-5 h-5 text-violet-300"/></div>
+                  <div className="space-y-1.5">
+                    {routeOrders.map((o, index) => (
+                      <div key={o.id} className={`rounded-lg border p-2.5 flex items-center gap-2 ${currentRouteOrder?.id === o.id ? 'border-violet-500 bg-violet-950/30' : 'border-slate-800 bg-slate-900'}`}>
+                        <span className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-xs shrink-0">{index + 1}</span>
+                        <div className="min-w-0 flex-1"><p className="text-xs truncate">#{o.codeNumber} • {o.clientName}</p><p className="text-[10px] text-slate-500 truncate">{o.neighborhood || o.address}</p></div>
+                        {!routeIsMoving && <div className="flex gap-1"><button disabled={index === 0} onClick={() => moveRoute(index, -1)} className="p-1.5 rounded bg-slate-800 disabled:opacity-30"><ArrowUp className="w-3.5 h-3.5"/></button><button disabled={index === routeOrders.length - 1} onClick={() => moveRoute(index, 1)} className="p-1.5 rounded bg-slate-800 disabled:opacity-30"><ArrowDown className="w-3.5 h-3.5"/></button></div>}
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          )
-        ) : activeTab === 'map' ? (
-          <div className="space-y-3"><div className="bg-slate-900 text-white p-3.5 rounded-2xl"><h4 className="font-black">Mapa da minha rota</h4><p className="text-xs text-slate-400 mt-1">GPS do seu celular + suas paradas</p></div><div className="h-[400px] rounded-2xl overflow-hidden border border-slate-300"><RouteMap origin={{ name: shift.storeName || 'Loja', address: shift.storeAddress, lat: shift.storeLat, lng: shift.storeLng }} motoboyName={activeMotoboy?.name} showMotoboyMarker motoboyLat={deviceGps?.lat || activeMotoboy?.currentLat} motoboyLng={deviceGps?.lng || activeMotoboy?.currentLng} stops={assignedOrders.map((o, idx) => ({ id: o.id, orderIndex: idx + 1, title: `#${o.codeNumber} - ${o.clientName}`, address: o.address, neighborhood: o.neighborhood, lat: o.lat, lng: o.lng, status: o.status === 'in_transit' ? 'in_transit' : 'pending', priority: 'high', recipientName: o.clientName }))} /></div></div>
-        ) : (
-          <div className="space-y-3"><div className="bg-slate-900 text-white p-4 rounded-2xl grid grid-cols-2 gap-2 text-center"><div><span className="text-[10px] text-slate-400 uppercase font-black">Entregas hoje</span><strong className="text-2xl block">{completedOrders.length}</strong></div><div><span className="text-[10px] text-slate-400 uppercase font-black">Ganhos hoje</span><strong className="text-2xl text-amber-300 block">{formattedCurrency(totalEarnedDisplay)}</strong></div></div>{completedOrders.length ? completedOrders.map((o) => <div key={o.id} className="bg-white border border-slate-200 rounded-2xl p-3 flex justify-between"><div><strong>Pedido #{o.codeNumber}</strong><p className="text-xs text-slate-500">{o.clientName} • {o.neighborhood}</p></div><span className="text-slate-700 font-black">+{formattedCurrency(o.deliveryFee || activeMotoboy?.perDeliveryFee || 0)}</span></div>) : <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">Nenhuma entrega concluída hoje.</div>}</div>
+                  {!routeIsMoving && currentRouteOrder && <button onClick={() => startCurrentStop(currentRouteOrder)} className="w-full py-3 rounded-lg bg-violet-600 text-white text-sm font-medium flex items-center justify-center gap-2"><Navigation className="w-4 h-4"/> Iniciar rota e navegar</button>}
+                  {routeIsMoving && <button onClick={() => openGoogleRoute(currentRouteOrder?.id)} className="w-full py-3 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center justify-center gap-2"><Navigation className="w-4 h-4"/> Navegar rota restante</button>}
+                </section>
+
+                <div className="h-[220px] rounded-xl overflow-hidden border border-slate-200 bg-white">
+                  <RouteMap
+                    origin={{ name: shift.storeName || 'Loja', address: shift.storeAddress, lat: shift.storeLat, lng: shift.storeLng }}
+                    motoboyName={activeMotoboy.name}
+                    showMotoboyMarker
+                    motoboyLat={deviceGps?.lat || activeMotoboy.currentLat}
+                    motoboyLng={deviceGps?.lng || activeMotoboy.currentLng}
+                    stops={routeOrders.map((o, idx) => ({ id:o.id, orderIndex:idx+1, title:`#${o.codeNumber} - ${o.clientName}`, address:o.address, neighborhood:o.neighborhood, lat:o.lat, lng:o.lng, status:o.status === 'in_transit' ? 'in_transit' : 'pending', priority:'high', recipientName:o.clientName }))}
+                  />
+                </div>
+
+                {routeOrders.map((order, index) => {
+                  const isCurrent = currentRouteOrder?.id === order.id;
+                  const arrived = Boolean(arrivedOrderIds[order.id]);
+                  return (
+                    <article key={order.id} className={`rounded-xl border overflow-hidden bg-white ${isCurrent ? 'border-violet-400 shadow-sm' : 'border-slate-200 opacity-80'}`}>
+                      <div className={`px-3 py-2.5 flex items-center justify-between ${isCurrent ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-600'}`}><span className="text-xs font-medium">{isCurrent ? 'ENTREGA ATUAL' : `${index + 1}ª PARADA`}</span><strong className="text-sm">#{order.codeNumber}</strong></div>
+                      <div className="p-3 space-y-3">
+                        <div><p className="text-[10px] text-slate-500 uppercase">{order.neighborhood}</p><h3 className="text-lg font-semibold mt-1">{order.street || order.address}</h3><p className="text-xs text-slate-500 mt-1">{order.clientName}</p></div>
+
+                        {isCurrent ? (
+                          <>
+                            {order.status === 'picked_up' && <button onClick={() => startCurrentStop(order)} className="w-full py-3 bg-violet-600 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"><Navigation className="w-4 h-4"/> Iniciar esta parada</button>}
+                            {(order.status === 'in_transit' || order.status === 'dispatched') && !arrived && <button onClick={() => confirmArrival(order)} className="w-full py-3 bg-slate-950 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"><MapPin className="w-4 h-4 text-emerald-400"/> Confirmar chegada</button>}
+                            {(order.status === 'in_transit' || order.status === 'dispatched') && arrived && <button onClick={() => finishCurrentDelivery(order)} className="w-full py-3 bg-emerald-600 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2"><CheckCircle2 className="w-4 h-4"/> Confirmar entrega</button>}
+                            <div className="grid grid-cols-2 gap-2"><button onClick={() => openGoogleRoute(order.id)} className="py-2.5 bg-sky-600 text-white rounded-lg text-xs flex items-center justify-center gap-1.5"><Navigation className="w-4 h-4"/> Navegar</button>{order.clientPhone ? <a href={`tel:${order.clientPhone.replace(/\D/g,'')}`} className="py-2.5 bg-slate-800 text-white rounded-lg text-xs flex items-center justify-center gap-1.5"><Phone className="w-4 h-4"/> Ligar</a> : <div className="py-2.5 bg-slate-200 text-slate-500 rounded-lg text-xs text-center">Sem telefone</div>}</div>
+                          </>
+                        ) : (
+                          <div className="rounded-lg bg-slate-100 border border-slate-200 px-3 py-2 text-xs text-slate-500">Bloqueado até concluir a parada anterior.</div>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </>
+            )}
+          </>
         )}
-      </div>
 
-      <div className="bg-white px-4 py-3 border-t border-slate-200 flex items-center justify-between text-[11px] font-bold text-slate-500"><span>📍 Blumenau - SC</span><button onClick={() => setIsDailyReportModalOpen(true)} className="text-slate-900 font-black">{completedOrders.length} {completedOrders.length === 1 ? 'entrega finalizada' : 'entregas finalizadas'} ›</button></div>
-
-      {isEarningsModalOpen && <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4"><div className="flex justify-between items-center border-b border-slate-200 pb-3"><div><h4 className="font-black text-lg">Ganhos de hoje</h4><p className="text-xs text-slate-500">{new Date().toLocaleDateString('pt-BR')}</p></div><button onClick={() => setIsEarningsModalOpen(false)}><X className="w-5 h-5" /></button></div><div className="bg-slate-950 text-white rounded-2xl p-4 text-center"><span className="text-[10px] uppercase text-slate-400 font-black">Total a receber</span><strong className="text-4xl text-amber-300 block mt-1">{formattedCurrency(totalEarnedDisplay)}</strong></div><div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 border border-slate-200 rounded-xl p-3"><span className="text-[10px] text-slate-500 font-black uppercase">Fixo</span><strong className="block text-lg">{formattedCurrency(arranqueAmount)}</strong></div><div className="bg-slate-50 border border-slate-200 rounded-xl p-3"><span className="text-[10px] text-slate-500 font-black uppercase">Taxas</span><strong className="block text-lg">{formattedCurrency(deliveryFeesTotal)}</strong></div></div><div className="text-xs text-slate-600 font-bold">📦 {completedOrders.length} entregas concluídas hoje</div><button onClick={() => setIsEarningsModalOpen(false)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Fechar</button></div></div>}
-
-      {isDailyReportModalOpen && <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"><div className="bg-white rounded-3xl max-w-sm w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto"><div className="flex justify-between items-center"><div><h4 className="font-black text-lg">Relatório do dia</h4><p className="text-xs text-slate-500">{activeMotoboy?.name} • {new Date().toLocaleDateString('pt-BR')}</p></div><button onClick={() => setIsDailyReportModalOpen(false)}><X className="w-5 h-5" /></button></div><div className="bg-slate-950 text-white rounded-2xl p-4 text-center"><span className="text-[10px] text-amber-300 uppercase font-black">Saldo total</span><strong className="text-4xl text-amber-300 block">{formattedCurrency(totalEarnedDisplay)}</strong></div><div className="grid grid-cols-2 gap-2"><div className="bg-slate-50 border rounded-xl p-3"><span className="text-xs text-slate-500">Entregas</span><strong className="text-2xl block">{completedOrders.length}</strong></div><div className="bg-slate-50 border rounded-xl p-3"><span className="text-xs text-slate-500">Taxas</span><strong className="text-2xl block">{formattedCurrency(deliveryFeesTotal)}</strong></div></div><div className="text-xs text-slate-500">Expediente iniciado: {new Date(shiftStartedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}{shiftEndedAt ? ` • encerrado ${shiftEndedAt}` : ''}</div><button onClick={() => setIsDailyReportModalOpen(false)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Fechar</button></div></div>}
+        {activeTab === 'history' && (
+          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-3 py-3 border-b border-slate-200 flex items-center gap-2"><History className="w-4 h-4 text-slate-500"/><div><h3 className="text-sm font-semibold">Entregas de hoje</h3><p className="text-[10px] text-slate-500">{completedOrders.length} concluídas • {money(totalEarned)}</p></div></div>
+            <div className="p-2 space-y-2">{completedOrders.length === 0 ? <p className="text-xs text-slate-400 text-center py-6">Nenhuma entrega concluída hoje.</p> : completedOrders.map((o) => <div key={o.id} className="rounded-lg border border-slate-200 p-3 flex items-center justify-between"><div><strong className="text-sm">#{o.codeNumber}</strong><p className="text-xs text-slate-500">{o.clientName} • {o.neighborhood}</p></div><span className="text-xs text-emerald-600">+ {money(o.deliveryFee)}</span></div>)}</div>
+          </section>
+        )}
+      </main>
     </div>
   );
 };
