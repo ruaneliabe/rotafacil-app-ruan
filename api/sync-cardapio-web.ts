@@ -1,6 +1,8 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, setDoc } from 'firebase/firestore';
-import { getCardapioWebStores } from './cardapio-web-config';
+
+const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
+const CARDAPIO_WEB_HOPE_BURGER_TOKEN = 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
 
 function getDbInstance() {
   const firebaseConfig = {
@@ -17,156 +19,109 @@ function getDbInstance() {
   return getFirestore(app, dbId);
 }
 
-const STATUS_RANK: Record<string, number> = {
-  pending: 10,
-  preparing: 20,
-  ready_at_counter: 30,
-  picked_up: 40,
-  dispatched: 50,
-  in_transit: 60,
-  delivered: 100,
-};
-
-function mapExternalStatus(status: unknown): 'dispatched' | 'delivered' | 'cancelled' | null {
-  const value = String(status || '').trim().toLowerCase();
-  if (['closed', 'delivered', 'finalized', 'concluded'].includes(value)) return 'delivered';
-  if (['released', 'dispatched', 'saiu_para_entrega'].includes(value)) return 'dispatched';
-  if (['canceled', 'cancelled', 'rejected'].includes(value)) return 'cancelled';
-  return null;
-}
-
-function canApplyExternalStatus(currentStatus: unknown, targetStatus: string): boolean {
-  const current = String(currentStatus || 'pending').toLowerCase();
-  if (current === 'delivered' || current === 'cancelled') return false;
-
-  // Cancelamento externo so encerra pedido que ainda nao saiu para entrega.
-  if (targetStatus === 'cancelled') {
-    return (STATUS_RANK[current] || 0) < STATUS_RANK.dispatched;
-  }
-
-  return (STATUS_RANK[targetStatus] || 0) > (STATUS_RANK[current] || 0);
-}
-
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
   try {
     const db = getDbInstance();
-    const stores = getCardapioWebStores();
+    const [cwPizzaRes, cwBurgerRes] = await Promise.all([
+      fetch('https://integracao.cardapioweb.com/api/partner/v1/orders', {
+        headers: { 'X-API-KEY': CARDAPIO_WEB_HOPE_PIZZA_TOKEN },
+      }),
+      fetch('https://integracao.cardapioweb.com/api/partner/v1/orders', {
+        headers: { 'X-API-KEY': CARDAPIO_WEB_HOPE_BURGER_TOKEN },
+      }),
+    ]);
 
-    const storeResults = await Promise.all(
-      stores.map(async (store) => {
-        try {
-          const response = await fetch('https://integracao.cardapioweb.com/api/partner/v1/orders', {
-            headers: { 'X-API-KEY': store.apiKey },
-          });
-          if (!response.ok) {
-            console.error(`[Cardapio Web Sync] ${store.storeId}: HTTP ${response.status}`);
-            return [];
-          }
-          const list = await response.json();
-          return Array.isArray(list)
-            ? list.map((order: any) => ({ ...order, _storeId: store.storeId }))
-            : [];
-        } catch (error) {
-          console.error(`[Cardapio Web Sync] ${store.storeId}:`, error);
-          return [];
-        }
-      })
-    );
+    const pizzaList = cwPizzaRes.ok ? await cwPizzaRes.json() : [];
+    const burgerList = cwBurgerRes.ok ? await cwBurgerRes.json() : [];
 
-    const externalOrders = storeResults.flat();
-    const externalMap = new Map<string, any>();
-    for (const order of externalOrders) {
-      if (order.id != null) externalMap.set(`${order._storeId}:id:${String(order.id)}`, order);
-      if (order.display_id != null) externalMap.set(`${order._storeId}:display:${String(order.display_id)}`, order);
-    }
+    const cwList = [
+      ...(Array.isArray(pizzaList) ? pizzaList.map((o: any) => ({ ...o, _branch: 'hope_pizza' })) : []),
+      ...(Array.isArray(burgerList) ? burgerList.map((o: any) => ({ ...o, _branch: 'hope_burger' })) : []),
+    ];
+
+    const cwMap = new Map();
+    cwList.forEach((o: any) => {
+      cwMap.set(String(o.id), o.status);
+      cwMap.set(`cw_${o.id}`, o.status);
+      if (o.display_id) {
+        cwMap.set(`${o._branch}_display_${o.display_id}`, o.status);
+        cwMap.set(`display_${o.display_id}`, o.status);
+      }
+    });
 
     const snap = await getDocs(collection(db, 'orders'));
     let dispatchedCount = 0;
     let deliveredCount = 0;
-    let cancelledCount = 0;
     let purgedEmptyCount = 0;
     let purgedTakeoutCount = 0;
-    let regressionBlockedCount = 0;
 
     for (const d of snap.docs) {
       const data = d.data() as any;
-      if (data.originChannel !== 'cardapio_web') continue;
 
-      const isTakeoutOrder =
-        (data.address && String(data.address).toLowerCase().includes('retirada')) ||
-        (data.neighborhood && String(data.neighborhood).toLowerCase() === 'balcao') ||
-        data.order_type === 'takeout';
-      if (isTakeoutOrder && canApplyExternalStatus(data.status, 'cancelled')) {
-        await setDoc(doc(db, 'orders', d.id), { status: 'cancelled', statusSource: 'system_cleanup' }, { merge: true });
+      // Pedidos de balcão / retirada devem ser ignorados do balcão de entregas
+      const isTakeoutOrder = (data.address && data.address.toLowerCase().includes('retirada')) ||
+                             (data.neighborhood && data.neighborhood.toLowerCase() === 'balcão') ||
+                             data.order_type === 'takeout';
+      if (isTakeoutOrder) {
+        await setDoc(doc(db, 'orders', d.id), { status: 'cancelled' }, { merge: true });
         purgedTakeoutCount++;
         continue;
       }
 
-      const isGhost =
-        (!data.clientName || data.clientName === 'Cliente Cardápio Web' || data.clientName === 'Cliente não informado') &&
-        (!data.total || Number(data.total) <= 0);
-      if (isGhost && canApplyExternalStatus(data.status, 'cancelled')) {
-        await setDoc(doc(db, 'orders', d.id), { status: 'cancelled', statusSource: 'system_cleanup' }, { merge: true });
+      // Limpeza preventiva: pedidos fantasmas
+      const isGhost = (!data.clientName || data.clientName === 'Cliente Cardápio Web' || data.clientName === 'Cliente não informado') && (!data.total || Number(data.total) <= 0);
+      if (isGhost) {
+        await setDoc(doc(db, 'orders', d.id), { status: 'cancelled' }, { merge: true });
         purgedEmptyCount++;
         continue;
       }
 
-      const storeId = String(data.storeId || data.storeBranch || '').trim().toLowerCase();
-      if (!storeId) continue;
+      const cleanDocId = d.id.replace(/^cw_/, '');
+      const branchKey = data.storeBranch || (data.storeName?.toLowerCase().includes('burger') ? 'hope_burger' : 'hope_pizza');
+      const cwStatus = cwMap.get(d.id) ||
+                       cwMap.get(cleanDocId) ||
+                       (data.codeNumber ? cwMap.get(`${branchKey}_display_${data.codeNumber}`) : null) ||
+                       (data.codeNumber ? cwMap.get(`display_${data.codeNumber}`) : null);
+      if (!cwStatus) continue;
 
-      const externalId = data.externalOrderId || d.id.replace(/^cw_[^_]+_/, '').replace(/^cw_/, '');
-      const external =
-        externalMap.get(`${storeId}:id:${String(externalId)}`) ||
-        (data.codeNumber != null ? externalMap.get(`${storeId}:display:${String(data.codeNumber)}`) : null);
-      if (!external) continue;
-
-      const targetStatus = mapExternalStatus(external.status);
-      const patch: any = {
-        externalStatus: String(external.status || ''),
-        externalStatusSyncedAt: new Date().toISOString(),
-      };
-
-      if (targetStatus) {
-        if (canApplyExternalStatus(data.status, targetStatus)) {
-          patch.status = targetStatus;
-          patch.statusSource = 'cardapio_web';
-          if (targetStatus === 'delivered') {
-            patch.closedAt = new Date().toISOString();
-            patch.closedInCardapioWeb = true;
-            deliveredCount++;
-          } else if (targetStatus === 'dispatched') {
-            dispatchedCount++;
-          } else if (targetStatus === 'cancelled') {
-            cancelledCount++;
-          }
-        } else if (targetStatus !== data.status) {
-          regressionBlockedCount++;
-        }
+      const normCwStatus = String(cwStatus).trim().toLowerCase();
+      let targetStatus: string | null = null;
+      if (['closed', 'released', 'delivered', 'dispatched', 'saiu_para_entrega', 'finalized', 'concluded'].includes(normCwStatus)) {
+        // Pedido já foi despachado ou entregue no Cardápio Web: deve sumir da fila ativa do Rota Fácil
+        targetStatus = 'delivered';
+      } else if (['canceled', 'cancelled', 'rejected'].includes(normCwStatus)) {
+        targetStatus = 'failed';
       }
 
-      await setDoc(doc(db, 'orders', d.id), patch, { merge: true });
+      if (targetStatus && targetStatus !== data.status) {
+        await setDoc(doc(db, 'orders', d.id), {
+          status: targetStatus,
+          closedAt: new Date().toISOString(),
+          closedInCardapioWeb: true,
+        }, { merge: true });
+        if (targetStatus === 'delivered') deliveredCount++;
+      }
     }
 
     return res.status(200).json({
       success: true,
-      storesChecked: stores.length,
-      totalCwOrders: externalOrders.length,
+      totalCwOrders: cwList.length,
       dispatchedCount,
       deliveredCount,
-      cancelledCount,
       purgedEmptyCount,
       purgedTakeoutCount,
-      regressionBlockedCount,
-      totalUpdated: dispatchedCount + deliveredCount + cancelledCount,
+      totalUpdated: dispatchedCount + deliveredCount,
     });
   } catch (err: any) {
-    console.error('Erro na sincronizacao Cardapio Web Vercel:', err);
+    console.error('Erro na sincronização Cardápio Web Vercel:', err);
     return res.status(500).json({ error: err?.message || String(err) });
   }
 }
