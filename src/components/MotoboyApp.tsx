@@ -10,6 +10,14 @@ type NavRequest={from?:string;fullRoute:boolean;startWholeRoute?:boolean;startOr
 
 const money=(v=0)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
 const routeStatus=(o:Order)=>['picked_up','in_transit','dispatched'].includes(o.status);
+const isFinalized=(o:Order)=>{
+  const anyOrder=o as any;
+  return o.status==='delivered'||o.status==='cancelled'||Boolean(o.deliveredTimestamp)||Boolean(o.deliveredAt)||Boolean(o.deliveredDate)||anyOrder.closedInCardapioWeb===true||Boolean(anyOrder.closedAt);
+};
+const isDelivered=(o:Order)=>{
+  const anyOrder=o as any;
+  return o.status==='delivered'||Boolean(o.deliveredTimestamp)||Boolean(o.deliveredAt)||Boolean(o.deliveredDate)||anyOrder.closedInCardapioWeb===true||Boolean(anyOrder.closedAt);
+};
 
 export const MotoboyApp:React.FC<P>=({motoboys,orders,shift,onUpdateOrderStatus,onSimulateArrival,onReorderMotoboyRoute,onConfirmArrivalAtStore,onUpdateMotoboyStatus,initialMotoboyId,isLockedToMotoboy=false,onLogout})=>{
   const[tab,setTab]=useState<Tab>('orders');
@@ -22,18 +30,25 @@ export const MotoboyApp:React.FC<P>=({motoboys,orders,shift,onUpdateOrderStatus,
 
   const driver=useMemo(()=>initialMotoboyId?motoboys.find(m=>m.id===initialMotoboyId):isLockedToMotoboy?undefined:motoboys[0],[motoboys,initialMotoboyId,isLockedToMotoboy]);
   const mine=(o:Order)=>!!driver&&o.assignedMotoboyId===driver.id;
-  const assigned=useMemo(()=>orders.filter(o=>mine(o)&&!['delivered','cancelled'].includes(o.status)).sort((a,b)=>(a.routeSequence||999)-(b.routeSequence||999)),[orders,driver?.id]);
+
+  // Finalized orders must never return to the active courier workload even if an
+  // external sync later sends an older transient status such as dispatched.
+  const assigned=useMemo(()=>orders.filter(o=>mine(o)&&!isFinalized(o)).sort((a,b)=>(a.routeSequence||999)-(b.routeSequence||999)),[orders,driver?.id]);
   const preparing=assigned.filter(o=>['pending','preparing'].includes(o.status));
   const ready=assigned.filter(o=>o.status==='ready_at_counter');
   const raw=assigned.filter(routeStatus);
 
-  useEffect(()=>{const ids=raw.map(o=>o.id);setOrderIds(prev=>[...prev.filter(id=>ids.includes(id)),...ids.filter(id=>!prev.includes(id))])},[raw.map(o=>o.id).join('|')]);
+  useEffect(()=>{
+    const ids=raw.map(o=>o.id);
+    setOrderIds(prev=>[...prev.filter(id=>ids.includes(id)),...ids.filter(id=>!prev.includes(id))]);
+  },[raw.map(o=>o.id).join('|')]);
+
   const route=useMemo(()=>{const map=new globalThis.Map(raw.map(o=>[o.id,o]));return[...orderIds.map(id=>map.get(id)).filter(Boolean)as Order[],...raw.filter(o=>!orderIds.includes(o.id))]},[raw,orderIds]);
   const activeRun=driver?.status==='delivering'&&route.length>0;
   const inQueue=driver?.status==='available';
   const returning=driver?.status==='returning_to_store';
   const current=route.find(o=>['in_transit','dispatched'].includes(o.status))||route[0];
-  const completed=orders.filter(o=>mine(o)&&o.status==='delivered');
+  const completed=orders.filter(o=>mine(o)&&isDelivered(o));
   const earned=completed.reduce((s,o)=>s+(o.deliveryFee||0),0);
 
   useEffect(()=>{if(!driver||!navigator.geolocation)return;const ok=(p:GeolocationPosition)=>{const lat=+p.coords.latitude.toFixed(6),lng=+p.coords.longitude.toFixed(6);setGps({lat,lng});saveMotoboyLocationToCloud(driver.id,lat,lng)};navigator.geolocation.getCurrentPosition(ok,()=>{},{enableHighAccuracy:true});const id=navigator.geolocation.watchPosition(ok,()=>{},{enableHighAccuracy:true,maximumAge:4000});return()=>navigator.geolocation.clearWatch(id)},[driver?.id]);
