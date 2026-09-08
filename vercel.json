@@ -5,8 +5,8 @@
       "destination": "/api/sync-cardapio-web"
     },
     {
-      "source": "/api/webhook/cardapio-web/:storeId",
-      "destination": "/api/webhook-cardapio-web?storeId=:storeId"
+      "source": "/api/webhook/cardapio-web/:branchId",
+      "destination": "/api/webhook-cardapio-web?branchId=:branchId"
     },
     {
       "source": "/api/webhook/cardapio-web",
