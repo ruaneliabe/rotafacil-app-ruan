@@ -42,6 +42,9 @@ import { MotoboySettlementModal } from './MotoboySettlementModal';
 import { DeliveryHistoryModal } from './DeliveryHistoryModal';
 import { IntegrationsModal } from './IntegrationsModal';
 import { KanbanBoard } from './KanbanBoard';
+import OperationDispatchView from './OperationDispatchView';
+import { ActionHeroLevel1 } from './ActionHeroLevel1';
+import { ManagementHub } from './ManagementHub';
 import { getSoundEnabled, setSoundEnabled, playNewOrderSound } from '../utils/soundUtils';
 import { PaymentBadge, getPaymentMethodLabel } from '../utils/paymentUtils';
 import { calculateDistanceKm, calculateRoadDistanceKm } from '../utils/geoUtils';
@@ -93,7 +96,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   onAddOrder,
   onSaveIntegrations,
 }) => {
-  const [activeTab, setActiveTab] = useState<'operacao' | 'kanban' | 'equipe' | 'financeiro' | 'historico'>('operacao');
+  const [activeTab, setActiveTab] = useState<'kanban' | 'operacao' | 'mapa' | 'equipe' | 'gestao' | 'financeiro' | 'historico'>('operacao');
   const [selectedMotoboyId, setSelectedMotoboyId] = useState<string | null>(null);
   const [selectedOrderIdOnMap, setSelectedOrderIdOnMap] = useState<string | null>(null);
 
@@ -431,6 +434,20 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   const brainAnalysis = analyzeOperationalBrain(orders, motoboys, shift);
   const operationalProblemAlerts = brainAnalysis.alerts.filter((alert) => alert.type !== 'savings' && alert.severity !== 'info');
 
+  const inTransitOrders = activeOrders.filter((o) => o.status === 'in_transit');
+
+  const handleCallCounter = (motoboyId: string, motoboyName: string) => {
+    triggerActionToast(`🛎️ Chamando entregador ${motoboyName.split(' ')[0]} no balcão!`);
+    if (getSoundEnabled()) {
+      playNewOrderSound();
+    }
+  };
+
+  const delayedOrders = unassignedOrders.filter((o) => {
+    const elapsedMinutes = Math.floor((Date.now() - o.createdAt) / 60000);
+    return elapsedMinutes >= 20;
+  });
+
   const handleApplyBrainRecommendation = (rec: DispatchRecommendation) => {
     const targetDriver = motoboys.find((m) => m.id === rec.motoboyId);
     if (targetDriver && targetDriver.status === 'returning_to_store') {
@@ -535,135 +552,229 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         </div>
       )}
 
-      {/* 1. CLEAN UNIFIED DASHBOARD HEADER & ACTION BAR */}
-      <div className="bg-slate-900/90 backdrop-blur-md rounded-2xl p-3 sm:p-4 border border-slate-800/80 shadow-md flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-        {/* Left: Store Identity & Shift Info */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700/60 text-blue-400 flex items-center justify-center shrink-0 font-bold shadow-xs">
-            <Building2 className="w-5 h-5 text-blue-400" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base font-black text-white tracking-tight">
-                {shift.storeName || 'Hope Burger & Pizza'}
-              </h2>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide uppercase border ${
-                shift.isOpen ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-              }`}>
-                {shift.isOpen ? '● Aberto' : '○ Fechado'}
+      {/* 1. CABEÇALHO SÓBRIO & DIRETO - FILOSOFIA PDV / CARDÁPIO WEB */}
+      <header className="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 shadow-sm space-y-3">
+        {/* Linha 1: Marca + Lojas + Status da Loja + Gestão */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-1.5">
+                <span className="text-emerald-400">🛵</span> Rota Fácil
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700/80 flex items-center gap-1.5" title="Status no Cardápio Web">
-                <span className={`w-1.5 h-1.5 rounded-full ${shift.cardapioWebStatus?.isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
-                <span>CW: {shift.cardapioWebStatus?.isOpen ? 'Aberto' : 'Fechado (Abre 18h)'}</span>
-              </span>
+              <span className="text-xs text-slate-500 font-medium hidden sm:inline">|</span>
+            </div>
+
+            {/* Seletor de Loja (Pílulas diretas) */}
+            <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 gap-1 text-xs font-bold">
               <button
                 type="button"
-                onClick={() => handleSyncCardapioWeb(true)}
-                disabled={isSyncingCw}
-                className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-[11px] font-semibold transition-all border border-slate-700 flex items-center gap-1 cursor-pointer"
-                title="Sincronizar status da loja e pedidos com o Cardápio Web"
-              >
-                <RotateCw className={`w-3 h-3 ${isSyncingCw ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
-                <span>{isSyncingCw ? 'Sincronizando...' : 'Sincronizar CW'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={onToggleShift}
-                className={`px-2.5 py-0.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                  shift.isOpen
-                    ? 'bg-slate-800 hover:bg-rose-950 text-slate-300 hover:text-rose-300 border border-slate-700'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                onClick={() => setStoreFilter('all')}
+                className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
+                  storeFilter === 'all'
+                    ? 'bg-slate-800 text-white font-black'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
-                {shift.isOpen ? 'Encerrar turno' : 'Abrir loja'}
+                Todas ({activeOrders.length})
               </button>
+              {(shift.branches || [
+                { id: 'hope_burger', name: 'Hope Burger', icon: '🍔', tag: 'HB' },
+                { id: 'hope_pizza', name: 'Hope Pizza', icon: '🍕', tag: 'HP' },
+              ]).map((branch) => {
+                const isSel = storeFilter === branch.id;
+                const count = activeOrders.filter((o) => {
+                  if (o.storeBranch === branch.id) return true;
+                  if (o.storeId === branch.id) return true;
+                  if (branch.id === 'hope_burger' && (o.storeBranch === 'hope_burger' || o.storeName?.toLowerCase().includes('burger'))) return true;
+                  if (branch.id === 'hope_pizza' && (o.storeBranch === 'hope_pizza' || o.storeName?.toLowerCase().includes('pizz') || o.storeName?.toLowerCase().includes('pizza'))) return true;
+                  return false;
+                }).length;
+
+                return (
+                  <button
+                    key={branch.id}
+                    type="button"
+                    onClick={() => setStoreFilter(branch.id)}
+                    className={`px-2.5 py-1 rounded transition-all flex items-center gap-1 cursor-pointer ${
+                      isSel
+                        ? 'bg-indigo-600 text-white font-black'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>{branch.icon || '🏪'}</span>
+                    <span>{branch.name}</span>
+                    {count > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                        isSel ? 'bg-white text-indigo-950' : 'bg-slate-800 text-slate-300'
+                      }`}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">
-              {shift.isOpen ? (
-                <>
-                  <strong className="text-slate-100 font-bold">{activeOrders.length} pedidos ativos</strong> • <strong className="text-slate-100 font-bold">{motoboysAvailable.length} motoboy{motoboysAvailable.length !== 1 ? 's' : ''} livre{motoboysAvailable.length !== 1 ? 's' : ''}</strong> • <strong className="text-emerald-400 font-bold">{formattedCurrency(totalRevenue)} hoje</strong>
-                </>
-              ) : (
-                <>
-                  <span className="inline-block w-2 h-2 rounded-full bg-slate-500 mr-1.5 align-middle" />
-                  <strong className="text-slate-300 font-bold">Loja Fechada</strong> • <strong className="text-slate-400 font-medium">{motoboys.length} motoboys</strong> • <strong className="text-slate-300 font-bold">Turno Atual: R$ 0,00</strong>
-                </>
-              )}
-            </p>
+          </div>
+
+          {/* Direita: Status da Loja + CW + Gestão */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 ${
+                shift.isOpen
+                  ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                  : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  shift.isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+                }`}
+              />
+              {shift.isOpen ? 'Loja Aberta' : 'Loja Fechada'}
+            </span>
+            <button
+              type="button"
+              onClick={onToggleShift}
+              className="text-xs text-slate-400 hover:text-white underline cursor-pointer px-1"
+            >
+              {shift.isOpen ? 'Encerrar' : 'Abrir'}
+            </button>
+
+            <span
+              className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700/60 hidden md:inline-flex items-center gap-1"
+              title="Status do Cardápio Web"
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  shift.cardapioWebStatus?.isOpen ? 'bg-emerald-400' : 'bg-slate-500'
+                }`}
+              />
+              CW: {shift.cardapioWebStatus?.isOpen ? 'Aberto' : 'Fechado'}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => handleSyncCardapioWeb(true)}
+              disabled={isSyncingCw}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all border border-slate-700 cursor-pointer"
+              title="Sincronizar com Cardápio Web"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${isSyncingCw ? 'animate-spin text-blue-400' : ''}`} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('gestao')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'gestao'
+                  ? 'bg-slate-800 text-white border-slate-600'
+                  : 'bg-slate-950 text-slate-300 hover:text-white border-slate-800'
+              }`}
+            >
+              <span>⚙️ Gestão</span>
+            </button>
           </div>
         </div>
 
-        {/* Right: Operational Actions Group */}
-        <div className="flex items-center gap-2 flex-wrap justify-start lg:justify-end">
-          {/* Primary CTA: Despachar Próximo */}
-          <button
-            type="button"
-            onClick={handleCallNextMotoboy}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-extrabold text-xs sm:text-sm rounded-xl transition-all flex items-center gap-2 cursor-pointer border border-emerald-500 shadow-sm shrink-0"
-            title="Chama o 1º motoboy da fila para retirar o pedido no balcão"
-          >
-            <Zap className="w-4 h-4 text-emerald-100 shrink-0" />
-            <span>Despachar 1º da Fila</span>
-          </button>
+        {/* Linha 2: Fita de Números Vitais + Botões de Ação de Expedição */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2.5 border-t border-slate-800/80">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap text-xs">
+            <div className="flex items-center gap-1.5 text-slate-300">
+              <span className="text-slate-500 font-medium">Pedidos:</span>
+              <strong className="text-white font-black text-sm">{activeOrders.length}</strong>
+            </div>
+            <span className="text-slate-700">•</span>
+            <div className="flex items-center gap-1.5 text-slate-300">
+              <span className="text-slate-500 font-medium">Prontos:</span>
+              <strong className="text-emerald-400 font-black text-sm">{unassignedOrders.length}</strong>
+            </div>
+            <span className="text-slate-700">•</span>
+            <div className="flex items-center gap-1.5 text-slate-300">
+              <span className="text-slate-500 font-medium">Em rota:</span>
+              <strong className="text-blue-400 font-black text-sm">{inTransitOrders.length}</strong>
+            </div>
+            <span className="text-slate-700">•</span>
+            <div className="flex items-center gap-1.5 text-slate-300">
+              <span className="text-slate-500 font-medium">Motoboys:</span>
+              <strong className="text-amber-300 font-black text-sm">{motoboysAvailable.length} livres</strong>
+            </div>
+          </div>
 
-          {/* Map Button */}
-          <button
-            type="button"
-            onClick={() => setIsRouteModalOpen(true)}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-            title="Abrir mapa com localização dos pedidos e entregadores"
-          >
-            <Map className="w-3.5 h-3.5 text-blue-400" />
-            <span>Mapa de Pedidos</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {brainAnalysis.recommendations[0] && (
+              <button
+                type="button"
+                onClick={() => handleApplyBrainRecommendation(brainAnalysis.recommendations[0])}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                title="Despachar a rota sugerida pelo sistema"
+              >
+                <span>🚀 Despachar ({brainAnalysis.recommendations[0].orders.length})</span>
+              </button>
+            )}
 
-          {/* New Manual Order */}
-          <button
-            type="button"
-            onClick={onOpenNewOrderModal}
-            disabled={Boolean(shift.pilotMode && activeOrders.length >= 5)}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 shrink-0"
-            title="Lançar pedido manual avulso"
-          >
-            <Plus className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Novo Pedido</span>
-          </button>
-
-          {/* Sincronização Cardápio Web Button */}
-          <button
-            type="button"
-            onClick={() => handleSyncCardapioWeb(true)}
-            disabled={isSyncingCw}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-100 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 disabled:opacity-50"
-            title="Sincronizar status com o Cardápio Web"
-          >
-            <RotateCw className={`w-3.5 h-3.5 text-blue-400 ${isSyncingCw ? 'animate-spin' : ''}`} />
-            <span>{isSyncingCw ? 'Sincronizando...' : 'Sincronizar CW'}</span>
-          </button>
-
-          {/* Integrations Modal Button */}
-          <button
-            type="button"
-            onClick={() => setIsIntegrationsOpen(true)}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
-            title="Integrações Cardápio Web, iFood e Webhooks"
-          >
-            <Webhook className="w-3.5 h-3.5 text-slate-400" />
-            <span>Integrações</span>
-          </button>
-
-          {/* Reports Modal Button */}
-          <button
-            type="button"
-            onClick={() => setIsHistoryModalOpen(true)}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
-            title="Relatórios e Histórico de Entregas"
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Relatórios</span>
-          </button>
+            <button
+              type="button"
+              onClick={onOpenNewOrderModal}
+              disabled={Boolean(shift.pilotMode && activeOrders.length >= 5)}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Novo Pedido</span>
+            </button>
+          </div>
         </div>
-      </div>
+      </header>
+
+      {/* 2. AVISOS DIRETOS (SEM POLUIÇÃO DE DASHBOARD) */}
+      {(brainAnalysis.recommendations[0] || (motoboysAvailable.length === 0 && unassignedOrders.length > 0) || delayedOrders.length > 0) && (
+        <div className="space-y-1.5">
+          {/* Rota sugerida direta */}
+          {brainAnalysis.recommendations[0] && (
+            <div className="bg-emerald-950/40 border border-emerald-500/40 text-emerald-200 px-3.5 py-2 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-emerald-400 font-black">🟢 Rota sugerida:</span>
+                <span>
+                  Enviar <strong>{brainAnalysis.recommendations[0].motoboyName}</strong> com{' '}
+                  {brainAnalysis.recommendations[0].orders.map((o) => `#${o.codeNumber}`).join(', ')}{' '}
+                  ({brainAnalysis.recommendations[0].corridorLabel || brainAnalysis.recommendations[0].neighborhoodSummary}) • ~{brainAnalysis.recommendations[0].estimatedTripMin} min
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleApplyBrainRecommendation(brainAnalysis.recommendations[0])}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-lg cursor-pointer shrink-0"
+              >
+                Despachar rota
+              </button>
+            </div>
+          )}
+
+          {/* Aguardando motoboy */}
+          {motoboysAvailable.length === 0 && unassignedOrders.length > 0 && (
+            <div className="bg-amber-950/40 border border-amber-500/40 text-amber-200 px-3.5 py-1.5 rounded-xl text-xs flex items-center justify-between gap-2 shadow-xs">
+              <span>
+                🟡 <strong>Aguardando motoboy:</strong> {unassignedOrders.length} {unassignedOrders.length === 1 ? 'pedido pronto' : 'pedidos prontos'} no balcão • Entregador retorna em breve
+              </span>
+            </div>
+          )}
+
+          {/* Pedidos com atraso */}
+          {delayedOrders.length > 0 && (
+            <div className="bg-rose-950/40 border border-rose-500/40 text-rose-200 px-3.5 py-1.5 rounded-xl text-xs flex items-center justify-between gap-2 shadow-xs">
+              <span>
+                🔴 <strong>{delayedOrders.length} {delayedOrders.length === 1 ? 'pedido atrasado' : 'pedidos atrasados'}</strong> (+20 min esperando) • Priorize estes despachos
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderIds(delayedOrders.map((o) => o.id))}
+                className="text-xs text-rose-300 hover:text-white underline cursor-pointer"
+              >
+                Selecionar atrasados
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 🛎️ ACTIVE 30-SECOND COUNTER CALL BANNER (Substitui painel de senhas) */}
       {callingCounterTimer && (
@@ -713,46 +824,21 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         </div>
       )}
 
-      {/* ⚠️ STICKY TOP ALERT BANNER (Aparece somente quando a Central de Exceções é rolada para fora da tela) */}
-      {operationalProblemAlerts.length > 0 && !isAlertsSectionInView && (
-        <div
-          onClick={() => {
-            const el = document.getElementById('exceptions-alerts-section');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          }}
-          className="sticky top-2 z-40 bg-amber-950/95 border-2 border-amber-500/80 text-amber-100 p-2.5 px-4 rounded-xl shadow-xl flex items-center justify-between gap-3 cursor-pointer transition-all animate-slideDown backdrop-blur-md"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
-            <span className="font-extrabold text-xs text-amber-200 truncate">
-              {operationalProblemAlerts.length} {operationalProblemAlerts.length === 1 ? 'ocorrência exige' : 'ocorrências exigem'} atenção · {(() => {
-                const count = operationalProblemAlerts.filter((alert) => alert.severity === 'high').length;
-                return `${count} ${count === 1 ? 'crítica' : 'críticas'}`;
-              })()}
-            </span>
-          </div>
-
-          <span className="text-[10px] font-bold text-amber-300 bg-amber-900/80 px-2 py-0.5 rounded-md border border-amber-500/40 shrink-0 uppercase tracking-wide">
-            Ver Central ↑
-          </span>
-        </div>
-      )}
-
-      {/* 2. SUB NAVIGATION TABS */}
-      <div className="bg-slate-900 p-1.5 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-slate-400 shadow-xs">
-        <div className="flex items-center gap-1.5 flex-wrap">
+      {/* 3. NAVEGAÇÃO DE ABAS DIRETA */}
+      <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-1 text-xs font-bold text-slate-400 shadow-xs">
+        <div className="flex items-center gap-1 flex-wrap">
           <button
             type="button"
             onClick={() => setActiveTab('operacao')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer font-bold ${
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'operacao'
                 ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
                 : 'hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
-            <Bike className="w-3.5 h-3.5 text-blue-400" />
-            <span>Fila & Balcão</span>
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
+            <Package className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Pedidos & Despacho</span>
+            <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${
               unassignedOrders.length > 0
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'bg-slate-800 text-slate-400'
@@ -764,15 +850,14 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('kanban')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer font-bold ${
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'kanban'
                 ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
                 : 'hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
-            <Package className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Visão Kanban</span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <span>📋 Kanban</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-slate-800 text-slate-400">
               {activeOrders.length}
             </span>
           </button>
@@ -780,1855 +865,74 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('equipe')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer font-bold ${
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'equipe'
                 ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
                 : 'hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
-            <span>Equipe ({motoboys.length})</span>
+            <Bike className="w-3.5 h-3.5 text-blue-400" />
+            <span>Entregadores</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-slate-800 text-slate-400">
+              {motoboysAvailable.length}/{motoboys.filter((m) => m.status !== 'offline').length}
+            </span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab('financeiro')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer font-bold ${
-              activeTab === 'financeiro'
+            onClick={() => setActiveTab('mapa')}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'mapa'
                 ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
                 : 'hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
-            <span>Financeiro</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('historico')}
-            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 cursor-pointer font-bold ${
-              activeTab === 'historico'
-                ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
-                : 'hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <span>Histórico</span>
+            <Map className="w-3.5 h-3.5 text-blue-400" />
+            <span>Mapa ao Vivo</span>
           </button>
         </div>
 
-        {/* 🏬 Multi-Store Selector (Hope Burger vs Hope Pizza) */}
-        <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
-          <span className="text-[10px] font-black uppercase text-slate-400 px-1.5 hidden sm:inline">Loja:</span>
-          <button
-            type="button"
-            onClick={() => setStoreFilter('all')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              storeFilter === 'all'
-                ? 'bg-slate-200 text-slate-950 font-black shadow-xs'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Todas ({activeOrders.length})
-          </button>
-          {(shift.branches || [
-            { id: 'hope_burger', name: 'Hope Burger', icon: '🍔', tag: 'HB' },
-            { id: 'hope_pizza', name: 'Hope Pizza', icon: '🍕', tag: 'HP' },
-          ]).map((branch) => {
-            const isSel = storeFilter === branch.id;
-            const count = activeOrders.filter((o) => {
-              if (o.storeBranch === branch.id) return true;
-              if (o.storeId === branch.id) return true;
-              if (branch.id === 'hope_burger' && (o.storeBranch === 'hope_burger' || o.storeName?.toLowerCase().includes('burger'))) return true;
-              if (branch.id === 'hope_pizza' && (o.storeBranch === 'hope_pizza' || o.storeName?.toLowerCase().includes('pizz') || o.storeName?.toLowerCase().includes('pizza'))) return true;
-              return false;
-            }).length;
-
-            return (
-              <button
-                key={branch.id}
-                type="button"
-                onClick={() => setStoreFilter(branch.id)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                  isSel
-                    ? 'bg-indigo-600 text-white font-black shadow-xs'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <span>{branch.icon || '🏪'}</span>
-                <span>{branch.name}</span>
-                {count > 0 && (
-                  <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
-                    isSel ? 'bg-white text-indigo-950' : 'bg-slate-800 text-slate-300'
-                  }`}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <button
+          type="button"
+          onClick={() => setActiveTab('gestao')}
+          className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'gestao'
+              ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
+              : 'hover:text-slate-200'
+          }`}
+        >
+          <span>⚙️ Gestão & Fechamento</span>
+        </button>
       </div>
 
       {activeTab === 'operacao' && (
-        <div className="space-y-4">
-
-          {/* ✨ DESPACHO RECOMENDADO (Compact & Professional) */}
-          {brainAnalysis.recommendations.length > 0 && (
-            <div className="bg-slate-900 border-2 border-emerald-500/50 rounded-2xl p-3.5 sm:p-4 shadow-xl space-y-3 relative overflow-hidden">
-              <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-black text-base shrink-0">
-                    ✨
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-black text-sm text-white tracking-tight">
-                        Despacho recomendado
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => setIsCalculationInfoOpen(true)}
-                        className="text-[11px] font-extrabold text-emerald-400 hover:text-emerald-300 underline decoration-emerald-500/50 cursor-pointer flex items-center gap-1"
-                      >
-                        <span>Como calculamos?</span>
-                      </button>
-                    </div>
-                    <p className="text-xs text-slate-400 font-medium mt-0.5">
-                      Melhor opção considerando localização, pedidos e disponibilidade dos motoboys.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recommendation Cards Grid */}
-              {(() => {
-                const displayedRecs = showAllRecommendations
-                  ? brainAnalysis.recommendations
-                  : brainAnalysis.recommendations.slice(0, 2);
-                const hiddenCount = brainAnalysis.recommendations.length - displayedRecs.length;
-
-                return (
-                  <div className="space-y-3">
-                    <div className={`grid grid-cols-1 ${displayedRecs.length > 1 ? 'md:grid-cols-2' : ''} gap-3`}>
-                      {displayedRecs.map((rec) => (
-                        <div
-                          key={rec.id}
-                          className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 space-y-3 hover:border-emerald-500/40 transition-all shadow-sm flex flex-col justify-between"
-                        >
-                          <div className="space-y-2.5">
-                            {/* Driver & Route Header */}
-                            <div className="flex items-center justify-between gap-2 flex-wrap border-b border-slate-900 pb-2">
-                              <span className="text-xs font-black text-white bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800 flex items-center gap-1.5">
-                                🛵 <strong className="text-emerald-400">{rec.motoboyName}</strong>
-                                {rec.motoboyStatus === 'returning_to_store' && (
-                                  <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30">
-                                    retorna em ~{rec.motoboyEtaMin}m
-                                  </span>
-                                )}
-                              </span>
-
-                              <span className="text-xs font-extrabold text-slate-300 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg">
-                                📍 {rec.totalStops} {rec.totalStops === 1 ? 'parada' : 'paradas'} · {rec.totalDistanceKm} km · ~{rec.estimatedTripMin} min
-                              </span>
-                            </div>
-
-                            {/* Orders List with Clear Origin Source Badge */}
-                            <div className="space-y-1.5">
-                              <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider block">
-                                {rec.orders.length === 1 ? 'Pedido selecionado:' : 'Pedidos agrupados na mesma rota:'}
-                              </span>
-                              <div className="flex flex-wrap gap-1.5">
-                                {rec.orders.map((o) => (
-                                  <span
-                                    key={o.id}
-                                    className="inline-flex items-center gap-1.5 text-xs text-slate-200 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg font-bold"
-                                  >
-                                    <strong className="text-emerald-400">#{o.codeNumber}</strong>
-                                    <span>{o.clientName}</span>
-                                    <span className="text-[10px] text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded font-medium border border-slate-700/60">
-                                      {o.originChannel === 'ifood'
-                                        ? '🔴 iFood'
-                                        : o.originChannel === 'cardapio_web'
-                                        ? '🌐 Cardápio Web'
-                                        : o.originChannel === 'pdv'
-                                        ? '💻 PDV'
-                                        : '💬 WhatsApp'}
-                                    </span>
-                                    <span className="text-emerald-300 bg-emerald-950/80 px-1.5 py-0.5 rounded text-[10px] font-extrabold border border-emerald-500/30">
-                                      📍 Bairro: {o.neighborhood}
-                                    </span>
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Rationale Text */}
-                            <p className="text-[11px] text-slate-500 font-medium bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
-                              💡 {rec.rationale}
-                            </p>
-
-                            {/* SCENARIO B: Kitchen Wait / Return Delay Dual Decision Box */}
-                            {rec.waitSuggestion?.suggestWait ? (
-                              <div className="bg-amber-950/40 border-2 border-amber-500/50 rounded-xl p-3.5 space-y-2.5 text-amber-100 text-xs shadow-lg">
-                                <div className="flex items-center justify-between gap-2 flex-wrap font-black text-amber-300">
-                                  <span className="flex items-center gap-1.5 text-sm">
-                                    <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-                                    <span>Aguarde ~{rec.waitSuggestion.waitMinutes} min</span>
-                                  </span>
-                                  <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/80 border border-emerald-500/50 px-2 py-0.5 rounded-md shadow-xs">
-                                    ⏱️ Ambos permanecem dentro do prazo
-                                  </span>
-                                </div>
-
-                                <div className="space-y-1 text-xs">
-                                  <p className="font-black text-amber-100 leading-snug">
-                                    {rec.waitSuggestion.reason}
-                                  </p>
-                                  {rec.waitSuggestion.subReason && (
-                                    <p className="text-[11px] text-amber-200/90 leading-relaxed font-medium">
-                                      {rec.waitSuggestion.subReason}
-                                    </p>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center gap-2 pt-1 flex-wrap sm:flex-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      handleApplyBrainRecommendation(rec);
-                                      triggerActionToast(`⏳ Decisão Inteligente: Aguardando ~${rec.waitSuggestion?.waitMinutes} min para agrupar e despachar com ${rec.motoboyName}!`);
-                                    }}
-                                    className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black rounded-xl border border-emerald-400/50 text-xs transition-all cursor-pointer text-center shadow-md flex items-center justify-center gap-1.5"
-                                  >
-                                    <span>[Aguardar e agrupar]</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const readyId = rec.waitSuggestion?.readyOrderId || rec.orders[0]?.id;
-                                      const readyCode = rec.waitSuggestion?.readyOrderCode || rec.orders[0]?.codeNumber;
-                                      onAssignOrderToMotoboy(readyId, rec.motoboyId);
-                                      triggerActionToast(`⚡ Despachado apenas #${readyCode} agora com ${rec.motoboyName}.`);
-                                    }}
-                                    className="flex-1 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-200 font-extrabold rounded-xl text-xs transition-all cursor-pointer text-center border border-slate-700 flex items-center justify-center gap-1.5"
-                                  >
-                                    <span>Despachar #{rec.waitSuggestion?.readyOrderCode || rec.orders[0]?.codeNumber} agora</span>
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              /* Direct Dispatch Action Button */
-                              <button
-                                type="button"
-                                onClick={() => handleApplyBrainRecommendation(rec)}
-                                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-xs rounded-xl shadow-md transition-all uppercase tracking-wide cursor-pointer flex items-center justify-center gap-2 mt-2"
-                              >
-                                <Zap className="w-4 h-4 text-emerald-200 fill-emerald-200" />
-                                <span>Aplicar Despacho Recomendado</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {brainAnalysis.recommendations.length > 2 && (
-                      <div className="flex justify-center pt-1">
-                        <button
-                          type="button"
-                          onClick={() => setShowAllRecommendations(!showAllRecommendations)}
-                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-extrabold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center gap-2 shadow-xs"
-                        >
-                          {showAllRecommendations ? (
-                            <span>▲ Recolher e mostrar apenas as 2 principais sugestões</span>
-                          ) : (
-                            <span>▼ Ver mais {hiddenCount} {hiddenCount === 1 ? 'sugestão de rota' : 'sugestões de rotas'}</span>
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-
-          {/* 🚨 CENTRAL DE EXCEÇÕES E ALERTAS DA OPERAÇÃO (APENAS PROBLEMAS/EXCEÇÕES) */}
-          {(() => {
-            const problemAlerts = operationalProblemAlerts;
-            const insightAlerts = brainAnalysis.alerts.filter((a) => a.type === 'savings' || a.severity === 'info');
-            const sortedProblemAlerts = [...problemAlerts].sort((a, b) => {
-              if (a.severity !== b.severity) return a.severity === 'high' ? -1 : 1;
-              const minutesA = Number(a.description.match(/há (\d+) min/)?.[1] || 0);
-              const minutesB = Number(b.description.match(/há (\d+) min/)?.[1] || 0);
-              return minutesB - minutesA;
-            });
-            const visibleProblemAlerts = showAllOperationalAlerts ? sortedProblemAlerts : sortedProblemAlerts.slice(0, 5);
-            const criticalCount = problemAlerts.filter((alert) => alert.severity === 'high').length;
-            const attentionCount = problemAlerts.length - criticalCount;
-            const delayedCount = problemAlerts.filter((alert) => alert.type === 'delay_risk').length;
-            const fleetBottleneckCount = problemAlerts.filter((alert) => alert.type === 'fleet_bottleneck').length;
-            const delayedUnassignedIds = problemAlerts
-              .filter((alert) => alert.type === 'delay_risk' && alert.orderId)
-              .map((alert) => alert.orderId as string)
-              .filter((orderId) => orders.some((order) => order.id === orderId && !order.assignedMotoboyId && order.status !== 'delivered' && order.status !== 'cancelled'));
-            const alertsByNeighborhood = delayedUnassignedIds.reduce<Record<string, string[]>>((groups, orderId) => {
-              const order = orders.find((item) => item.id === orderId);
-              const neighborhood = order?.neighborhood?.trim() || 'Sem bairro';
-              if (!groups[neighborhood]) groups[neighborhood] = [];
-              groups[neighborhood].push(orderId);
-              return groups;
-            }, {});
-            const concentratedAlertGroups = Object.entries(alertsByNeighborhood)
-              .filter(([, orderIds]) => orderIds.length > 1)
-              .sort(([, a], [, b]) => b.length - a.length);
-
-            return (
-              <>
-                {problemAlerts.length > 0 && (
-                  <div id="exceptions-alerts-section" className="bg-slate-900/90 border border-slate-700 rounded-2xl p-4 space-y-3 shadow-sm">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                      <div>
-                        <span className="text-sm font-black text-white tracking-wide flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 text-amber-400" />
-                          <span>{problemAlerts.length} {problemAlerts.length === 1 ? 'ocorrência exige' : 'ocorrências exigem'} atenção</span>
-                        </span>
-                        <p className="text-[11px] text-slate-400 mt-1">Mostrando primeiro o que está há mais tempo esperando ação.</p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {criticalCount > 0 && <span className="text-[10px] font-black text-rose-200 bg-rose-950/60 border border-rose-500/40 px-2.5 py-1 rounded-full">{criticalCount} {criticalCount === 1 ? 'crítica' : 'críticas'}</span>}
-                        {attentionCount > 0 && <span className="text-[10px] font-black text-amber-200 bg-amber-950/60 border border-amber-500/40 px-2.5 py-1 rounded-full">{attentionCount} em atenção</span>}
-                        {delayedCount > 0 && <span className="text-[10px] font-bold text-slate-300 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full">{delayedCount} {delayedCount === 1 ? 'pedido atrasado' : 'pedidos atrasados'}</span>}
-                        {fleetBottleneckCount > 0 && <span className="text-[10px] font-bold text-slate-300 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full">{fleetBottleneckCount} {fleetBottleneckCount === 1 ? 'gargalo de frota' : 'gargalos de frota'}</span>}
-                      </div>
-                    </div>
-
-                    {concentratedAlertGroups.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/45 p-2.5">
-                        <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">Ocorrências concentradas:</span>
-                        {concentratedAlertGroups.slice(0, 5).map(([neighborhood, orderIds]) => (
-                          <button key={neighborhood} type="button" onClick={() => setSelectedOrderIds(orderIds)} className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-200 hover:bg-amber-500/20 cursor-pointer" title={`Selecionar os ${orderIds.length} pedidos atrasados de ${neighborhood}`}>
-                            {orderIds.length} em {neighborhood}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      {visibleProblemAlerts.map((alt, index) => (
-                        <div
-                          key={alt.id}
-                          className={`p-3 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-all ${
-                            alt.severity === 'high'
-                              ? 'bg-rose-950/35 border-rose-500/45 text-rose-100'
-                              : 'bg-amber-950/25 border-amber-500/35 text-amber-100'
-                          }`}
-                        >
-                          <div className="flex items-start gap-2 min-w-0">
-                            <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-[10px] shrink-0 ${alt.severity === 'high' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'}`}>{index + 1}</span>
-                            <div className="min-w-0">
-                              <div className="font-extrabold">{alt.title}</div>
-                              <p className="text-[11px] text-slate-300 font-medium leading-snug mt-0.5">{alt.description}</p>
-                            </div>
-                          </div>
-                          <span className="text-[10px] text-slate-500 font-medium shrink-0">{alt.timestamp}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-800">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {delayedUnassignedIds.length > 0 && (
-                          <button type="button" onClick={() => setSelectedOrderIds(delayedUnassignedIds)} className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-black cursor-pointer">
-                            Selecionar {delayedUnassignedIds.length} atrasados para despacho
-                          </button>
-                        )}
-                      </div>
-                      {problemAlerts.length > 5 && (
-                        <button type="button" onClick={() => setShowAllOperationalAlerts((current) => !current)} className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold cursor-pointer">
-                          {showAllOperationalAlerts ? 'Recolher alertas' : `Ver todos os ${problemAlerts.length}`}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* ✨ INSIGHTS & EFICIÊNCIA DA OPERAÇÃO (MENSAGENS POSITIVAS DISPENSÁVEIS/MINIMIZÁVEIS) */}
-                {insightAlerts.length > 0 && (
-                  !isSavingsDismissed ? (
-                    <div className="hidden">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-slate-800/80 border border-slate-700 flex items-center justify-center text-emerald-400 shrink-0 font-black text-xs">
-                          ✨
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-[11px] text-slate-300 uppercase tracking-wider">
-                              {insightAlerts[0].title}
-                            </span>
-                            <span className="text-[9px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full font-bold uppercase">
-                              Desempenho Positivo
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate sm:whitespace-normal">
-                            {insightAlerts[0].description}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsSavingsDismissed(true)}
-                        className="px-2.5 py-1 bg-transparent hover:bg-slate-800 text-slate-500 hover:text-slate-200 border border-slate-800 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1 active:scale-95"
-                        title="Dispensar/Minimizar aviso"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        <span className="text-[11px] hidden sm:inline font-bold">Dispensar</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl px-3 py-1.5 flex items-center justify-between gap-2 text-emerald-300 text-xs transition-all">
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <span className="shrink-0 text-xs">✨</span>
-                        <span className="font-bold truncate text-[11px]">{insightAlerts[0].title}:</span>
-                        <span className="text-slate-300 truncate text-[11px]">{insightAlerts[0].description}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsSavingsDismissed(false)}
-                        className="text-[10px] font-extrabold text-emerald-400 hover:text-emerald-200 underline cursor-pointer shrink-0 pl-2"
-                      >
-                        Ver banner
-                      </button>
-                    </div>
-                  )
-                )}
-              </>
-            );
-          })()}
-
-          {/* 🛵 UNIFIED CLEAN RETURNING MOTOBOY ALERT BANNER */}
-          {returningMotoboysWithDistance.length > 0 && (
-            <div
-              onClick={() => {
-                setMapFilter('returning');
-                const mapEl = document.getElementById('dashboard-map-section');
-                if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="bg-amber-950/80 border border-amber-500/60 hover:border-amber-400 text-amber-100 p-3 px-4 rounded-xl shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 cursor-pointer transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xl shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-                  🛵
-                </div>
-                <div>
-                  <h4 className="font-extrabold text-sm text-amber-200 flex items-center gap-2 flex-wrap">
-                    <span>
-                      {returningMotoboysWithDistance.map(
-                        (m) => `${m.name} retorna em ~${m.estMin} min${m.distKm > 0 ? ` · ${m.distKm.toFixed(1)} km da loja` : ''}`
-                      ).join(' • ')}
-                    </span>
-                    <span className="text-[10px] bg-amber-500/30 text-amber-200 px-1.5 py-0.5 rounded border border-amber-500/40 font-bold uppercase tracking-wider">
-                      Ver no Mapa 🗺️
-                    </span>
-                  </h4>
-                  <p className="text-xs text-amber-300/80 mt-0.5 font-medium">
-                    Aproveite para preparar os próximos pedidos.
-                  </p>
-                </div>
-              </div>
-
-              {onConfirmArrivalAtStore && (
-                <div className="flex flex-wrap gap-2 shrink-0">
-                  {returningMotoboysWithDistance.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onConfirmArrivalAtStore(m.id);
-                        triggerActionToast(`✅ Chegada do entregador ${m.name} confirmada na loja!`);
-                      }}
-                      className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl transition-all cursor-pointer shadow-sm border border-amber-400 shrink-0"
-                    >
-                      Confirmar Chegada 🟢
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 4. OPERATIONAL METRICS CARDS */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 rounded-2xl border border-slate-800/80 bg-slate-950/35 overflow-hidden">
-            {/* CARD 1: Motoboys Disponíveis */}
-            <div title="Entregadores livres na fila prontos para receber pedidos." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                  <Bike className="w-4 h-4 text-emerald-400 shrink-0" /> Entregadores Livres
-                </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  motoboysAvailable.length > 0 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
-                }`}>
-                  {motoboysAvailable.length} na fila
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
-                  {motoboysAvailable.length} {motoboysAvailable.length === 1 ? 'disponível' : 'disponíveis'}
-                </span>
-                <span className="text-[11px] text-slate-500 font-medium truncate">
-                  {motoboys.length} na equipe · {motoboys.filter((m) => m.status !== 'offline').length} ativos
-                </span>
-              </div>
-            </div>
-
-            {/* CARD 2: Pedidos em Aberto */}
-            <div title="Pedidos em andamento na loja." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                  <Package className="w-4 h-4 text-amber-400 shrink-0" /> Pedidos em Aberto
-                </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  unassignedOrders.length > 0 ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-slate-800 text-slate-400'
-                }`}>
-                  {unassignedOrders.length} pendentes
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
-                  {activeOrders.length} {activeOrders.length === 1 ? 'pedido ativo' : 'pedidos ativos'}
-                </span>
-                <span className="text-[11px] text-slate-500 font-medium">
-                  {unassignedOrders.length} aguardando despacho · {readyAtCounter.length} no balcão
-                </span>
-              </div>
-            </div>
-
-            {/* CARD 3: Entregas Concluídas Hoje */}
-            <div title="Total de entregas finalizadas com sucesso hoje." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" /> Entregas Hoje
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
-                  {deliveredToday.length} {deliveredToday.length === 1 ? 'concluída' : 'concluídas'}
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">
-                  {deliveredToday.length} {deliveredToday.length === 1 ? 'entregue' : 'entregues'}
-                </span>
-                <span className="text-[11px] text-slate-500 font-medium truncate">
-                  {todayOrders.length} pedidos hoje · {inProgressToday} em andamento
-                </span>
-              </div>
-            </div>
-
-            {/* CARD 4: Faturamento do Turno */}
-            <div title="Total financeiro dos pedidos pertencentes ao turno de hoje." className="bg-transparent px-4 py-3 rounded-none border-0 border-r border-b lg:border-b-0 border-slate-800/70 shadow-none flex flex-col justify-between space-y-1.5 last:border-r-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" /> Faturamento Turno
-                </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${shift.isOpen ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
-                  {shift.isOpen ? 'Ao vivo' : 'Fechado'}
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-black text-slate-100 tracking-tight">{formattedCurrency(totalRevenue)}</span>
-                <span className="text-[11px] text-slate-400 font-medium truncate">
-                  {shift.isOpen
-                    ? `${todayOrders.length} ${todayOrders.length === 1 ? 'pedido hoje' : 'pedidos hoje'}`
-                    : (shift.lastShiftSummary
-                        ? `Último: ${formattedCurrency(shift.lastShiftSummary.totalRevenue)}`
-                        : 'Aguardando abertura')}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 🚨 ALERTA DE GARGALO DE FROTA E ATRASO OPERACIONAL */}
-          <FleetBottleneckBanner
-            orders={orders}
-            motoboys={motoboys}
-            shift={shift}
-            onSelectOrders={(orderIds) => setSelectedOrderIds(orderIds)}
-          />
-
-          {/* 5. DESPACHO VISUAL SECTION */}
-          <div className="bg-slate-950/25 rounded-2xl border border-slate-800/70 shadow-sm p-3.5 space-y-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h3 className="text-sm font-bold text-slate-200 tracking-tight">Próximo despacho</h3>
-                <button
-                  type="button"
-                  onClick={onOpenNewOrderModal}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-lg border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4 text-white shrink-0" />
-                  <span>+ Lançar Pedido</span>
-                </button>
-              </div>
-
-              <span title="Pedidos em andamento que ainda não foram vinculados a nenhum motoboy." className="text-xs text-slate-400 font-medium">
-                <strong className="text-amber-400">{unassignedOrders.length}</strong> aguardando despacho
-              </span>
-            </div>
-
-            {/* Banner when 0 unassigned orders */}
-            {unassignedOrders.length === 0 && activeOrders.length === 0 && (
-              <div className="bg-slate-900/70 border border-dashed border-slate-700 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/15 text-blue-300 border border-blue-500/30 flex items-center justify-center"><Package className="w-5 h-5" /></div>
-                  <div>
-                    <p className="font-bold text-white text-sm">Nenhum pedido na operação</p>
-                    <p className="text-xs text-slate-300">Lance um pedido de teste para validar o atendimento e o despacho.</p>
-                  </div>
-                </div>
-                <button type="button" onClick={onOpenNewOrderModal} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black cursor-pointer flex items-center justify-center gap-1.5">
-                  <Plus className="w-4 h-4" /> Criar primeiro pedido
-                </button>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1fr)] gap-3.5">
-              {/* Left Column: Pedidos sem motoboy - ONLY rendered when unassigned orders exist */}
-              {unassignedOrders.length > 0 && (
-                <div className="lg:col-span-1 min-w-0 bg-slate-900/40 rounded-xl p-3 border border-slate-800/80 space-y-2.5">
-                  <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-slate-800">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wide">
-                        Pedidos ({unassignedOrders.length})
-                      </h4>
-                      {/* Compact / Detailed view toggle */}
-                      <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800">
-                        <button
-                          type="button"
-                          onClick={() => setIsCompactMode(false)}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                            !isCompactMode ? 'bg-slate-800 text-white shadow-2xs' : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                          title="Exibir cartões detalhados com endereço e itens"
-                        >
-                          ☰ Detalhado
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsCompactMode(true)}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                            isCompactMode ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                          title="Exibir modo compacto de alta densidade para muitos pedidos"
-                        >
-                          ⚡ Compacto
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* Sorting selector */}
-                      <select
-                        value={orderSort}
-                        onChange={(e) => setOrderSort(e.target.value as any)}
-                        className="bg-slate-950 text-slate-300 text-[11px] font-bold px-2 py-1 rounded-lg border border-slate-800 focus:outline-none cursor-pointer"
-                        title="Ordenar lista de pedidos"
-                      >
-                        <option value="time">🕒 Mais antigos primeiro</option>
-                        <option value="value">💰 Maior valor primeiro</option>
-                        <option value="neighborhood">📍 Por bairro</option>
-                      </select>
-
-                      {unassignedOrders.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (selectedOrderIds.length === unassignedOrders.length) {
-                              setSelectedOrderIds([]);
-                            } else {
-                              setSelectedOrderIds(unassignedOrders.map((o) => o.id));
-                            }
-                          }}
-                          className="text-[11px] font-bold text-slate-300 hover:text-white underline cursor-pointer shrink-0"
-                        >
-                          {selectedOrderIds.length === unassignedOrders.length
-                            ? 'Desmarcar'
-                            : 'Selecionar Todos'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Smart Proximity & Time Window Grouping Alert */}
-                  {(() => {
-                    // NOVO MOTOR DE DESPACHO INTELIGENTE (Corredores Viários + Janela Temporal Estrita)
-                    // - Agrupa pedidos no mesmo caminho / trajeto (mesmo em bairros diferentes!)
-                    // - Respeita rigorosamente a janela de tempo (diferença máx 8 min)
-                    // - Alerta pedidos em atraso que não podem ficar parados esperando
-                    const smartBatches = buildSmartRouteBatches(unassignedOrders);
-
-                    // Pedidos isolados em atraso crítico (>= 20 min) que não puderam ser agrupados com segurança
-                    const groupedOrderIds = new Set(smartBatches.flatMap((b) => b.orderIds));
-                    const isolatedUrgentOrders = unassignedOrders.filter((o) => {
-                      if (groupedOrderIds.has(o.id)) return false;
-                      const [h, m] = (o.createdAt || '00:00').split(':').map(Number);
-                      const ordMinutes = (h || 0) * 60 + (m || 0);
-                      const now = new Date();
-                      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-                      let diff = nowMinutes - ordMinutes;
-                      if (diff < 0) diff += 24 * 60;
-                      return diff >= 20;
-                    });
-
-                    interface ProximityViewItem {
-                      key: string;
-                      corridorName: string;
-                      neighborhoodSummary: string;
-                      timeLabel: string;
-                      isUrgentDelayedOrder: boolean;
-                      isUrgentEarlyOrder: boolean;
-                      maxWaitMinutes: number;
-                      interOrderDistanceKm: number;
-                      timeSpreadMinutes: number;
-                      orders: Order[];
-                    }
-
-                    const proximityGroups: ProximityViewItem[] = [];
-
-                    smartBatches.forEach((batch) => {
-                      proximityGroups.push({
-                        key: `smart:${batch.id}`,
-                        corridorName: batch.corridorName,
-                        neighborhoodSummary: batch.neighborhoodSummary,
-                        timeLabel: batch.orders[0]?.createdAt || '--:--',
-                        isUrgentDelayedOrder: batch.isUrgent,
-                        isUrgentEarlyOrder: batch.orders.some((o) => (o.codeNumber || 0) <= 50),
-                        maxWaitMinutes: batch.maxWaitMinutes,
-                        interOrderDistanceKm: batch.interOrderDistanceKm,
-                        timeSpreadMinutes: batch.timeSpreadMinutes,
-                        orders: batch.orders,
-                      });
-                    });
-
-                    // Adiciona pedidos individuais com atraso crítico para alerta de saída imediata
-                    isolatedUrgentOrders.forEach((o) => {
-                      const [h, m] = (o.createdAt || '00:00').split(':').map(Number);
-                      const ordMinutes = (h || 0) * 60 + (m || 0);
-                      const now = new Date();
-                      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-                      let diff = nowMinutes - ordMinutes;
-                      if (diff < 0) diff += 24 * 60;
-
-                      proximityGroups.push({
-                        key: `urgent-single:${o.id}`,
-                        corridorName: o.neighborhood || 'Centro',
-                        neighborhoodSummary: o.neighborhood || 'Centro',
-                        timeLabel: o.createdAt || '--:--',
-                        isUrgentDelayedOrder: true,
-                        isUrgentEarlyOrder: (o.codeNumber || 0) <= 50,
-                        maxWaitMinutes: diff,
-                        interOrderDistanceKm: 0,
-                        timeSpreadMinutes: 0,
-                        orders: [o],
-                      });
-                    });
-
-                    const activeGroups = proximityGroups.filter((g) => !dismissedProximityGroups.includes(g.key)).sort((a, b) => {
-                      if (a.isUrgentDelayedOrder && !b.isUrgentDelayedOrder) return -1;
-                      if (!a.isUrgentDelayedOrder && b.isUrgentDelayedOrder) return 1;
-                      return b.orders.length - a.orders.length;
-                    });
-
-                    if (activeGroups.length === 0) return null;
-
-                    return (
-                      <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 text-xs space-y-1.5 shadow-2xs">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <span className="text-[10px] font-extrabold uppercase text-amber-300 flex items-center gap-1.5">
-                              <Zap className="w-3.5 h-3.5 text-amber-300" />
-                              Despacho Inteligente por Rota & Janela de Horário
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              {activeGroups.length} lotes de rota compatível · pedidos no mesmo caminho com horários sincronizados
-                            </span>
-                          </div>
-                          {activeGroups.length > 3 && (
-                            <button type="button" onClick={() => setShowAllProximityGroups((value) => !value)} className="shrink-0 px-2.5 py-1 rounded-lg border border-slate-600 text-[10px] font-bold text-slate-200 hover:bg-slate-700 cursor-pointer">
-                              {showAllProximityGroups ? 'Mostrar menos' : `Ver todas (${activeGroups.length})`}
-                            </button>
-                          )}
-                        </div>
-                        {(showAllProximityGroups ? activeGroups : activeGroups.slice(0, 3)).map((batch) => (
-                          <div key={batch.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-slate-700">
-                            <div className="flex flex-col gap-0.5">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {batch.isUrgentDelayedOrder ? (
-                                  <span className="px-1.5 py-0.5 text-[10px] font-black uppercase rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                                    {availableMotoboys.length > 0
-                                      ? `🚨 Saída Imediata (~${batch.maxWaitMinutes}m de espera)`
-                                      : `🚨 Saída Imediata (1º da Fila · Aguardando Motoboy)`}
-                                  </span>
-                                ) : batch.isUrgentEarlyOrder ? (
-                                  <span className="px-1.5 py-0.5 text-[10px] font-black uppercase rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                    ⚡ Alta Prioridade
-                                  </span>
-                                ) : (
-                                  <span className="px-1.5 py-0.5 text-[10px] font-black uppercase rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                                    {batch.corridorName}
-                                  </span>
-                                )}
-                                <span className="text-[11px] font-bold text-slate-200">
-                                  {batch.orders.length === 1 ? (
-                                    <>Pedido individual prioritário em <strong>{batch.neighborhoodSummary}</strong></>
-                                  ) : (
-                                    <>{batch.orders.length} pedidos no mesmo caminho: <strong>{batch.neighborhoodSummary}</strong></>
-                                  )}
-                                </span>
-                                {batch.orders.length > 1 && (
-                                  <span className="text-[10px] text-emerald-300 font-semibold bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-500/30">
-                                    {batch.interOrderDistanceKm}km entre paradas · Δt {batch.timeSpreadMinutes}m
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[11px] text-slate-400 flex items-center gap-1 flex-wrap">
-                                <span>Pedidos:</span>
-                                {batch.orders.map((o) => (
-                                  <span key={o.id} className="text-emerald-400 font-extrabold bg-slate-800 px-1 rounded">
-                                    {getOrderDisplayCode(o)} ({o.createdAt} - {o.neighborhood})
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedOrderIds(batch.orders.map((o) => o.id));
-                                }}
-                                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg shadow-2xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1"
-                              >
-                                <Zap className="w-3 h-3 text-slate-950" /> Revisar Lote
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setDismissedProximityGroups((current) => [...current, batch.key]);
-                                }}
-                                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg border border-slate-600 cursor-pointer whitespace-nowrap"
-                                aria-label={`Ignorar sugestão de rota para ${batch.corridorName}`}
-                              >
-                                Ignorar
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Batch Dispatch Bar when orders are checked */}
-                  {selectedOrderIds.length > 0 && (
-                    <div className="bg-slate-900 p-3 rounded-xl border-2 border-emerald-500/60 text-white space-y-2 shadow-md animate-fade-in">
-                      <div className="flex items-center justify-between text-xs font-bold">
-                        <span className="text-emerald-300 flex items-center gap-1.5 font-black">
-                          🎒 Bag Ativa ({selectedOrderIds.length} {selectedOrderIds.length === 1 ? 'pedido selecionado' : 'pedidos selecionados'})
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedOrderIds([])}
-                          className="text-[10px] text-slate-300 hover:text-white underline font-semibold cursor-pointer"
-                        >
-                          Limpar seleção
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <select
-                          id="batchMotoboySelect"
-                          className="flex-1 bg-slate-800 text-white text-xs font-bold p-2 rounded-lg border border-slate-700 focus:outline-none"
-                        >
-                          {[...motoboys]
-                            .sort((a, b) => {
-                              if (a.status === 'available' && b.status !== 'available') return -1;
-                              if (a.status !== 'available' && b.status === 'available') return 1;
-                              return (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0);
-                            })
-                            .map((m) => {
-                              const isAvail = m.status === 'available';
-                              const statusLabel = isAvail
-                                ? '🟢 Livre na Fila'
-                                : m.status === 'on_delivery'
-                                ? '🛵 Em Rota'
-                                : m.status === 'break'
-                                ? '☕ Em Pausa'
-                                : '🔴 Offline';
-                              return (
-                                <option key={m.id} value={m.id}>
-                                  {m.name} — {statusLabel} ({m.activeOrdersCount} paradas)
-                                </option>
-                              );
-                            })}
-                        </select>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const selectElem = document.getElementById('batchMotoboySelect') as HTMLSelectElement;
-                            const availableFirst = motoboys.find((m) => m.status === 'available');
-                            const targetId = selectElem?.value || availableFirst?.id;
-                            const targetDriver = motoboys.find((m) => m.id === targetId);
-
-                            if (!targetDriver || targetDriver.status !== 'available') {
-                              triggerActionToast(
-                                '⚠️ Despacho protegido: O entregador selecionado não está livre no pátio da loja. Selecione um motoboy disponível ou aguarde o retorno para evitar saídas fictícias.'
-                              );
-                              return;
-                            }
-
-                            if (onAssignBatchToMotoboy) {
-                              onAssignBatchToMotoboy(selectedOrderIds, targetId);
-                              setSelectedOrderIds([]);
-                            } else {
-                              selectedOrderIds.forEach((id) => onAssignOrderToMotoboy(id, targetId));
-                              setSelectedOrderIds([]);
-                            }
-                            triggerActionToast(
-                              `🚀 Bag despachada com sucesso com ${targetDriver.name}! (${selectedOrderIds.length} pedidos)`
-                            );
-                          }}
-                          className={`px-3 py-2 font-black text-xs rounded-lg shadow-2xs shrink-0 flex items-center gap-1 cursor-pointer ${
-                            availableMotoboys.length > 0
-                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                              : 'bg-amber-600 hover:bg-amber-500 text-white'
-                          }`}
-                          title={
-                            availableMotoboys.length === 0
-                              ? 'Atenção: Nenhum motoboy disponível no pátio da loja'
-                              : 'Despachar pedidos selecionados com o entregador escolhido'
-                          }
-                        >
-                          <Zap className="w-3.5 h-3.5 text-amber-300" />
-                          {availableMotoboys.length > 0 ? 'Despachar Bag' : 'Aguardando Motoboy'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
-                    {[...unassignedOrders]
-                      .filter((ord) => {
-                        if (storeFilter === 'all') return true;
-                        if (ord.storeBranch === storeFilter) return true;
-                        if (ord.storeId === storeFilter) return true;
-                        if (storeFilter === 'hope_burger' && (ord.storeBranch === 'hope_burger' || ord.storeName?.toLowerCase().includes('burger'))) return true;
-                        if (storeFilter === 'hope_pizza' && (ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz') || ord.storeName?.toLowerCase().includes('pizza'))) return true;
-                        return false;
-                      })
-                      .sort((a, b) => {
-                        if (orderSort === 'value') return b.total - a.total;
-                        if (orderSort === 'neighborhood') return a.neighborhood.localeCompare(b.neighborhood);
-                        return (a.codeNumber || 0) - (b.codeNumber || 0);
-                      })
-                      .map((ord) => {
-                        const isSelected = selectedOrderIds.includes(ord.id);
-
-                        {/* High Density Compact Mode */}
-                        if (isCompactMode) {
-                          return (
-                            <div
-                              key={ord.id}
-                              className={`bg-slate-800 p-2 rounded-xl border transition-all flex items-center justify-between gap-2 text-xs ${
-                                isSelected
-                                  ? 'border-2 border-emerald-500 bg-slate-800/90 ring-1 ring-emerald-500/30'
-                                  : 'border-slate-700/80 hover:border-slate-600'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedOrderIds((prev) => [...prev, ord.id]);
-                                    } else {
-                                      setSelectedOrderIds((prev) => prev.filter((id) => id !== ord.id));
-                                    }
-                                  }}
-                                  className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 cursor-pointer bg-slate-900 border-slate-700 shrink-0"
-                                />
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-extrabold text-sm text-white">{getOrderDisplayCode(ord)}</span>
-                                    <span className="font-bold text-slate-200 truncate max-w-[110px] sm:max-w-[140px]">{ord.clientName}</span>
-                                    {renderChannelBadge(ord.originChannel)}
-                                    {(ord.storeBranch || ord.storeName) && (
-                                      <span className={`px-1.5 py-0.2 rounded-md text-[9px] font-black uppercase border ${
-                                        (ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz'))
-                                          ? 'bg-amber-950 text-amber-300 border-amber-500/40'
-                                          : 'bg-rose-950 text-rose-300 border-rose-500/40'
-                                      }`}>
-                                        {(ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz')) ? '🍕 HP' : '🍔 HB'}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-[10px] text-emerald-300 font-bold truncate">📍 {ord.neighborhood} • <span className="text-slate-400 font-medium">{ord.address}</span></p>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className="px-2 py-1 rounded-lg bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 font-black text-xs shadow-2xs">
-                                  {formattedCurrency(ord.total)}
-                                </span>
-
-                                {(() => {
-                                  const firstAvail = motoboys.find((m) => m.status === 'available');
-                                  if (firstAvail) {
-                                    return (
-                                      <button
-                                        type="button"
-                                        onClick={() => assignOrderRespectingLoad(ord.id, firstAvail.id)}
-                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[11px] rounded-lg shadow-2xs transition-all cursor-pointer flex items-center gap-1"
-                                        title={`Despachar para 1º da fila: ${firstAvail.name}`}
-                                      >
-                                        <Zap className="w-3 h-3 text-amber-300 shrink-0" />
-                                        <span className="hidden sm:inline">Despachar 1º</span>
-                                      </button>
-                                    );
-                                  }
-                                  return null;
-                                })()}
-
-                                <select
-                                  onChange={(e) => {
-                                    if (e.target.value) {
-                                      assignOrderRespectingLoad(ord.id, e.target.value);
-                                    }
-                                  }}
-                                  defaultValue=""
-                                  className="w-24 px-1.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[10px] font-bold rounded-lg cursor-pointer focus:outline-none border border-slate-600 truncate"
-                                  title="Escolher manualmente outro entregador para este pedido"
-                                >
-                                  <option value="" disabled className="bg-slate-900 text-slate-400">
-                                    Outro...
-                                  </option>
-                                  {[...motoboys]
-                                    .sort((a, b) => {
-                                      if (a.status === 'available' && b.status !== 'available') return -1;
-                                      if (a.status !== 'available' && b.status === 'available') return 1;
-                                      return (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0);
-                                    })
-                                    .map((m) => (
-                                      <option key={m.id} value={m.id} className="text-white bg-slate-900">
-                                        {m.name.split(' ')[0]} ({getMotoboyLoad(m.id) > 0 ? `⚠️ ${getMotoboyLoad(m.id)} pedido${getMotoboyLoad(m.id) > 1 ? 's' : ''}` : m.status === 'available' ? '🟢 Livre' : '🛵 Rota'})
-                                      </option>
-                                    ))}
-                                </select>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        {/* Detailed Card View */}
-                        return (
-                          <div
-                            key={ord.id}
-                            className={`bg-slate-800 p-2.5 rounded-xl border transition-all space-y-2 shadow-none ${
-                              isSelected
-                                ? 'border-2 border-emerald-500 bg-slate-800/90 ring-1 ring-emerald-500/30'
-                                : 'border-slate-700/80 hover:border-slate-600'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedOrderIds((prev) => [...prev, ord.id]);
-                                    } else {
-                                      setSelectedOrderIds((prev) => prev.filter((id) => id !== ord.id));
-                                    }
-                                  }}
-                                  className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 cursor-pointer bg-slate-900 border-slate-700"
-                                />
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-extrabold text-sm text-white">
-                                    {getOrderDisplayCode(ord)} - {ord.clientName}
-                                  </span>
-                                  {renderChannelBadge(ord.originChannel)}
-                                  {(ord.storeBranch || ord.storeName) && (
-                                    <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase border ${
-                                      (ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz'))
-                                        ? 'bg-amber-950 text-amber-300 border-amber-500/40'
-                                        : 'bg-rose-950 text-rose-300 border-rose-500/40'
-                                    }`}>
-                                      {(ord.storeBranch === 'hope_pizza' || ord.storeName?.toLowerCase().includes('pizz')) ? '🍕 Hope Pizza' : '🍔 Hope Burger'}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              {/* Prominent High-Contrast Price Badge */}
-                              <span className="px-2.5 py-1 rounded-lg font-black text-xs bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-2xs">
-                                {formattedCurrency(ord.total)}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center justify-between gap-1 flex-wrap">
-                              <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-emerald-500/40 text-emerald-300 text-xs font-black flex items-center gap-1 shadow-2xs">
-                                📍 Bairro: {ord.neighborhood}
-                              </span>
-                              <span className="text-[10px] bg-slate-900 text-slate-300 px-1.5 py-0.5 rounded font-mono border border-slate-700">
-                                {ord.itemsSummary.split('+')[0]}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 font-medium line-clamp-1">🏠 {ord.address}</p>
-
-                            <div className="pt-2 border-t border-slate-700/80 space-y-2">
-                              {/* Row 1: Quick Action Links */}
-                              <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => onSelectOrderForTracking(ord)}
-                                    className="text-[11px] font-extrabold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-2 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
-                                    title="Abrir mapa de rastreio em tempo real"
-                                  >
-                                    <MapPin className="w-3 h-3 text-emerald-400" /> Rastreio
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const url = `${window.location.origin}/?rastreio=${ord.trackingCode || ord.id}`;
-                                      navigator.clipboard.writeText(url);
-                                      triggerActionToast(`🔗 Link de rastreio do pedido #${ord.codeNumber} copiado!`);
-                                    }}
-                                    className="text-[11px] font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded-md border border-slate-700 flex items-center gap-1 transition-all cursor-pointer"
-                                    title="Copiar Link de Rastreio do Cliente"
-                                  >
-                                    <Copy className="w-3 h-3 text-amber-400" /> Copiar Link
-                                  </button>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setTicketOrder(ord);
-                                    setIsTicketOpen(true);
-                                  }}
-                                  className="text-[11px] font-bold text-slate-200 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded-md border border-slate-600 flex items-center gap-1 transition-colors cursor-pointer"
-                                  title="Imprimir Comanda 80mm / Enviar WhatsApp ao Cliente"
-                                >
-                                  <Printer className="w-3 h-3 text-slate-300" /> Comanda
-                                </button>
-                              </div>
-
-                              {/* Row 2: Dispatch / Assignment controls */}
-                              <div className="flex items-center gap-1.5 pt-0.5">
-                                {motoboys.length > 0 && (() => {
-                                  const sortedAvailable = [...motoboys]
-                                    .filter((m) => m.status === 'available')
-                                    .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
-                                  const firstAvailable = sortedAvailable[0];
-
-                                  if (firstAvailable) {
-                                    const firstName = firstAvailable.name.replace(/\s*\(.*?\)\s*/g, '').trim().split(' ')[0];
-                                    return (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          assignOrderRespectingLoad(ord.id, firstAvailable.id);
-                                        }}
-                                        className="flex-1 min-w-0 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-2xs flex items-center justify-center gap-1 transition-all cursor-pointer truncate"
-                                        title={`Despachar imediatamente para 1º da fila: ${firstAvailable.name}`}
-                                      >
-                                        <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                                        <span className="truncate">Vincular 1º ({firstName})</span>
-                                      </button>
-                                    );
-                                  }
-
-                                  return (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        triggerActionToast('⚠️ NENHUM MOTOBOY DISPONÍVEL NA FILA DA LOJA NO MOMENTO.');
-                                      }}
-                                      className="flex-1 min-w-0 px-2 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-400 text-xs font-bold rounded-lg border border-slate-700/80 flex items-center justify-center gap-1 transition-all cursor-pointer truncate"
-                                      title="Nenhum motoboy disponível na fila da loja no momento"
-                                    >
-                                      <Zap className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                                      <span className="truncate text-slate-400 font-semibold">Sem motoboy na fila</span>
-                                    </button>
-                                  );
-                                })()}
-
-                                <select
-                                  onChange={(e) => {
-                                    if (e.target.value) {
-                                      assignOrderRespectingLoad(ord.id, e.target.value);
-                                    }
-                                  }}
-                                  defaultValue=""
-                                  className="w-40 shrink-0 px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-lg cursor-pointer focus:outline-none transition-colors border border-slate-600"
-                                  title="Escolher manualmente outro entregador para este pedido"
-                                >
-                                  <option value="" disabled className="bg-slate-900 text-slate-400">
-                                    Escolher motoboy
-                                  </option>
-                                  {[...motoboys]
-                                    .sort((a, b) => {
-                                      if (a.status === 'available' && b.status !== 'available') return -1;
-                                      if (a.status !== 'available' && b.status === 'available') return 1;
-                                      return (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0);
-                                    })
-                                    .map((m) => {
-                                      const isAvail = m.status === 'available';
-                                      const currentLoad = getMotoboyLoad(m.id);
-                                      const statusLabel = currentLoad > 0
-                                        ? `⚠️ ${currentLoad} pedido${currentLoad > 1 ? 's' : ''}`
-                                        : isAvail
-                                        ? '🟢 Livre'
-                                        : m.status === 'on_delivery'
-                                        ? '🛵 Rota'
-                                        : m.status === 'break'
-                                        ? '☕ Pausa'
-                                        : '🔴 Off';
-                                      return (
-                                        <option key={m.id} value={m.id} className="text-white bg-slate-900">
-                                          {m.name.split(' ')[0]} ({statusLabel})
-                                        </option>
-                                      );
-                                    })}
-                                </select>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
-
-                {/* Middle & Right Column: Map + Rotas Disponíveis (Dynamic Full Span when empty) */}
-                <div className={`${unassignedOrders.length > 0 ? 'lg:contents' : 'lg:col-span-3'} grid grid-cols-1 md:grid-cols-12 gap-3`}>
-                  {/* Map Panel with Sleek Filter Controls */}
-                  <div id="dashboard-map-section" className={`md:col-span-8 ${unassignedOrders.length > 0 ? 'lg:col-span-1' : 'lg:col-span-8'} min-w-0 flex flex-col bg-slate-950/45 rounded-2xl border border-slate-800/80 p-2.5 space-y-2 shadow-sm h-[430px] md:h-auto min-h-[380px]`}>
-                  {/* Clean Toolbar Header */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1 pt-0.5">
-                    {/* Left: Title & GPS Sync Button */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-slate-200 tracking-wide flex items-center gap-1.5">
-                        <MapPin className="w-4 h-4 text-emerald-400" />
-                        Visão do Mapa
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-                            triggerActionToast('📍 Buscando sua localização atual pelo GPS...');
-                            navigator.geolocation.getCurrentPosition(
-                              (pos) => {
-                                const lat = Number(pos.coords.latitude.toFixed(6));
-                                const lng = Number(pos.coords.longitude.toFixed(6));
-                                const ruan = motoboys.find((m) => m.username === 'ruan' || m.name.toLowerCase().includes('ruan'));
-                                if (ruan) {
-                                  saveMotoboyLocationToCloud(ruan.id, lat, lng);
-                                  triggerActionToast(`📍 Posição do Ruan atualizada: ${lat}, ${lng}`);
-                                } else {
-                                  triggerActionToast(`📍 Posição GPS capturada: ${lat}, ${lng}`);
-                                }
-                              },
-                              (err) => triggerActionToast(`⚠️ Permissão de GPS pendente: ${err.message}`),
-                              { enableHighAccuracy: true }
-                            );
-                          } else {
-                            triggerActionToast('⚠️ Dispositivo sem suporte a geolocalização');
-                          }
-                        }}
-                        className="p-1.5 bg-slate-800 hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-400 border border-slate-700/80 hover:border-emerald-500/40 rounded-xl transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-2xs"
-                        title="Atualizar minha posição GPS no mapa"
-                      >
-                        <RotateCw className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Right: Motoboy Dropdown & Segmented Filter Tabs */}
-                    <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
-                      {/* Motoboy Filter Selector */}
-                      <div className="flex items-center gap-1.5">
-                        <select
-                          value={selectedMotoboyId || ''}
-                          onChange={(e) => setSelectedMotoboyId(e.target.value || null)}
-                          className="bg-slate-800/90 text-slate-100 border border-slate-700/80 text-xs font-semibold rounded-xl px-2.5 py-1 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs transition-all"
-                          title="Filtrar o mapa para focar em apenas 1 motoboy"
-                        >
-                          <option value="">
-                            🌐 Frota: {motoboys.length} cadastrados · {motoboys.filter((m) => m.status !== 'offline').length} ativos
-                          </option>
-                          {motoboys
-                            .filter((m) => m.status !== 'offline')
-                            .map((m) => {
-                              let locLabel = 'Na loja';
-                              if (m.status === 'delivering') {
-                                locLabel = 'Em rota';
-                              } else if (m.status === 'returning_to_store') {
-                                locLabel = 'Voltando';
-                              } else if (m.currentLat && m.currentLng && shift.storeLat && shift.storeLng) {
-                                const dist = calculateDistanceKm(m.currentLat, m.currentLng, shift.storeLat, shift.storeLng);
-                                if (dist > 0.3) {
-                                  locLabel = `Disponível (${dist.toFixed(1)} km)`;
-                                }
-                              }
-                              return (
-                                <option key={m.id} value={m.id}>
-                                  🛵 {m.name} • {locLabel}
-                                </option>
-                              );
-                            })}
-                        </select>
-
-                        {selectedMotoboyId && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedMotoboyId(null)}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-xl text-xs font-medium transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
-                            title="Voltar a ver a frota inteira no mapa"
-                          >
-                            <X className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Ver todos</span>
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Map Layer Filter Tabs */}
-                      <div className="flex items-center gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-800/80">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setMapFilter('all');
-                            setSelectedMotoboyId(null);
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            mapFilter === 'all'
-                              ? 'bg-slate-200 text-slate-950 shadow-2xs font-extrabold'
-                              : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          Visão geral
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMapFilter('returning')}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            mapFilter === 'returning'
-                              ? 'bg-amber-500 text-slate-950 shadow-2xs font-extrabold'
-                              : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          ⚡ Voltando ({returningMotoboysWithDistance.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setMapFilter('orders');
-                            setSelectedMotoboyId(null);
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            mapFilter === 'orders'
-                              ? 'bg-emerald-500 text-slate-950 shadow-2xs font-extrabold'
-                              : 'text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          📦 Pedidos ({activeOrders.filter((o) => !o.address?.toLowerCase().includes('retirada') && o.neighborhood?.toLowerCase() !== 'balcão').length})
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {!selectedMotoboyId && motoboys.filter((m) => m.status === 'delivering' || m.status === 'returning_to_store').length > 6 && (
-                    <div className="px-1 text-[11px] text-slate-300 flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="font-semibold">Mapa simplificado para evitar sobreposição.</span>
-                      <span className="text-blue-300">● Em rota</span>
-                      <span className="text-amber-300">● Voltando</span>
-                      <span>Clique em um ponto para ver nome e detalhes.</span>
-                    </div>
-                  )}
-
-                  <div className="flex-1 rounded-xl overflow-hidden border border-slate-800">
-                    <RouteMap
-                      origin={{
-                        name: shift.storeName,
-                        address: shift.storeAddress,
-                        lat: shift.storeLat,
-                        lng: shift.storeLng,
-                      }}
-                      selectedMotoboyId={selectedMotoboyId}
-                      onSelectMotoboy={(id) => setSelectedMotoboyId(id)}
-                      selectedStopId={selectedOrderIdOnMap}
-                      onSelectStop={(stop) => setSelectedOrderIdOnMap(stop.id)}
-                      motoboysList={
-                        mapFilter === 'all'
-                          ? motoboys.filter((m) => m.status !== 'offline')
-                          : mapFilter === 'returning'
-                          ? returningMotoboysWithDistance
-                          : []
-                      }
-                      stops={
-                        mapFilter === 'returning'
-                          ? []
-                          : activeOrders
-                              .filter((ord) => {
-                                if (ord.address?.toLowerCase().includes('retirada') || ord.neighborhood?.toLowerCase() === 'balcão') {
-                                  return false;
-                                }
-                                // Pedidos já despachados sem motoboy ativo ou despachados externamente não devem poluir o mapa
-                                if (ord.status === 'dispatched' && !ord.assignedMotoboyId) {
-                                  return false;
-                                }
-                                // Quando a visualização for de pedidos pendentes, não exibir já despachados
-                                if (mapFilter === 'orders' && (ord.status === 'dispatched' || ord.status === 'delivered')) {
-                                  return false;
-                                }
-                                if (typeof ord.lat !== 'number' || isNaN(ord.lat) || ord.lat === 0) return false;
-                                if (typeof ord.lng !== 'number' || isNaN(ord.lng) || ord.lng === 0) return false;
-                                if (!selectedMotoboyId || mapFilter === 'orders') return true;
-                                return ord.assignedMotoboyId === selectedMotoboyId;
-                              })
-                              .map((ord, idx) => ({
-                                id: ord.id,
-                                codeNumber: ord.codeNumber,
-                                orderIndex: idx + 1,
-                                title: `${getOrderDisplayCode(ord)} - ${ord.clientName}`,
-                                address: ord.address,
-                                neighborhood: ord.neighborhood,
-                                lat: ord.lat,
-                                lng: ord.lng,
-                                status: ord.status === 'delivered' ? 'delivered' : ord.status === 'in_transit' ? 'in_transit' : 'pending',
-                                priority: 'medium',
-                                recipientName: ord.clientName,
-                                phone: ord.clientPhone,
-                                valueToReceive: ord.total,
-                                motoboyId: ord.assignedMotoboyId || undefined,
-                                motoboyName: ord.assignedMotoboyName || undefined,
-                              }))
-                      }
-                    />
-                  </div>
-                </div>
-
-                {/* Rotas disponíveis dos Motoboys */}
-                <div className={`md:col-span-4 ${unassignedOrders.length > 0 ? 'lg:col-span-1' : 'lg:col-span-4'} min-w-0 min-h-0 overflow-hidden bg-slate-950/35 rounded-2xl p-2.5 border border-slate-800/80 flex flex-col`}>
-                  <div className="flex flex-1 min-h-0 flex-col gap-2">
-                    {/* Header */}
-                    <div className="pb-2 border-b border-slate-800 space-y-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <h4 className="font-extrabold text-sm text-white tracking-tight">Equipe</h4>
-                        {(() => {
-                          const activeCount = motoboys.filter((m) => m.status !== 'offline').length;
-                          return <span className="text-[11px] text-slate-300 font-bold whitespace-nowrap">{activeCount} ativos de {motoboys.length}</span>;
-                        })()}
-                      </div>
-                      <div className="text-[11px] text-slate-400 font-medium leading-snug">
-                        {(() => {
-                          const availableCount = motoboys.filter((m) => m.status === 'available').length;
-                          const deliveringCount = motoboys.filter((m) => m.status === 'delivering').length;
-                          const returningCount = motoboys.filter((m) => m.status === 'returning_to_store').length;
-                          const pausedCount = motoboys.filter((m) => m.status === 'busy').length;
-                          const offlineCount = motoboys.filter((m) => m.status === 'offline').length;
-
-                          const parts = [`${availableCount} na loja`];
-                          if (deliveringCount > 0) parts.push(`${deliveringCount} em rota`);
-                          if (returningCount > 0) parts.push(`${returningCount} retornando`);
-                          if (pausedCount > 0) parts.push(`${pausedCount} pausados`);
-                          if (offlineCount > 0) parts.push(`${offlineCount} offline`);
-                          return parts.join(' · ');
-                        })()}
-                      </div>
-                    </div>
-
-                    <div className="flex-1 min-h-0 space-y-1.5 overflow-y-auto pr-1">
-                      {motoboys.length === 0 && (
-                        <div className="border border-dashed border-slate-700 bg-slate-900/60 rounded-xl p-4 text-center space-y-2">
-                          <Bike className="w-7 h-7 text-blue-300 mx-auto" />
-                          <p className="text-xs font-black text-white">Nenhum motoboy cadastrado</p>
-                          <p className="text-[11px] text-slate-300">Adicione a equipe para começar a despachar.</p>
-                          <button type="button" onClick={onOpenMotoboyModal} className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-black cursor-pointer">
-                            Cadastrar motoboy
-                          </button>
-                        </div>
-                      )}
-                      {motoboys.map((m) => {
-                        const availableMotoboys = [...motoboys]
-                          .filter((x) => x.status === 'available')
-                          .sort((a, b) => (a.joinedQueueAt || 0) - (b.joinedQueueAt || 0));
-                        const queuePos = m.status === 'available' ? availableMotoboys.findIndex((x) => x.id === m.id) + 1 : null;
-
-                        const mOrders = orders
-                          .filter(
-                            (o) =>
-                              o.status !== 'delivered' &&
-                              o.status !== 'cancelled' &&
-                              o.status !== 'failed' &&
-                              o.assignedMotoboyId === m.id
-                          )
-                          .sort((a, b) => (a.routeSequence || 0) - (b.routeSequence || 0));
-
-                        const isDriverInTransit = m.status === 'delivering' || mOrders.some((o) => o.status === 'in_transit');
-                        const allOrdersReady = mOrders.length > 0 && !isDriverInTransit && mOrders.every((o) => o.status === 'ready_at_counter' || o.status === 'picked_up');
-                        const allOrdersInTransit = mOrders.length > 0 && mOrders.every((o) => o.status === 'in_transit');
-
-                        const circleNumbers = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
-
-                        const isThisMotoboyFocused = selectedMotoboyId === m.id;
-                        const statusPresentation = getMotoboyStatusPresentation(isDriverInTransit ? 'delivering' : m.status);
-
-                        return (
-                          <div
-                            key={m.id}
-                            className={`min-w-0 overflow-hidden p-2 rounded-xl border transition-all space-y-2 shadow-none ${
-                              isThisMotoboyFocused
-                                ? 'bg-slate-800/90 border-slate-600 ring-1 ring-slate-500/40'
-                                : 'bg-slate-900/55 border-slate-800/90'
-                            }`}
-                          >
-                            {/* Card Header */}
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-extrabold text-sm text-white">{m.name}</span>
-                                  {isDriverInTransit ? (
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${statusPresentation.badgeClass}`}>
-                                      🔵 EM ROTA
-                                    </span>
-                                  ) : m.status === 'available' ? (
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${statusPresentation.badgeClass}`}>
-                                      🟢 NA LOJA {queuePos ? `• ${queuePos}º DA FILA` : ''}
-                                    </span>
-                                  ) : m.status === 'returning_to_store' ? (
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${statusPresentation.badgeClass}`}>
-                                      🟠 RETORNANDO À LOJA
-                                    </span>
-                                  ) : m.status === 'busy' ? (
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${statusPresentation.badgeClass}`}>
-                                      ⏸️ PAUSADO
-                                    </span>
-                                  ) : (
-                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${statusPresentation.badgeClass}`}>
-                                      🔴 EXPEDIENTE ENCERRADO
-                                    </span>
-                                  )}
-                                </div>
-
-                                <p className="text-xs text-slate-300 font-medium mt-0.5 break-words leading-relaxed">
-                                  {m.status === 'offline' ? (
-                                    'Fora de turno (Offline)'
-                                  ) : m.status === 'busy' ? (
-                                    'Indisponível (Pausado)'
-                                  ) : isDriverInTransit ? (
-                                    mOrders.length > 0
-                                      ? `Em rota de entrega na rua • ${mOrders.length} ${mOrders.length === 1 ? 'parada restante' : 'paradas restantes'}`
-                                      : 'Em rota • sincronizando a próxima parada'
-                                  ) : m.status === 'returning_to_store' ? (
-                                    mOrders.length === 0
-                                      ? 'Finalizou rota anterior e está retornando à loja'
-                                      : `Retornando à loja (Já possui ${mOrders.length} ${mOrders.length === 1 ? 'pedido' : 'pedidos'} vinculados para a próxima rota)`
-                                  ) : mOrders.length === 0 ? (
-                                    queuePos
-                                      ? `${queuePos}º lugar na fila de despacho • Na fila há ${
-                                          m.joinedQueueAt ? Math.max(0, Math.floor((Date.now() - m.joinedQueueAt) / 60000)) : 0
-                                        } min`
-                                      : 'Disponível na loja'
-                                  ) : allOrdersReady ? (
-                                    `${mOrders.length} ${mOrders.length === 1 ? 'pedido pronto' : 'pedidos prontos'} para saída`
-                                  ) : (
-                                    `${mOrders.length} ${mOrders.length === 1 ? 'pedido' : 'pedidos'} • próxima saída com ${mOrders.length} ${mOrders.length === 1 ? 'parada' : 'paradas'}`
-                                  )}
-                                </p>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => setSelectedMotoboyId(isThisMotoboyFocused ? null : m.id)}
-                                className={`px-2 py-1 rounded-lg text-[10px] font-extrabold border transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
-                                  isThisMotoboyFocused
-                                    ? 'bg-amber-500 text-slate-950 border-amber-300 font-black shadow-md'
-                                    : 'bg-slate-700/80 hover:bg-slate-700 text-slate-200 border-slate-600'
-                                }`}
-                              >
-                                {isThisMotoboyFocused ? '🎯 Focado' : '🗺️ Mapa'}
-                              </button>
-                            </div>
-
-                            {/* Live Tracking Quick Banner for Driver in Transit */}
-                            {isThisMotoboyFocused && mOrders.length > 0 && (m.status === 'delivering' || mOrders.some((o) => o.status === 'in_transit')) && (
-                              <div className="bg-slate-950/70 border border-slate-800 p-2 rounded-lg flex flex-col gap-1.5 text-xs text-slate-300">
-                                <div className="flex flex-wrap items-center justify-between gap-1.5 font-semibold text-slate-300">
-                                  <span className="min-w-0 flex items-center gap-1.5">
-                                    <MapPin className="w-4 h-4 text-sky-400 animate-pulse" />
-                                    <span>Rastreamento em Tempo Real</span>
-                                  </span>
-                                  <span className="text-[9px] bg-slate-900 text-slate-500 px-2 py-0.5 rounded-md border border-slate-800 uppercase font-semibold">
-                                    📡 Sinal Ativo
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const activeOrder = mOrders.find((o) => o.status === 'in_transit') || mOrders[0];
-                                      if (activeOrder) onSelectOrderForTracking(activeOrder);
-                                    }}
-                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-[10px] rounded-lg transition-all flex items-center gap-1 cursor-pointer border border-slate-700"
-                                  >
-                                    <MapPin className="w-3 h-3 text-sky-200" />
-                                    <span>Mapa ao Vivo</span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const activeOrder = mOrders.find((o) => o.status === 'in_transit') || mOrders[0];
-                                      if (activeOrder) {
-                                        const url = `${window.location.origin}/?rastreio=${activeOrder.trackingCode || activeOrder.id}`;
-                                        navigator.clipboard.writeText(url);
-                                        triggerActionToast(`🔗 Link de rastreio de ${m.name.split(' ')[0]} copiado!`);
-                                      }
-                                    }}
-                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-300 font-extrabold text-[11px] rounded-lg border border-slate-700 transition-all flex items-center gap-1 cursor-pointer"
-                                  >
-                                    <Copy className="w-3 h-3 text-amber-400" />
-                                    <span>Copiar Link</span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const activeOrder = mOrders.find((o) => o.status === 'in_transit') || mOrders[0];
-                                      if (activeOrder) {
-                                        const trackingUrl = `${window.location.origin}/?rastreio=${activeOrder.trackingCode || activeOrder.id}`;
-                                        const cleanPhone = activeOrder.clientPhone ? activeOrder.clientPhone.replace(/\D/g, '') : '';
-                                        const msg = `Olá *${activeOrder.clientName}*! 🛵 O motoboy *${m.name}* está a caminho com seu pedido *${getOrderDisplayCode(activeOrder)}*!\n\n📍 *Acompanhe no mapa em tempo real:* ${trackingUrl}`;
-                                        const url = cleanPhone
-                                          ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msg)}`
-                                          : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                                        window.open(url, '_blank');
-                                      }
-                                    }}
-                                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-[10px] rounded-lg transition-all flex items-center gap-1 cursor-pointer border border-slate-700"
-                                  >
-                                    <span>💬 Enviar Whats</span>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                             {/* Order Items List inside Driver Card */}
-                            {isThisMotoboyFocused && mOrders.length > 0 && (
-                              <div className="space-y-1.5 pt-1 max-h-56 overflow-y-auto pr-1">
-                                {mOrders.map((ord, idx) => {
-                                  const isOrdInTransit = ord.status === 'in_transit' || isDriverInTransit;
-                                  const isOrdReady = (ord.status === 'ready_at_counter' || ord.status === 'picked_up') && !isDriverInTransit;
-                                  const numSymbol = circleNumbers[idx] || `(${idx + 1})`;
-
-                                  return (
-                                    <div
-                                      key={ord.id}
-                                      className="flex flex-col gap-1.5 px-2 py-1.5 rounded-lg bg-slate-950/45 border border-slate-800/80 text-xs text-slate-300"
-                                    >
-                                      <div className="min-w-0 flex-1 pr-2">
-                                        <div className="flex items-center gap-1.5 truncate">
-                                          <span className="text-slate-500 font-bold shrink-0">{numSymbol}</span>
-                                          <span className="font-extrabold text-white truncate">{getOrderDisplayCode(ord)}</span>
-                                          <span className="text-slate-400 text-[11px] truncate">— {ord.street || ord.address}</span>
-                                        </div>
-
-                                        <div className="mt-0.5 flex items-center gap-2 text-[10px]">
-                                          {isOrdInTransit ? (
-                                            <span className="text-blue-400 font-bold">
-                                              🔵 Em rota
-                                            </span>
-                                          ) : isOrdReady ? (
-                                            <span className="text-emerald-400 font-bold">
-                                              🟢 Pronto
-                                            </span>
-                                          ) : (
-                                            <span className="text-slate-500 font-medium">
-                                              🟠 Em cozinha
-                                            </span>
-                                          )}
-                                          <span className="text-slate-400 line-clamp-1">• {ord.clientName}</span>
-                                        </div>
-                                      </div>
-
-                                      {/* Order Action Buttons */}
-                                      <div className="flex flex-wrap items-center justify-end gap-1 min-w-0">
-                                        <button
-                                          type="button"
-                                          onClick={() => onSelectOrderForTracking(ord)}
-                                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-md border border-slate-700 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-extrabold"
-                                          title="Abrir mapa de rastreio em tempo real do pedido"
-                                        >
-                                          <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                                          <span className="hidden sm:inline">Rastreio</span>
-                                        </button>
-
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const url = `${window.location.origin}/?rastreio=${ord.trackingCode || ord.id}`;
-                                            navigator.clipboard.writeText(url);
-                                            triggerActionToast(`🔗 Link do pedido #${ord.codeNumber} copiado!`);
-                                          }}
-                                          className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-md border border-slate-700 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-extrabold"
-                                          title="Copiar Link de Rastreio do Cliente"
-                                        >
-                                          <Copy className="w-3.5 h-3.5 text-amber-400" />
-                                          <span className="hidden sm:inline">Link</span>
-                                        </button>
-
-                                        {/* Up/Down reorder arrows if >1 orders */}
-                                        {mOrders.length > 1 && onReorderMotoboyRoute && (
-                                          <div className="flex items-center gap-0.5 shrink-0 bg-slate-950 p-0.5 rounded border border-slate-800">
-                                            {idx > 0 && (
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  const reordered = [...mOrders];
-                                                  const temp = reordered[idx];
-                                                  reordered[idx] = reordered[idx - 1];
-                                                  reordered[idx - 1] = temp;
-                                                  onReorderMotoboyRoute(reordered.map((o) => o.id));
-                                                }}
-                                                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer text-[10px]"
-                                                title="Mover para cima"
-                                              >
-                                                ▲
-                                              </button>
-                                            )}
-                                            {idx < mOrders.length - 1 && (
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  const reordered = [...mOrders];
-                                                  const temp = reordered[idx];
-                                                  reordered[idx] = reordered[idx + 1];
-                                                  reordered[idx + 1] = temp;
-                                                  onReorderMotoboyRoute(reordered.map((o) => o.id));
-                                                }}
-                                                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors cursor-pointer text-[10px]"
-                                                title="Mover para baixo"
-                                              >
-                                                ▼
-                                              </button>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-
-                            {/* Card Footer Actions */}
-                            {isThisMotoboyFocused && <div className="pt-1.5 flex flex-wrap items-center gap-1.5 min-w-0">
-                              {m.status === 'returning_to_store' ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (onConfirmArrivalAtStore) {
-                                      onConfirmArrivalAtStore(m.id);
-                                    } else if (onUpdateMotoboyStatus) {
-                                      onUpdateMotoboyStatus(m.id, 'available');
-                                    }
-                                    triggerActionToast(`🏪 Chegada de ${m.name.split(' ')[0]} confirmada! Ele está na fila para a próxima rota.`);
-                                  }}
-                                  className="w-full py-2.5 px-3 bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase animate-pulse"
-                                >
-                                  <span>🏪</span>
-                                  <span>Confirmar Chegada de {m.name.split(' ')[0]} na Loja</span>
-                                </button>
-                              ) : mOrders.length > 0 ? (
-                                <>
-                                  {isDriverInTransit ? (
-                                    <div className="flex-1 py-2 px-3 bg-blue-950/60 border border-blue-500/30 text-blue-300 text-center font-bold text-xs rounded-xl flex items-center justify-center gap-1.5">
-                                      <span>🛵</span>
-                                      <span>Em rota na rua ({mOrders.length} {mOrders.length === 1 ? 'parada restante' : 'paradas restantes'})</span>
-                                    </div>
-                                  ) : allOrdersReady ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        mOrders.forEach((o) => {
-                                          if (o.status !== 'in_transit') {
-                                            onUpdateOrderStatus(o.id, 'in_transit');
-                                          }
-                                        });
-                                        if (onUpdateMotoboyStatus) {
-                                          onUpdateMotoboyStatus(m.id, 'delivering');
-                                        }
-                                        triggerActionToast(`🛵 ${m.name.split(' ')[0]} liberado para saída!`);
-                                      }}
-                                      className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                                    >
-                                      <span>🛵</span>
-                                      <span>Liberar {m.name.split(' ')[0]} para Saída ({mOrders.length} {mOrders.length === 1 ? 'parada' : 'paradas'})</span>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleNotifyMotoboyInApp(m)}
-                                      className="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-400 active:scale-98 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                                    >
-                                      <span>🔔</span>
-                                      <span>Avisar que está pronto</span>
-                                    </button>
-                                  )}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSendWhatsAppToMotoboy(m)}
-                                    className="p-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
-                                    title="Avisar via WhatsApp"
-                                  >
-                                    <span>📱</span>
-                                  </button>
-                                </>
-                              ) : null}
-                            </div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Resumo Rápido Card matching Mockup */}
-            <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800 space-y-2">
-              <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wider">Resumo rápido da operação</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                  <span className="text-[11px] text-slate-400 block font-medium">Pedidos no balcão</span>
-                  <strong className="text-white text-base font-black">{readyAtCounter.length} prontos</strong>
-                </div>
-                <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                  <span className="text-[11px] text-slate-400 block font-medium">Motoboys ativos</span>
-                  <strong className="text-white text-base font-black">{motoboysAvailable.length} na fila</strong>
-                </div>
-                <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60">
-                  <span className="text-[11px] text-slate-400 block font-medium">Próxima entrega</span>
-                  <strong className="text-emerald-400 text-xs font-bold line-clamp-1">
-                    {unassignedOrders.length > 0 && unassignedOrders[0]?.address
-                      ? `${unassignedOrders[0].address}${unassignedOrders[0].neighborhood ? ` • ${unassignedOrders[0].neighborhood}` : ''}`
-                      : 'Nenhuma entrega na fila'}
-                  </strong>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <OperationDispatchView
+          orders={orders}
+          motoboys={motoboys}
+          shift={shift}
+          activeOrders={activeOrders}
+          unassignedOrders={unassignedOrders}
+          motoboysAvailable={motoboysAvailable}
+          selectedOrderIds={selectedOrderIds}
+          setSelectedOrderIds={setSelectedOrderIds}
+          selectedMotoboyId={selectedMotoboyId}
+          setSelectedMotoboyId={setSelectedMotoboyId}
+          onAssignOrderToMotoboy={onAssignOrderToMotoboy}
+          onAssignBatchToMotoboy={onAssignBatchToMotoboy}
+          onUpdateOrderStatus={onUpdateOrderStatus}
+          onUpdateMotoboyStatus={onUpdateMotoboyStatus}
+          onOpenNewOrderModal={onOpenNewOrderModal}
+          onOpenMotoboyModal={onOpenMotoboyModal}
+          onSelectOrderForTracking={onSelectOrderForTracking}
+          setIsRouteModalOpen={setIsRouteModalOpen}
+          setTicketOrder={setTicketOrder}
+          setIsTicketOpen={setIsTicketOpen}
+          handleCallCounter={handleCallCounter}
+          triggerActionToast={triggerActionToast}
+          setActiveTab={setActiveTab}
+          getMotoboyLoad={getMotoboyLoad}
+          assignOrderRespectingLoad={assignOrderRespectingLoad}
+        />
       )}
 
       {/* KANBAN BOARD TAB */}
@@ -2649,6 +953,118 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           }}
           onOpenNewOrderModal={onOpenNewOrderModal}
         />
+      )}
+
+      {/* 🗺️ DEDICATED LIVE MAP TAB */}
+      {activeTab === 'mapa' && (
+        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-4 space-y-4 shadow-xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 border-b border-slate-800">
+            <div>
+              <h3 className="font-black text-lg text-white tracking-tight flex items-center gap-2">
+                <Map className="w-5 h-5 text-blue-400" />
+                <span>Mapa ao Vivo da Frota em Blumenau</span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Acompanhe a localização em tempo real dos entregadores, rotas ativas e paradas de entrega.
+              </p>
+            </div>
+
+            {/* Motoboy Filter Selector */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={selectedMotoboyId || ''}
+                onChange={(e) => setSelectedMotoboyId(e.target.value || null)}
+                className="bg-slate-800 text-slate-100 border border-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-xs"
+              >
+                <option value="">🌐 Toda a Frota ({motoboys.filter((m) => m.status !== 'offline').length} ativos)</option>
+                {motoboys
+                  .filter((m) => m.status !== 'offline')
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      🛵 {m.name} ({m.status === 'delivering' ? 'Em rota' : m.status === 'returning_to_store' ? 'Voltando' : 'No pátio'})
+                    </option>
+                  ))}
+              </select>
+
+              {selectedMotoboyId && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMotoboyId(null)}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 cursor-pointer"
+                >
+                  Ver Todos
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl overflow-hidden border border-slate-800 h-[600px] w-full relative">
+            <RouteMap
+              origin={{
+                name: shift.storeName || 'Hope Burger & Pizza',
+                address: shift.storeAddress || '',
+                lat: shift.storeLat || -26.9194,
+                lng: shift.storeLng || -49.0661,
+              }}
+              selectedMotoboyId={selectedMotoboyId}
+              onSelectMotoboy={(id) => setSelectedMotoboyId(id)}
+              selectedStopId={selectedOrderIdOnMap}
+              onSelectStop={(stop) => setSelectedOrderIdOnMap(stop.id)}
+              motoboysList={
+                selectedMotoboyId
+                  ? motoboys.filter((m) => m.id === selectedMotoboyId)
+                  : motoboys.filter((m) => m.status !== 'offline')
+              }
+              stops={
+                selectedOrderIdOnMap
+                  ? orders
+                      .filter((ord) => ord.id === selectedOrderIdOnMap && typeof ord.lat === 'number' && typeof ord.lng === 'number')
+                      .map((ord, idx) => ({
+                        id: ord.id,
+                        codeNumber: ord.codeNumber,
+                        orderIndex: idx + 1,
+                        title: `${getOrderDisplayCode(ord)} - ${ord.clientName}`,
+                        address: ord.address,
+                        neighborhood: ord.neighborhood,
+                        lat: ord.lat,
+                        lng: ord.lng,
+                        status: ord.status === 'delivered' ? 'delivered' : ord.status === 'in_transit' ? 'in_transit' : 'pending',
+                        priority: 'high',
+                        recipientName: ord.clientName,
+                        phone: ord.clientPhone,
+                        valueToReceive: ord.total,
+                        motoboyId: ord.assignedMotoboyId || undefined,
+                        motoboyName: ord.assignedMotoboyName || undefined,
+                      }))
+                  : orders
+                      .filter((ord) => {
+                        if (ord.address?.toLowerCase().includes('retirada') || ord.neighborhood?.toLowerCase() === 'balcão') return false;
+                        if (ord.status === 'delivered' || ord.status === 'cancelled') return false;
+                        if (typeof ord.lat !== 'number' || typeof ord.lng !== 'number') return false;
+                        if (!selectedMotoboyId) return true;
+                        return ord.assignedMotoboyId === selectedMotoboyId;
+                      })
+                      .map((ord, idx) => ({
+                        id: ord.id,
+                        codeNumber: ord.codeNumber,
+                        orderIndex: idx + 1,
+                        title: `${getOrderDisplayCode(ord)} - ${ord.clientName}`,
+                        address: ord.address,
+                        neighborhood: ord.neighborhood,
+                        lat: ord.lat,
+                        lng: ord.lng,
+                        status: ord.status === 'delivered' ? 'delivered' : ord.status === 'in_transit' ? 'in_transit' : 'pending',
+                        priority: 'medium',
+                        recipientName: ord.clientName,
+                        phone: ord.clientPhone,
+                        valueToReceive: ord.total,
+                        motoboyId: ord.assignedMotoboyId || undefined,
+                        motoboyName: ord.assignedMotoboyName || undefined,
+                      }))
+              }
+            />
+          </div>
+        </div>
       )}
 
       {/* TEAM TAB */}
@@ -2901,140 +1317,19 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
         </div>
       )}
 
-      {/* FINANCE TAB */}
-      {activeTab === 'financeiro' && (
-        <div className="bg-slate-800 rounded-2xl border border-slate-700/80 p-5 space-y-5">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-lg text-white">Resumo Financeiro do Turno</h3>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${shift.isOpen ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-slate-700 text-slate-300 border-slate-600'}`}>
-                  {shift.isOpen ? '● Turno em Andamento' : '○ Loja Fechada (Faturamento Zerado)'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {shift.isOpen 
-                  ? 'Faturamento e controle de entregas em tempo real deste turno.' 
-                  : 'O faturamento do turno ativo é mantido em R$ 0,00 até a abertura oficial da loja.'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsSettlementOpen(true)}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs rounded-xl shadow-2xs border border-slate-600 flex items-center gap-2 transition-all cursor-pointer"
-            >
-              <Receipt className="w-4 h-4 text-slate-300" /> Abrir Acerto de Caixa dos Motoboys
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-700">
-              <span className="text-xs font-bold text-slate-400 block">Faturamento Bruto (Turno Atual)</span>
-              <span className="text-2xl font-black text-emerald-400">{formattedCurrency(totalRevenue)}</span>
-              <span className="text-[11px] text-slate-400 mt-1 block">
-                {shift.isOpen ? 'Calculado durante o expediente aberto' : 'Turno fechado • Zera automaticamente'}
-              </span>
-            </div>
-            <div className="p-4 rounded-2xl bg-slate-900/70 border border-slate-700">
-              <span className="text-xs font-bold text-slate-400 block">Total de Vendas (Pedidos do Turno)</span>
-              <span className="text-2xl font-black text-white">{todayOrders.length} pedidos</span>
-              <span className="text-[11px] text-slate-400 mt-1 block">
-                {deliveredToday.length} entregas concluídas
-              </span>
-            </div>
-            <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-800/60">
-              <span className="text-xs font-bold text-amber-300 block">Comissão Motoboys (A pagar)</span>
-              <span className="text-2xl font-black text-amber-200">
-                {formattedCurrency(shift.isOpen ? motoboys.reduce((acc, m) => acc + (m.totalEarnedToday || 0), 0) : 0)}
-              </span>
-              <span className="text-[11px] text-amber-400/80 mt-1 block">
-                {shift.isOpen ? 'Taxas acumuladas neste turno' : 'Sem taxas pendentes no turno fechado'}
-              </span>
-            </div>
-          </div>
-
-          {/* Card do Último Turno Encerrado */}
-          {shift.lastShiftSummary && (
-            <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-indigo-400" /> Resumo do Último Turno Encerrado ({shift.lastShiftSummary.date})
-                </span>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  Expediente das <strong className="text-white">{shift.lastShiftSummary.openedAt}</strong> às <strong className="text-white">{shift.lastShiftSummary.closedAt}</strong>
-                </p>
-              </div>
-              <div className="flex items-center gap-4 text-xs">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Faturamento Final</span>
-                  <strong className="text-emerald-400 font-bold text-sm">{formattedCurrency(shift.lastShiftSummary.totalRevenue)}</strong>
-                </div>
-                <div className="border-l border-slate-700 pl-4">
-                  <span className="text-slate-400 block text-[10px]">Total de Pedidos</span>
-                  <strong className="text-white font-bold text-sm">{shift.lastShiftSummary.totalOrders} pedidos</strong>
-                </div>
-                <div className="border-l border-slate-700 pl-4">
-                  <span className="text-slate-400 block text-[10px]">Entregas Feitas</span>
-                  <strong className="text-slate-200 font-bold text-sm">{shift.lastShiftSummary.deliveredCount} entregues</strong>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* HISTORY TAB */}
-      {activeTab === 'historico' && (
-        <div className="bg-slate-800 rounded-2xl border border-slate-700/80 p-5 space-y-4">
-          <h3 className="font-bold text-lg text-white">Histórico Completo de Pedidos Lançados</h3>
-          <div className="space-y-2">
-            {orders.map((o) => (
-              <div key={o.id} className="p-3 rounded-xl border border-slate-700 bg-slate-900/70 flex items-center justify-between text-xs">
-                <div>
-                  <span className="font-bold text-white">{getOrderDisplayCode(o)} • {o.clientName}</span>
-                  <p className="text-slate-400">{o.itemsSummary} — {o.address}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-right flex flex-col items-end gap-1">
-                    <span className="font-bold text-emerald-400 block">{formattedCurrency(o.total)}</span>
-                    <PaymentBadge method={o.paymentMethod} changeFor={o.changeFor} total={o.total} size="xs" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onSelectOrderForTracking(o)}
-                    className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1"
-                    title="Ver Rastreio / Mapa"
-                  >
-                    <MapPin className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const url = `${window.location.origin}/?rastreio=${o.trackingCode || o.id}`;
-                      navigator.clipboard.writeText(url);
-                      triggerActionToast(`🔗 Link de rastreio de #${o.codeNumber} copiado!`);
-                    }}
-                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg font-bold transition-all cursor-pointer"
-                    title="Copiar Link de Rastreio"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-amber-400" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTicketOrder(o);
-                      setIsTicketOpen(true);
-                    }}
-                    className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold transition-all cursor-pointer"
-                    title="Imprimir comanda 80mm"
-                  >
-                    <Printer className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* NÍVEL 3 — GESTÃO (FINANCEIRO, HISTÓRICO, RELATÓRIOS E INTEGRAÇÕES) */}
+      {(activeTab === 'gestao' || activeTab === 'financeiro' || activeTab === 'historico') && (
+        <ManagementHub
+          shift={shift}
+          orders={orders}
+          motoboys={motoboys}
+          onOpenSettlementModal={() => setIsSettlementOpen(true)}
+          onOpenHistoryModal={() => setIsHistoryModalOpen(true)}
+          onOpenIntegrationsModal={() => setIsIntegrationsOpen(true)}
+          onSyncCardapioWeb={handleSyncCardapioWeb}
+          isSyncingCw={isSyncingCw}
+          onToggleShift={onToggleShift}
+        />
       )}
 
       {/* Modals for Step 4 & 5 */}

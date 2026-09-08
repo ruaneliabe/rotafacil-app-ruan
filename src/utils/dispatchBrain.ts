@@ -14,6 +14,8 @@ export interface DispatchRecommendation {
   totalDistanceKm: number;
   interOrderDistanceKm?: number;
   estimatedTripMin: number;
+  estimatedSavingsMin?: number;
+  corridorLabel?: string;
   neighborhoodSummary: string;
   rationale: string;
   waitSuggestion?: {
@@ -221,6 +223,29 @@ export function analyzeOperationalBrain(
           };
         }
 
+        // Calculate estimated route savings
+        let estimatedSavingsMin = 0;
+        let corridorDisplay = neighborhoods;
+        if (cluster.length >= 2) {
+          // Individual trips baseline: each order delivered individually from store and returning
+          let individualTripsTime = 0;
+          cluster.forEach((ord) => {
+            const singleDist = calculateRoadDistanceKm(storeLat, storeLng, ord.lat, ord.lng) * 2;
+            individualTripsTime += Math.round(singleDist * 2.8 + 4);
+          });
+          estimatedSavingsMin = Math.max(8, individualTripsTime - estimatedTripMin);
+
+          // Corridor label with arrows (e.g. "Garcia → Glória")
+          const nList = cluster.map((c) => c.neighborhood.trim());
+          const uniqueN = Array.from(new Set(nList));
+          corridorDisplay = uniqueN.join(' → ');
+        } else {
+          const corridor = findOrderCorridor(cluster[0]);
+          if (corridor) {
+            corridorDisplay = corridor.name;
+          }
+        }
+
         let rationale = '';
         if (cluster.length === 1) {
           const ord = cluster[0];
@@ -256,6 +281,8 @@ export function analyzeOperationalBrain(
           totalStops: cluster.length,
           totalDistanceKm: Number(totalDist.toFixed(1)),
           estimatedTripMin,
+          estimatedSavingsMin,
+          corridorLabel: corridorDisplay,
           neighborhoodSummary: neighborhoods,
           rationale,
           waitSuggestion,

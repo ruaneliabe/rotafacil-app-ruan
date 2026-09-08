@@ -22,7 +22,7 @@ interface RouteMapProps {
 
 export const RouteMap: React.FC<RouteMapProps> = ({
   origin,
-  stops,
+  stops = [],
   selectedStopId,
   onSelectStop,
   motoboyName,
@@ -30,10 +30,14 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   showMotoboyMarker = true,
   motoboyLat,
   motoboyLng,
-  motoboysList,
+  motoboysList = [],
   selectedMotoboyId = null,
   onSelectMotoboy,
 }) => {
+  const safeStops = stops || [];
+  const safeMotoboys = motoboysList || [];
+  const originLat = origin?.lat && !isNaN(origin.lat) ? origin.lat : -26.9194;
+  const originLng = origin?.lng && !isNaN(origin.lng) ? origin.lng : -49.0661;
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
@@ -83,11 +87,17 @@ export const RouteMap: React.FC<RouteMapProps> = ({
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
+    // Previne crash de "Map container is already initialized"
+    if ((mapContainerRef.current as any)._leaflet_id && mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
+    }
+
     if (!mapInstanceRef.current) {
       const map = L.map(mapContainerRef.current, {
         zoomControl: false,
         attributionControl: false,
-      }).setView([origin.lat, origin.lng], 14);
+      }).setView([originLat, originLng], 14);
 
       // OpenStreetMap oficial por padrão (zero API key, zero marcas d'água)
       const tileCfg = getTileConfig(mapStyle);
@@ -117,6 +127,10 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     return () => {
       resizeObserver.disconnect();
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
     };
   }, []);
 
@@ -166,7 +180,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     const q = query.toLowerCase().trim();
 
     // Tentar achar parada correspondente
-    const foundStop = stops.find((s) => {
+    const foundStop = safeStops.find((s) => {
       const codeStr = s.codeNumber ? String(s.codeNumber) : '';
       return (
         codeStr === q ||
@@ -209,7 +223,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     // 1. Store Marker (Sleek Dark Pill) - ONLY render if store address is configured in Configurar Loja
     if (isStoreAddressConfigured) {
-      bounds.push([origin.lat, origin.lng]);
+      bounds.push([originLat, originLng]);
 
       const originIcon = L.divIcon({
         className: 'custom-origin-pin z-50',
@@ -226,7 +240,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         iconAnchor: [55, 36],
       });
 
-      const originMarker = L.marker([origin.lat, origin.lng], { icon: originIcon, zIndexOffset: 1000 })
+      const originMarker = L.marker([originLat, originLng], { icon: originIcon, zIndexOffset: 1000 })
         .bindPopup(`
           <div class="p-2 min-w-[210px] text-slate-100">
             <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-950 text-emerald-400 border border-emerald-800">🏪 Estabelecimento / Loja</span>
@@ -238,7 +252,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
     }
 
     // 2. Stops Markers (Todos os pedidos com coordenadas válidas exibidos no mapa)
-    stops.forEach((stop, idx) => {
+    safeStops.forEach((stop, idx) => {
       if (
         typeof stop.lat !== 'number' ||
         isNaN(stop.lat) ||
@@ -636,7 +650,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     // 4. Draw Route Polyline ONLY IF a specific driver is selected or in dedicated delivery view
     const isSingleDriverFocus = Boolean(selectedMotoboyId || motoboyName);
-    const activeStops = isSingleDriverFocus ? stops.filter((s) => s.status === 'in_transit') : [];
+    const activeStops = isSingleDriverFocus ? safeStops.filter((s) => s.status === 'in_transit') : [];
 
     if (activeStops.length > 0) {
       const hasLiveMotoboyGps =
@@ -644,7 +658,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         typeof motoboyLng === 'number' && !isNaN(motoboyLng) && motoboyLng !== 0;
       const routeStart: [number, number] = hasLiveMotoboyGps
         ? [motoboyLat as number, motoboyLng as number]
-        : [origin.lat, origin.lng];
+        : [originLat, originLng];
       const routeCoords: [number, number][] = [
         routeStart,
         ...activeStops.map((s) => [s.lat, s.lng] as [number, number]),
@@ -660,7 +674,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
 
     // 5. Smoothly fit map bounds to fit store + visible motoboys/stops
     if (selectedStopId) {
-      const targetStop = stops.find((s) => s.id === selectedStopId);
+      const targetStop = safeStops.find((s) => s.id === selectedStopId);
       if (targetStop && targetStop.lat && targetStop.lng) {
         map.setView([targetStop.lat, targetStop.lng], 16, { animate: true });
         return;
@@ -671,28 +685,28 @@ export const RouteMap: React.FC<RouteMapProps> = ({
       map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
     } else if (bounds.length === 1) {
       map.setView(bounds[0], 15, { animate: true });
-    } else if (stops.length > 0 && stops[0].lat && stops[0].lng) {
-      map.setView([stops[0].lat, stops[0].lng], 14, { animate: true });
+    } else if (safeStops.length > 0 && safeStops[0].lat && safeStops[0].lng) {
+      map.setView([safeStops[0].lat, safeStops[0].lng], 14, { animate: true });
     } else {
-      map.setView([origin.lat || -26.9194, origin.lng || -49.0661], 14);
+      map.setView([originLat, originLng], 14);
     }
   }, [origin, stops, selectedStopId, motoboysList, showMotoboyMarker, motoboyLat, motoboyLng, selectedMotoboyId]);
 
   // Counts for top status chip bar
   const atStoreCount =
-    motoboysList?.filter((m) => {
+    safeMotoboys.filter((m) => {
       if (m.status === 'delivering' || m.status === 'returning_to_store') return false;
-      if (m.currentLat && m.currentLng && origin.lat && origin.lng) {
-        return calculateDistanceKm(m.currentLat, m.currentLng, origin.lat, origin.lng) <= 0.3;
+      if (m.currentLat && m.currentLng) {
+        return calculateDistanceKm(m.currentLat, m.currentLng, originLat, originLng) <= 0.3;
       }
       return true;
     }).length || 0;
 
   const outsideAvailableCount =
-    (motoboysList?.filter((m) => m.status === 'available' || m.status === 'offline').length || 0) - atStoreCount;
-  const deliveringCount = motoboysList?.filter((m) => m.status === 'delivering').length || 0;
+    (safeMotoboys.filter((m) => m.status === 'available' || m.status === 'offline').length || 0) - atStoreCount;
+  const deliveringCount = safeMotoboys.filter((m) => m.status === 'delivering').length || 0;
   const returningCount =
-    motoboysList?.filter((m) => m.status === 'returning_to_store' || (m as any).isReturning).length || 0;
+    safeMotoboys.filter((m) => m.status === 'returning_to_store' || (m as any).isReturning).length || 0;
 
   const isStoreAddressConfigured = Boolean(
     origin.address &&
@@ -718,7 +732,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
               <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
                 Mapa Operacional Ampliado
                 <span className="text-xs text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-600/40">
-                  {stops.length} {stops.length === 1 ? 'parada ativa' : 'paradas ativas'}
+                  {safeStops.length} {safeStops.length === 1 ? 'parada ativa' : 'paradas ativas'}
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400 hidden sm:block">
@@ -850,7 +864,7 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           </div>
         )}
 
-        {isStoreAddressConfigured && stops.length === 0 && (!motoboysList || motoboysList.length === 0) && (
+        {isStoreAddressConfigured && safeStops.length === 0 && safeMotoboys.length === 0 && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[400] w-[calc(100%-2rem)] max-w-sm bg-slate-900/95 border border-slate-700 rounded-xl p-3 text-center shadow-xl backdrop-blur-md pointer-events-none">
             <p className="text-xs font-black text-white">Mapa pronto para a primeira entrega</p>
             <p className="text-[11px] text-slate-300 mt-0.5">A loja está centralizada. Pedidos e motoboys aparecerão aqui em tempo real.</p>
