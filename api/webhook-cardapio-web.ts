@@ -1,303 +1,195 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { findCardapioWebStore, getCardapioWebStores, CardapioWebStoreConfig } from './cardapio-web-config';
 
 const STORE_PILOT_RESET_VERSION = 'zeroed_store_pilot_2026_08_17_v10';
 
-const FIREBASE_CONFIG = {
-  projectId: "gentle-country-q2l12",
-  appId: "1:1093185971024:web:0d69aec4e35fcbaae24255",
-  apiKey: "AIzaSyCvh0-Qr7HWJSX3NozYqHyfBY9ZaNEAejg",
-  authDomain: "gentle-country-q2l12.firebaseapp.com",
-  firestoreDatabaseId: "ai-studio-rotafcildelivery-495fd3be-5974-4310-960a-26a794361d3b",
-  storageBucket: "gentle-country-q2l12.firebasestorage.app",
-  messagingSenderId: "1093185971024",
-};
-
 function getDbInstance() {
-  const fbApp = getApps().length > 0 ? getApp() : initializeApp(FIREBASE_CONFIG);
-  return FIREBASE_CONFIG.firestoreDatabaseId && FIREBASE_CONFIG.firestoreDatabaseId !== '(default)'
-    ? getFirestore(fbApp, FIREBASE_CONFIG.firestoreDatabaseId)
-    : getFirestore(fbApp);
+  const firebaseConfig = {
+    apiKey: process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY,
+    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'rotafcildelivery',
+    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.VITE_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID,
+  };
+  const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+  const dbId = process.env.VITE_FIRESTORE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || 'ai-studio-rotafcildelivery-495fd3be-5974-4310-960a-26a794361d3b';
+  return getFirestore(app, dbId);
 }
 
-const BLUMENAU_NEIGHBORHOOD_COORDS: Record<string, { lat: number; lng: number }> = {
-  'velha central': { lat: -26.9284, lng: -49.1147 },
-  'velha grande': { lat: -26.9550, lng: -49.1310 },
-  'velha': { lat: -26.9200, lng: -49.0950 },
-  'garcia': { lat: -26.9450, lng: -49.0680 },
-  'centro': { lat: -26.9194, lng: -49.0661 },
-  'itoupava norte': { lat: -26.8850, lng: -49.0800 },
-  'itoupavazinha': { lat: -26.8650, lng: -49.0950 },
-  'fortaleza': { lat: -26.8900, lng: -49.0550 },
-  'vila nova': { lat: -26.9100, lng: -49.0850 },
-  'victor konder': { lat: -26.9150, lng: -49.0750 },
-  'escola agrícola': { lat: -26.8950, lng: -49.1050 },
-  'escola agricola': { lat: -26.8950, lng: -49.1050 },
-  'água verde': { lat: -26.9150, lng: -49.1200 },
-  'agua verde': { lat: -26.9150, lng: -49.1200 },
-  'passo manso': { lat: -26.9180, lng: -49.1450 },
-  'salto do norte': { lat: -26.8700, lng: -49.1100 },
-  'badenfurt': { lat: -26.8650, lng: -49.1450 },
-  'vorstadt': { lat: -26.9300, lng: -49.0450 },
-  'ponta aguda': { lat: -26.9250, lng: -49.0550 },
-  'progresso': { lat: -26.9800, lng: -49.0700 },
-  'da glória': { lat: -26.9600, lng: -49.0650 },
-  'gloria': { lat: -26.9600, lng: -49.0650 },
-  'valparaíso': { lat: -26.9550, lng: -49.0850 },
-  'valparaiso': { lat: -26.9550, lng: -49.0850 },
-  'tribess': { lat: -26.8750, lng: -49.0400 },
-  'itoupava central': { lat: -26.8200, lng: -49.0900 },
-  'testo salto': { lat: -26.8250, lng: -49.1500 },
-  'fidélis': { lat: -26.8400, lng: -49.0700 },
-  'fidelis': { lat: -26.8400, lng: -49.0700 },
+const STATUS_RANK: Record<string, number> = {
+  pending: 10,
+  preparing: 20,
+  ready_at_counter: 30,
+  picked_up: 40,
+  dispatched: 50,
+  in_transit: 60,
+  delivered: 100,
 };
 
-async function resolveCoordinates(
-  address: any,
-  isTakeout: boolean,
-  branch: 'hope_burger' | 'hope_pizza'
-): Promise<{ lat: number; lng: number }> {
-  if (isTakeout) {
-    return branch === 'hope_pizza' ? { lat: -26.9240, lng: -49.0630 } : { lat: -26.9194, lng: -49.0661 };
+function mapExternalStatus(status: unknown): 'pending' | 'dispatched' | 'delivered' | 'cancelled' {
+  const value = String(status || '').trim().toLowerCase();
+  if (['closed', 'delivered', 'finalized', 'concluded'].includes(value)) return 'delivered';
+  if (['released', 'dispatched', 'saiu_para_entrega'].includes(value)) return 'dispatched';
+  if (['canceled', 'cancelled', 'rejected'].includes(value)) return 'cancelled';
+  return 'pending';
+}
+
+function resolveStatus(currentStatus: unknown, externalStatus: unknown): string {
+  const current = String(currentStatus || 'pending').toLowerCase();
+  const target = mapExternalStatus(externalStatus);
+  if (current === 'delivered' || current === 'cancelled') return current;
+  if (target === 'cancelled') return (STATUS_RANK[current] || 0) < STATUS_RANK.dispatched ? 'cancelled' : current;
+  return (STATUS_RANK[target] || 0) > (STATUS_RANK[current] || 0) ? target : current;
+}
+
+async function resolveCoordinates(address: any, store: CardapioWebStoreConfig): Promise<{ lat: number; lng: number }> {
+  const directLat = Number(address?.latitude ?? address?.lat);
+  const directLng = Number(address?.longitude ?? address?.lng);
+  if (Number.isFinite(directLat) && Number.isFinite(directLng) && directLat !== 0 && directLng !== 0) {
+    return { lat: directLat, lng: directLng };
   }
 
-  if (address.latitude && address.longitude) {
-    const lat = Number(address.latitude);
-    const lng = Number(address.longitude);
-    if (!isNaN(lat) && !isNaN(lng) && lat !== 0) {
-      return { lat, lng };
-    }
-  }
+  const street = String(address?.street || address?.rua || address?.logradouro || '').trim();
+  const number = String(address?.number || address?.numero || '').trim();
+  const neighborhood = String(address?.neighborhood || address?.bairro || '').trim();
+  const city = String(address?.city || address?.cidade || 'Blumenau').trim();
 
-  const street = (address.street || address.rua || address.logradouro || '').trim();
-  const houseNumber = (address.number || address.numero || '').trim();
-  const neighborhood = (address.neighborhood || address.bairro || '').trim();
-  const city = (address.city || address.cidade || 'Blumenau').trim();
-
-  if (street && street !== 'Rua não informada') {
+  if (street) {
     try {
-      const q = `${street}${houseNumber ? `, ${houseNumber}` : ''}, ${neighborhood ? `${neighborhood}, ` : ''}${city}, SC, Brasil`;
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
+      const q = `${street}${number ? `, ${number}` : ''}, ${neighborhood ? `${neighborhood}, ` : ''}${city}, SC, Brasil`;
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
         headers: { 'User-Agent': 'RotaFacilDelivery/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9' },
         signal: AbortSignal.timeout(3000),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0) {
-          const lat = parseFloat(data[0].lat);
-          const lng = parseFloat(data[0].lon);
-          if (!isNaN(lat) && !isNaN(lng)) {
-            return { lat, lng };
-          }
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data[0]) {
+          const lat = Number(data[0].lat);
+          const lng = Number(data[0].lon);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
         }
       }
-    } catch {}
-
-    try {
-      const q = `${street}, ${city}, SC, Brasil`;
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
-        headers: { 'User-Agent': 'RotaFacilDelivery/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9' },
-        signal: AbortSignal.timeout(2500),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0) {
-          const lat = parseFloat(data[0].lat);
-          const lng = parseFloat(data[0].lon);
-          if (!isNaN(lat) && !isNaN(lng)) {
-            return { lat, lng };
-          }
-        }
-      }
-    } catch {}
-  }
-
-  const lowerNeigh = neighborhood.toLowerCase();
-  for (const [key, coords] of Object.entries(BLUMENAU_NEIGHBORHOOD_COORDS)) {
-    if (lowerNeigh.includes(key)) {
-      const jitterLat = (Math.random() - 0.5) * 0.003;
-      const jitterLng = (Math.random() - 0.5) * 0.003;
-      return { lat: coords.lat + jitterLat, lng: coords.lng + jitterLng };
+    } catch (error) {
+      console.warn('[Cardapio Web] Falha ao geocodificar endereco:', error);
     }
   }
 
-  const baseLat = branch === 'hope_pizza' ? -26.9240 : -26.9194;
-  const baseLng = branch === 'hope_pizza' ? -49.0630 : -49.0661;
-  return { lat: baseLat, lng: baseLng };
+  return {
+    lat: store.originLat ?? -26.9194,
+    lng: store.originLng ?? -49.0661,
+  };
 }
 
 export default async function handler(req: any, res: any) {
-  // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-KEY, X-Webhook-Token, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Webhook-Token, Authorization');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method === 'GET') {
-    return res.status(200).json({ status: 'ok', service: 'Cardápio Web Webhook Vercel' });
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method === 'GET') return res.status(200).json({ status: 'ok', service: 'Cardapio Web Webhook Vercel' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const db = getDbInstance();
+    const stores = getCardapioWebStores();
     let payload = req.body || {};
     if (typeof payload === 'string') {
-      try {
-        payload = JSON.parse(payload);
-      } catch {
-        payload = {};
-      }
+      try { payload = JSON.parse(payload); } catch { payload = {}; }
     }
-    const branchParam = (req.query?.branchId || req.query?.branch || '').toString().toLowerCase();
 
-    const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
-    const CARDAPIO_WEB_HOPE_BURGER_TOKEN = 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
-
-    const cwOrderId = payload.id || payload.order_id || (payload.data && payload.data.id);
-    let branch: 'hope_burger' | 'hope_pizza' = branchParam.includes('burger') ? 'hope_burger' : 'hope_pizza';
+    const storeSelector = req.query?.storeId || req.query?.branchId || req.query?.branch;
+    let store = findCardapioWebStore(stores, storeSelector);
+    const cwOrderId = payload.id || payload.order_id || payload.data?.id;
     let orderData: any = payload;
 
-    // Se o webhook do Cardápio Web enviou apenas o evento/id, buscar os dados completos da API oficial com fallback inteligente
+    // O storeId na URL e a fonte primaria. Para webhooks legados sem storeId,
+    // tenta localizar o pedido nas lojas configuradas sem expor nenhuma chave ao cliente.
+    const candidates = store ? [store] : stores;
     if (cwOrderId) {
-      const isExplicitBurger = branchParam.includes('burger');
-      const firstToken = isExplicitBurger ? CARDAPIO_WEB_HOPE_BURGER_TOKEN : CARDAPIO_WEB_HOPE_PIZZA_TOKEN;
-      const secondToken = isExplicitBurger ? CARDAPIO_WEB_HOPE_PIZZA_TOKEN : CARDAPIO_WEB_HOPE_BURGER_TOKEN;
-
-      try {
-        let cwRes = await fetch(`https://integracao.cardapioweb.com/api/partner/v1/orders/${cwOrderId}`, {
-          headers: { 'X-API-KEY': firstToken },
-        });
-
-        if (cwRes.ok) {
-          const fetchedJson = await cwRes.json();
-          if (fetchedJson && fetchedJson.id) {
-            orderData = fetchedJson;
-            branch = isExplicitBurger ? 'hope_burger' : 'hope_pizza';
-          }
-        } else {
-          // Tenta a outra loja caso o id pertença à outra
-          const altRes = await fetch(`https://integracao.cardapioweb.com/api/partner/v1/orders/${cwOrderId}`, {
-            headers: { 'X-API-KEY': secondToken },
+      for (const candidate of candidates) {
+        try {
+          const response = await fetch(`https://integracao.cardapioweb.com/api/partner/v1/orders/${encodeURIComponent(String(cwOrderId))}`, {
+            headers: { 'X-API-KEY': candidate.apiKey },
           });
-          if (altRes.ok) {
-            const fetchedJson = await altRes.json();
-            if (fetchedJson && fetchedJson.id) {
-              orderData = fetchedJson;
-              branch = isExplicitBurger ? 'hope_pizza' : 'hope_burger';
-            }
+          if (!response.ok) continue;
+          const fetched = await response.json();
+          if (fetched?.id) {
+            store = candidate;
+            orderData = fetched;
+            break;
           }
+        } catch (error) {
+          console.error(`[Cardapio Web Webhook] consulta ${candidate.storeId}:`, error);
         }
-      } catch (cwErr) {
-        console.error('Falha ao consultar API Cardápio Web:', cwErr);
       }
     }
 
-    // REGRA MÁXIMA: Pedidos de balcão (takeout / indoor) DEVEM SER IGNORADOS!
-    const isTakeout = orderData.order_type === 'takeout' ||
-                      orderData.order_type === 'indoor' ||
-                      orderData.order_type === 'balcao' ||
-                      payload.order_type === 'takeout' ||
-                      (!orderData.delivery_address && orderData.order_type !== 'delivery');
+    if (!store) return res.status(400).json({ error: 'Loja Cardapio Web nao identificada' });
 
-    if (isTakeout) {
-      console.log(`[Cardápio Web Webhook Vercel] Pedido de BALCÃO / RETIRADA ignorado com sucesso (CW ID: ${cwOrderId}, Código: ${orderData.display_id || 'N/A'}).`);
-      return res.status(200).json({ status: 'ignored_takeout', message: 'Pedido de balcão ignorado para entrega' });
-    }
+    const externalOrderId = String(orderData.id || cwOrderId || '').trim();
+    if (!externalOrderId) return res.status(400).json({ error: 'Pedido sem identificador externo' });
+
+    const isTakeout = ['takeout', 'indoor', 'balcao'].includes(String(orderData.order_type || payload.order_type || '').toLowerCase()) ||
+      (!orderData.delivery_address && orderData.order_type && orderData.order_type !== 'delivery');
+    if (isTakeout) return res.status(200).json({ status: 'ignored_takeout', message: 'Pedido de balcao ignorado para entrega' });
 
     const customer = orderData.customer || payload.customer || payload.cliente || {};
     const address = orderData.delivery_address || payload.delivery_address || payload.endereco || payload.address || {};
-
-    const clientName = customer.name || customer.nome || payload.client_name || '';
+    const clientName = String(customer.name || customer.nome || payload.client_name || '').trim();
     const clientPhone = customer.phone ? `${customer.ddi || '55'}${customer.phone}` : (customer.telefone || customer.cellphone || '');
-
     const deliveryFee = Number(orderData.delivery_fee ?? payload.delivery_fee ?? payload.taxa_entrega ?? 0);
     const total = Number(orderData.total ?? payload.total ?? payload.valor_total ?? 0);
-    const subtotal = total > 0 ? (total - deliveryFee) : (Number(payload.subtotal || 0));
+    const subtotal = total > 0 ? total - deliveryFee : Number(payload.subtotal || 0);
 
-    // REGRA DE SEGURANÇA MÁXIMA: Nunca criar registros fantasmas zerados e sem nome!
-    if (total <= 0 && (!clientName || clientName.trim() === '')) {
-      console.warn(`[Cardápio Web Webhook] Ignorando evento vazio sem dados de cliente e sem valor (ID: ${cwOrderId}).`);
-      return res.status(200).json({ status: 'ignored_empty', message: 'Payload sem dados suficientes' });
-    }
+    if (total <= 0 && !clientName) return res.status(200).json({ status: 'ignored_empty', message: 'Payload sem dados suficientes' });
 
-    const finalClientName = clientName.trim() || 'Cliente Cardápio Web';
-
-    const street = address.street || address.rua || address.logradouro || 'Rua não informada';
+    const street = address.street || address.rua || address.logradouro || 'Rua nao informada';
     const houseNumber = address.number || address.numero || '';
     const complement = address.complement || address.complemento || '';
     const neighborhood = address.neighborhood || address.bairro || 'Centro';
-    const reference = address.reference ? ` (${address.reference.trim()})` : '';
+    const reference = address.reference ? ` (${String(address.reference).trim()})` : '';
     const fullAddress = `${street}${houseNumber ? `, ${houseNumber}` : ''}${complement ? ` - ${complement}` : ''} - ${neighborhood}${reference}`;
-
-    const { lat, lng } = await resolveCoordinates(address, false, branch);
+    const { lat, lng } = await resolveCoordinates(address, store);
 
     const rawItems = orderData.items || payload.items || payload.itens || payload.products || [];
-    const items = Array.isArray(rawItems)
-      ? rawItems.map((item: any, idx: number) => {
-          const optionsText = Array.isArray(item.options) && item.options.length > 0
-            ? ` (${item.options.map((o: any) => o.name).filter(Boolean).join(', ')})`
-            : '';
-          return {
-            id: String(item.item_id || item.id || idx + 1),
-            name: `${item.name || item.nome || item.title || 'Item'}${optionsText}`,
-            quantity: Number(item.quantity || item.qtd || item.quantidade || 1),
-            price: Number(item.total_price || item.unit_price || item.price || item.valor || 0),
-          };
-        })
-      : [];
+    const items = Array.isArray(rawItems) ? rawItems.map((item: any, idx: number) => ({
+      id: String(item.item_id || item.id || idx + 1),
+      name: String(item.name || item.nome || item.title || 'Item'),
+      quantity: Number(item.quantity || item.qtd || item.quantidade || 1),
+      price: Number(item.total_price || item.unit_price || item.price || item.valor || 0),
+    })) : [];
+    const itemsSummary = items.length ? items.map((item: any) => `${item.quantity}x ${item.name}`).join(' | ') : (orderData.observation || payload.notes || 'Pedido Cardapio Web');
 
-    const itemsSummary = items.length > 0
-      ? items.map((i: any) => `${i.quantity}x ${i.name}`).join(' | ')
-      : (orderData.observation || payload.notes || payload.observacoes || 'Pedido Cardápio Web');
-
-    const payments = orderData.payments || [];
-    const rawPayment = payments[0] || payload.payment || payload.pagamento || {};
-    let paymentMethod: 'pix' | 'card_credit' | 'card_debit' | 'cash' = 'pix';
+    const rawPayment = (orderData.payments || [])[0] || payload.payment || payload.pagamento || {};
     const paymentStr = JSON.stringify(rawPayment).toLowerCase();
-    if (paymentStr.includes('dinheiro') || paymentStr.includes('money') || paymentStr.includes('cash')) {
-      paymentMethod = 'cash';
-    } else if (paymentStr.includes('debito') || paymentStr.includes('debit')) {
-      paymentMethod = 'card_debit';
-    } else if (paymentStr.includes('credito') || paymentStr.includes('credit')) {
-      paymentMethod = 'card_credit';
-    }
+    let paymentMethod = 'pix';
+    if (paymentStr.includes('dinheiro') || paymentStr.includes('cash')) paymentMethod = 'dinheiro';
+    else if (paymentStr.includes('cart') || paymentStr.includes('credit') || paymentStr.includes('debit')) paymentMethod = 'cartao_maquininha';
 
-    // Mapeamento inteligente de status sincronizado com Cardápio Web
-    const cwStatus = String(orderData.status || payload.status || '').toLowerCase();
-    let mappedStatus: 'pending' | 'dispatched' | 'delivered' | 'failed' = 'pending';
-    if (cwStatus === 'closed' || cwStatus === 'released' || cwStatus === 'dispatched' || cwStatus === 'delivered') {
-      // Se já foi despachado no Cardápio Web, não entra na fila ativa de entrega
-      mappedStatus = 'delivered';
-    } else if (cwStatus === 'canceled' || cwStatus === 'cancelled') {
-      mappedStatus = 'failed';
-    }
-
-    const today = new Date();
-    const localDateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-    // PRESERVAÇÃO RIGOROSA DA DOCUMENTAÇÃO REAL:
-    // codeNumber é o número real do documento no Cardápio Web (ex: 50)
-    // displayCode é o código diferenciado visualmente (ex: HB-50 para Hope Burger, HP-50 para Hope Pizza)
     const displayId = orderData.display_id || payload.code || payload.codigo || payload.id_curto;
-    const codeNumber = displayId ? Number(displayId) : (orderData.id ? Number(String(orderData.id).slice(-4)) : 0);
-    const branchPrefix = branch === 'hope_burger' ? 'HB' : 'HP';
-    const displayCode = `${branchPrefix}-${codeNumber}`;
-    const storeName = branch === 'hope_burger' ? 'Hope Burger' : 'Hope Pizza';
+    const codeNumber = displayId ? Number(displayId) : Number(String(externalOrderId).slice(-4)) || 0;
+    const displayCode = `${store.prefix}-${codeNumber}`;
 
-    const orderId = `cw_${cwOrderId || Date.now()}`;
-    const trackingCode = `CW-${branchPrefix}-${codeNumber}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    // Idempotencia: mesma loja + mesmo ID externo = sempre o mesmo documento.
+    const orderId = `cw_${store.storeId}_${externalOrderId}`;
+    const orderRef = doc(db, 'orders', orderId);
+    const existingSnap = await getDoc(orderRef);
+    const existing = existingSnap.exists() ? existingSnap.data() as any : null;
+    const externalStatus = String(orderData.status || payload.status || '').toLowerCase();
+    const finalStatus = resolveStatus(existing?.status, externalStatus);
+    const now = new Date();
+    const localDateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-    const completeOrder = {
+    const completeOrder: any = {
       id: orderId,
-      codeNumber: Number(codeNumber),
+      externalOrderId,
+      externalStatus,
+      externalStatusSyncedAt: now.toISOString(),
+      codeNumber,
       displayCode,
-      clientName: finalClientName,
+      clientName: clientName || 'Cliente Cardapio Web',
       clientPhone,
       address: fullAddress,
       street,
@@ -313,19 +205,40 @@ export default async function handler(req: any, res: any) {
       total,
       paymentMethod,
       changeFor: rawPayment.change_for || rawPayment.troco_para || null,
-      status: mappedStatus,
-      createdAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      createdDate: localDateKey,
+      status: finalStatus,
       originChannel: 'cardapio_web',
-      storeBranch: branch,
-      storeName,
+      storeId: store.storeId,
+      storeBranch: store.storeId,
+      storeName: store.name,
       operationalEpoch: STORE_PILOT_RESET_VERSION,
-      trackingCode,
+      trackingCode: existing?.trackingCode || `CW-${store.prefix}-${codeNumber}-${externalOrderId.slice(-6).toUpperCase()}`,
+      updatedAt: now.toISOString(),
     };
 
-    await setDoc(doc(db, 'orders', orderId), completeOrder, { merge: true });
+    // Campos operacionais locais nunca sao resetados por webhook repetido.
+    if (!existing) {
+      completeOrder.createdAt = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      completeOrder.createdDate = localDateKey;
+      completeOrder.createdTimestamp = Date.now();
+      completeOrder.statusSource = 'cardapio_web';
+    } else {
+      delete completeOrder.createdAt;
+      delete completeOrder.createdDate;
+      delete completeOrder.createdTimestamp;
+      if (finalStatus !== existing.status) completeOrder.statusSource = 'cardapio_web';
+    }
 
-    return res.status(200).json({ status: 'received', success: true, orderId, codeNumber, displayCode });
+    await setDoc(orderRef, completeOrder, { merge: true });
+
+    return res.status(200).json({
+      status: existing ? 'updated' : 'received',
+      success: true,
+      orderId,
+      storeId: store.storeId,
+      codeNumber,
+      displayCode,
+      duplicatePrevented: Boolean(existing),
+    });
   } catch (err: any) {
     console.error('Erro no webhook Vercel:', err);
     return res.status(500).json({ error: 'Erro ao processar pedido', details: err?.message });
