@@ -1,22 +1,13 @@
 import React from 'react';
-import { LocationPoint, Motoboy, Stop } from '../types';
+import { LocationPoint } from '../types';
 import { RouteMap } from './RouteMap';
 
 interface ReactiveRouteMapProps {
   origin: LocationPoint;
-  stops: Stop[];
-  selectedStopId?: string | null;
-  onSelectStop?: (stop: Stop) => void;
-  motoboysList?: Motoboy[];
-  selectedMotoboyId?: string | null;
-  onSelectMotoboy?: (motoboyId: string | null) => void;
+  [key: string]: any;
 }
 
-/**
- * Leaflet keeps internal state after the first mount. When the store address
- * changes we deliberately remount the map so the store marker, center and
- * bounds immediately use the new coordinates without requiring a page reload.
- */
+/** Remount Leaflet when the saved store location changes. */
 export const ReactiveRouteMap: React.FC<ReactiveRouteMapProps> = (props) => {
   const { origin } = props;
   const mapKey = [
@@ -26,7 +17,7 @@ export const ReactiveRouteMap: React.FC<ReactiveRouteMapProps> = (props) => {
     origin?.name || '',
   ].join('|');
 
-  return <RouteMap key={mapKey} {...props} />;
+  return <RouteMap key={mapKey} {...(props as any)} />;
 };
 
 export default ReactiveRouteMap;
