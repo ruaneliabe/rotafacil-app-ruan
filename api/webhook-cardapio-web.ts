@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 
 const STORE_PILOT_RESET_VERSION = 'zeroed_store_pilot_2026_08_17_v10';
 
@@ -21,311 +21,210 @@ function getDbInstance() {
 }
 
 const BLUMENAU_NEIGHBORHOOD_COORDS: Record<string, { lat: number; lng: number }> = {
-  'velha central': { lat: -26.9284, lng: -49.1147 },
-  'velha grande': { lat: -26.9550, lng: -49.1310 },
-  'velha': { lat: -26.9200, lng: -49.0950 },
-  'garcia': { lat: -26.9450, lng: -49.0680 },
-  'centro': { lat: -26.9194, lng: -49.0661 },
-  'itoupava norte': { lat: -26.8850, lng: -49.0800 },
-  'itoupavazinha': { lat: -26.8650, lng: -49.0950 },
-  'fortaleza': { lat: -26.8900, lng: -49.0550 },
-  'vila nova': { lat: -26.9100, lng: -49.0850 },
-  'victor konder': { lat: -26.9150, lng: -49.0750 },
-  'escola agrícola': { lat: -26.8950, lng: -49.1050 },
-  'escola agricola': { lat: -26.8950, lng: -49.1050 },
-  'água verde': { lat: -26.9150, lng: -49.1200 },
-  'agua verde': { lat: -26.9150, lng: -49.1200 },
-  'passo manso': { lat: -26.9180, lng: -49.1450 },
-  'salto do norte': { lat: -26.8700, lng: -49.1100 },
-  'badenfurt': { lat: -26.8650, lng: -49.1450 },
-  'vorstadt': { lat: -26.9300, lng: -49.0450 },
-  'ponta aguda': { lat: -26.9250, lng: -49.0550 },
-  'progresso': { lat: -26.9800, lng: -49.0700 },
-  'da glória': { lat: -26.9600, lng: -49.0650 },
-  'gloria': { lat: -26.9600, lng: -49.0650 },
-  'valparaíso': { lat: -26.9550, lng: -49.0850 },
-  'valparaiso': { lat: -26.9550, lng: -49.0850 },
-  'tribess': { lat: -26.8750, lng: -49.0400 },
-  'itoupava central': { lat: -26.8200, lng: -49.0900 },
-  'testo salto': { lat: -26.8250, lng: -49.1500 },
-  'fidélis': { lat: -26.8400, lng: -49.0700 },
+  'velha central': { lat: -26.9284, lng: -49.1147 }, 'velha grande': { lat: -26.9550, lng: -49.1310 },
+  'velha': { lat: -26.9200, lng: -49.0950 }, 'garcia': { lat: -26.9450, lng: -49.0680 },
+  'centro': { lat: -26.9194, lng: -49.0661 }, 'itoupava norte': { lat: -26.8850, lng: -49.0800 },
+  'itoupavazinha': { lat: -26.8650, lng: -49.0950 }, 'fortaleza': { lat: -26.8900, lng: -49.0550 },
+  'vila nova': { lat: -26.9100, lng: -49.0850 }, 'victor konder': { lat: -26.9150, lng: -49.0750 },
+  'escola agrícola': { lat: -26.8950, lng: -49.1050 }, 'escola agricola': { lat: -26.8950, lng: -49.1050 },
+  'água verde': { lat: -26.9150, lng: -49.1200 }, 'agua verde': { lat: -26.9150, lng: -49.1200 },
+  'passo manso': { lat: -26.9180, lng: -49.1450 }, 'salto do norte': { lat: -26.8700, lng: -49.1100 },
+  'badenfurt': { lat: -26.8650, lng: -49.1450 }, 'vorstadt': { lat: -26.9300, lng: -49.0450 },
+  'ponta aguda': { lat: -26.9250, lng: -49.0550 }, 'progresso': { lat: -26.9800, lng: -49.0700 },
+  'da glória': { lat: -26.9600, lng: -49.0650 }, 'gloria': { lat: -26.9600, lng: -49.0650 },
+  'valparaíso': { lat: -26.9550, lng: -49.0850 }, 'valparaiso': { lat: -26.9550, lng: -49.0850 },
+  'tribess': { lat: -26.8750, lng: -49.0400 }, 'itoupava central': { lat: -26.8200, lng: -49.0900 },
+  'testo salto': { lat: -26.8250, lng: -49.1500 }, 'fidélis': { lat: -26.8400, lng: -49.0700 },
   'fidelis': { lat: -26.8400, lng: -49.0700 },
 };
 
-async function resolveCoordinates(
-  address: any,
-  isTakeout: boolean,
-  branch: 'hope_burger' | 'hope_pizza'
-): Promise<{ lat: number; lng: number }> {
-  if (isTakeout) {
-    return branch === 'hope_pizza' ? { lat: -26.9240, lng: -49.0630 } : { lat: -26.9194, lng: -49.0661 };
-  }
-
+async function resolveCoordinates(address: any, isTakeout: boolean, branch: 'hope_burger' | 'hope_pizza') {
+  if (isTakeout) return branch === 'hope_pizza' ? { lat: -26.9240, lng: -49.0630 } : { lat: -26.9194, lng: -49.0661 };
   if (address.latitude && address.longitude) {
-    const lat = Number(address.latitude);
-    const lng = Number(address.longitude);
-    if (!isNaN(lat) && !isNaN(lng) && lat !== 0) {
-      return { lat, lng };
-    }
+    const lat = Number(address.latitude), lng = Number(address.longitude);
+    if (!isNaN(lat) && !isNaN(lng) && lat !== 0) return { lat, lng };
   }
-
   const street = (address.street || address.rua || address.logradouro || '').trim();
   const houseNumber = (address.number || address.numero || '').trim();
   const neighborhood = (address.neighborhood || address.bairro || '').trim();
   const city = (address.city || address.cidade || 'Blumenau').trim();
-
   if (street && street !== 'Rua não informada') {
-    try {
-      const q = `${street}${houseNumber ? `, ${houseNumber}` : ''}, ${neighborhood ? `${neighborhood}, ` : ''}${city}, SC, Brasil`;
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
-        headers: { 'User-Agent': 'RotaFacilDelivery/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9' },
-        signal: AbortSignal.timeout(3000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0) {
-          const lat = parseFloat(data[0].lat);
-          const lng = parseFloat(data[0].lon);
-          if (!isNaN(lat) && !isNaN(lng)) {
-            return { lat, lng };
+    for (const q of [
+      `${street}${houseNumber ? `, ${houseNumber}` : ''}, ${neighborhood ? `${neighborhood}, ` : ''}${city}, SC, Brasil`,
+      `${street}, ${city}, SC, Brasil`,
+    ]) {
+      try {
+        const geo = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
+          headers: { 'User-Agent': 'RotaFacilDelivery/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9' }, signal: AbortSignal.timeout(3000),
+        });
+        if (geo.ok) {
+          const data = await geo.json();
+          if (data?.length) {
+            const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+            if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
           }
         }
-      }
-    } catch {}
-
-    try {
-      const q = `${street}, ${city}, SC, Brasil`;
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`, {
-        headers: { 'User-Agent': 'RotaFacilDelivery/1.0', 'Accept-Language': 'pt-BR,pt;q=0.9' },
-        signal: AbortSignal.timeout(2500),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0) {
-          const lat = parseFloat(data[0].lat);
-          const lng = parseFloat(data[0].lon);
-          if (!isNaN(lat) && !isNaN(lng)) {
-            return { lat, lng };
-          }
-        }
-      }
-    } catch {}
-  }
-
-  const lowerNeigh = neighborhood.toLowerCase();
-  for (const [key, coords] of Object.entries(BLUMENAU_NEIGHBORHOOD_COORDS)) {
-    if (lowerNeigh.includes(key)) {
-      const jitterLat = (Math.random() - 0.5) * 0.003;
-      const jitterLng = (Math.random() - 0.5) * 0.003;
-      return { lat: coords.lat + jitterLat, lng: coords.lng + jitterLng };
+      } catch {}
     }
   }
+  const lower = neighborhood.toLowerCase();
+  for (const [key, coords] of Object.entries(BLUMENAU_NEIGHBORHOOD_COORDS)) {
+    if (lower.includes(key)) return { lat: coords.lat + (Math.random() - .5) * .003, lng: coords.lng + (Math.random() - .5) * .003 };
+  }
+  return branch === 'hope_pizza' ? { lat: -26.9240, lng: -49.0630 } : { lat: -26.9194, lng: -49.0661 };
+}
 
-  const baseLat = branch === 'hope_pizza' ? -26.9240 : -26.9194;
-  const baseLng = branch === 'hope_pizza' ? -49.0630 : -49.0661;
-  return { lat: baseLat, lng: baseLng };
+const normalize = (value: unknown) => String(value || '').trim().toLowerCase();
+function mapStatus(raw: unknown): 'pending' | 'preparing' | 'dispatched' | 'delivered' | 'cancelled' {
+  const status = normalize(raw);
+  if (['released', 'dispatched', 'saiu_para_entrega', 'out_for_delivery'].includes(status)) return 'dispatched';
+  if (['closed', 'delivered', 'finalized', 'concluded', 'completed'].includes(status)) return 'delivered';
+  if (['canceled', 'cancelled', 'rejected'].includes(status)) return 'cancelled';
+  if (['preparing', 'production', 'in_preparation', 'accepted'].includes(status)) return 'preparing';
+  return 'pending';
+}
+function courierName(order: any): string | null {
+  const candidates = [order?.deliveryman, order?.delivery_man, order?.courier, order?.driver, order?.motoboy, order?.entregador, order?.delivery_person,
+    order?.delivery?.deliveryman, order?.delivery?.courier, order?.delivery?.driver, order?.delivery?.motoboy, order?.delivery?.entregador];
+  for (const c of candidates) {
+    if (!c) continue;
+    if (typeof c === 'string' && c.trim()) return c.trim();
+    const name = c.name || c.nome || c.full_name || c.display_name;
+    if (name && String(name).trim()) return String(name).trim();
+  }
+  return null;
 }
 
 export default async function handler(req: any, res: any) {
-  // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-KEY, X-Webhook-Token, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method === 'GET') {
-    return res.status(200).json({ status: 'ok', service: 'Cardápio Web Webhook Vercel' });
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method === 'GET') return res.status(200).json({ status: 'ok', service: 'Cardápio Web Webhook Vercel' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const db = getDbInstance();
     let payload = req.body || {};
-    if (typeof payload === 'string') {
-      try {
-        payload = JSON.parse(payload);
-      } catch {
-        payload = {};
-      }
-    }
+    if (typeof payload === 'string') { try { payload = JSON.parse(payload); } catch { payload = {}; } }
     const branchParam = (req.query?.branchId || req.query?.branch || '').toString().toLowerCase();
-
     const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
     const CARDAPIO_WEB_HOPE_BURGER_TOKEN = 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
-
-    const cwOrderId = payload.id || payload.order_id || (payload.data && payload.data.id);
+    const cwOrderId = payload.id || payload.order_id || payload.data?.id;
     let branch: 'hope_burger' | 'hope_pizza' = branchParam.includes('burger') ? 'hope_burger' : 'hope_pizza';
     let orderData: any = payload;
 
-    // Se o webhook do Cardápio Web enviou apenas o evento/id, buscar os dados completos da API oficial com fallback inteligente
     if (cwOrderId) {
-      const isExplicitBurger = branchParam.includes('burger');
-      const firstToken = isExplicitBurger ? CARDAPIO_WEB_HOPE_BURGER_TOKEN : CARDAPIO_WEB_HOPE_PIZZA_TOKEN;
-      const secondToken = isExplicitBurger ? CARDAPIO_WEB_HOPE_PIZZA_TOKEN : CARDAPIO_WEB_HOPE_BURGER_TOKEN;
-
+      const explicitBurger = branchParam.includes('burger');
+      const firstToken = explicitBurger ? CARDAPIO_WEB_HOPE_BURGER_TOKEN : CARDAPIO_WEB_HOPE_PIZZA_TOKEN;
+      const secondToken = explicitBurger ? CARDAPIO_WEB_HOPE_PIZZA_TOKEN : CARDAPIO_WEB_HOPE_BURGER_TOKEN;
       try {
-        let cwRes = await fetch(`https://integracao.cardapioweb.com/api/partner/v1/orders/${cwOrderId}`, {
-          headers: { 'X-API-KEY': firstToken },
-        });
-
-        if (cwRes.ok) {
-          const fetchedJson = await cwRes.json();
-          if (fetchedJson && fetchedJson.id) {
-            orderData = fetchedJson;
-            branch = isExplicitBurger ? 'hope_burger' : 'hope_pizza';
-          }
+        const first = await fetch(`https://integracao.cardapioweb.com/api/partner/v1/orders/${cwOrderId}`, { headers: { 'X-API-KEY': firstToken } });
+        if (first.ok) {
+          const fetched = await first.json();
+          if (fetched?.id) { orderData = fetched; branch = explicitBurger ? 'hope_burger' : 'hope_pizza'; }
         } else {
-          // Tenta a outra loja caso o id pertença à outra
-          const altRes = await fetch(`https://integracao.cardapioweb.com/api/partner/v1/orders/${cwOrderId}`, {
-            headers: { 'X-API-KEY': secondToken },
-          });
-          if (altRes.ok) {
-            const fetchedJson = await altRes.json();
-            if (fetchedJson && fetchedJson.id) {
-              orderData = fetchedJson;
-              branch = isExplicitBurger ? 'hope_pizza' : 'hope_burger';
-            }
+          const second = await fetch(`https://integracao.cardapioweb.com/api/partner/v1/orders/${cwOrderId}`, { headers: { 'X-API-KEY': secondToken } });
+          if (second.ok) {
+            const fetched = await second.json();
+            if (fetched?.id) { orderData = fetched; branch = explicitBurger ? 'hope_pizza' : 'hope_burger'; }
           }
         }
-      } catch (cwErr) {
-        console.error('Falha ao consultar API Cardápio Web:', cwErr);
+      } catch (error) { console.error('Falha ao consultar API Cardápio Web:', error); }
+    }
+
+    const rawStatus = orderData.status || payload.status || payload.data?.status || payload.event_status || '';
+    const mappedStatus = mapStatus(rawStatus);
+    const orderId = `cw_${cwOrderId || Date.now()}`;
+    const existingRef = doc(db, 'orders', orderId);
+    const existingSnap = cwOrderId ? await getDoc(existingRef) : null;
+    const existing = existingSnap?.exists() ? existingSnap.data() as any : null;
+    const driver = courierName(orderData) || courierName(payload);
+
+    // Eventos de status podem chegar sem cliente/endereço. Atualiza o pedido já existente sem descartá-lo.
+    if (cwOrderId && existing && rawStatus) {
+      const statusPatch: any = {
+        status: mappedStatus,
+        cardapioWebStatus: normalize(rawStatus),
+        lastCardapioWebSyncAt: Date.now(),
+        closedInCardapioWeb: mappedStatus === 'delivered',
+      };
+      if (mappedStatus === 'dispatched') {
+        statusPatch.dispatchedAt = existing.dispatchedAt || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        statusPatch.closedAt = null;
+      } else if (mappedStatus === 'delivered') {
+        statusPatch.closedAt = existing.closedAt || new Date().toISOString();
       }
+      if (driver) { statusPatch.externalMotoboyName = driver; statusPatch.assignedMotoboyName = driver; }
+      await setDoc(existingRef, statusPatch, { merge: true });
     }
 
-    // REGRA MÁXIMA: Pedidos de balcão (takeout / indoor) DEVEM SER IGNORADOS!
-    const isTakeout = orderData.order_type === 'takeout' ||
-                      orderData.order_type === 'indoor' ||
-                      orderData.order_type === 'balcao' ||
-                      payload.order_type === 'takeout' ||
-                      (!orderData.delivery_address && orderData.order_type !== 'delivery');
-
-    if (isTakeout) {
-      console.log(`[Cardápio Web Webhook Vercel] Pedido de BALCÃO / RETIRADA ignorado com sucesso (CW ID: ${cwOrderId}, Código: ${orderData.display_id || 'N/A'}).`);
-      return res.status(200).json({ status: 'ignored_takeout', message: 'Pedido de balcão ignorado para entrega' });
-    }
+    const orderType = normalize(orderData.order_type || payload.order_type);
+    const isTakeout = ['takeout', 'indoor', 'balcao'].includes(orderType);
+    if (isTakeout) return res.status(200).json({ status: 'ignored_takeout', message: 'Pedido de balcão ignorado para entrega' });
 
     const customer = orderData.customer || payload.customer || payload.cliente || {};
     const address = orderData.delivery_address || payload.delivery_address || payload.endereco || payload.address || {};
-
     const clientName = customer.name || customer.nome || payload.client_name || '';
     const clientPhone = customer.phone ? `${customer.ddi || '55'}${customer.phone}` : (customer.telefone || customer.cellphone || '');
+    const deliveryFee = Number(orderData.delivery_fee ?? payload.delivery_fee ?? payload.taxa_entrega ?? existing?.deliveryFee ?? 0);
+    const total = Number(orderData.total ?? payload.total ?? payload.valor_total ?? existing?.total ?? 0);
 
-    const deliveryFee = Number(orderData.delivery_fee ?? payload.delivery_fee ?? payload.taxa_entrega ?? 0);
-    const total = Number(orderData.total ?? payload.total ?? payload.valor_total ?? 0);
-    const subtotal = total > 0 ? (total - deliveryFee) : (Number(payload.subtotal || 0));
-
-    // REGRA DE SEGURANÇA MÁXIMA: Nunca criar registros fantasmas zerados e sem nome!
+    // Se era só atualização de status, o trabalho já foi feito acima.
     if (total <= 0 && (!clientName || clientName.trim() === '')) {
-      console.warn(`[Cardápio Web Webhook] Ignorando evento vazio sem dados de cliente e sem valor (ID: ${cwOrderId}).`);
+      if (existing && rawStatus) return res.status(200).json({ status: 'status_updated', success: true, orderId, mappedStatus });
       return res.status(200).json({ status: 'ignored_empty', message: 'Payload sem dados suficientes' });
     }
 
-    const finalClientName = clientName.trim() || 'Cliente Cardápio Web';
-
-    const street = address.street || address.rua || address.logradouro || 'Rua não informada';
-    const houseNumber = address.number || address.numero || '';
-    const complement = address.complement || address.complemento || '';
-    const neighborhood = address.neighborhood || address.bairro || 'Centro';
-    const reference = address.reference ? ` (${address.reference.trim()})` : '';
+    const finalClientName = clientName.trim() || existing?.clientName || 'Cliente Cardápio Web';
+    const street = address.street || address.rua || address.logradouro || existing?.street || 'Rua não informada';
+    const houseNumber = address.number || address.numero || existing?.houseNumber || '';
+    const complement = address.complement || address.complemento || existing?.complement || '';
+    const neighborhood = address.neighborhood || address.bairro || existing?.neighborhood || 'Centro';
+    const reference = address.reference ? ` (${String(address.reference).trim()})` : '';
     const fullAddress = `${street}${houseNumber ? `, ${houseNumber}` : ''}${complement ? ` - ${complement}` : ''} - ${neighborhood}${reference}`;
+    const coords = Object.keys(address).length ? await resolveCoordinates(address, false, branch) : { lat: existing?.lat, lng: existing?.lng };
 
-    const { lat, lng } = await resolveCoordinates(address, false, branch);
-
-    const rawItems = orderData.items || payload.items || payload.itens || payload.products || [];
-    const items = Array.isArray(rawItems)
-      ? rawItems.map((item: any, idx: number) => {
-          const optionsText = Array.isArray(item.options) && item.options.length > 0
-            ? ` (${item.options.map((o: any) => o.name).filter(Boolean).join(', ')})`
-            : '';
-          return {
-            id: String(item.item_id || item.id || idx + 1),
-            name: `${item.name || item.nome || item.title || 'Item'}${optionsText}`,
-            quantity: Number(item.quantity || item.qtd || item.quantidade || 1),
-            price: Number(item.total_price || item.unit_price || item.price || item.valor || 0),
-          };
-        })
-      : [];
-
-    const itemsSummary = items.length > 0
-      ? items.map((i: any) => `${i.quantity}x ${i.name}`).join(' | ')
-      : (orderData.observation || payload.notes || payload.observacoes || 'Pedido Cardápio Web');
-
+    const rawItems = orderData.items || payload.items || payload.itens || payload.products || existing?.items || [];
+    const items = Array.isArray(rawItems) ? rawItems.map((item: any, idx: number) => {
+      const optionsText = Array.isArray(item.options) && item.options.length ? ` (${item.options.map((o: any) => o.name).filter(Boolean).join(', ')})` : '';
+      return { id: String(item.item_id || item.id || idx + 1), name: `${item.name || item.nome || item.title || 'Item'}${optionsText}`, quantity: Number(item.quantity || item.qtd || item.quantidade || 1), price: Number(item.total_price || item.unit_price || item.price || item.valor || 0) };
+    }) : [];
+    const itemsSummary = items.length ? items.map((i: any) => `${i.quantity}x ${i.name}`).join(' | ') : (existing?.itemsSummary || orderData.observation || payload.notes || payload.observacoes || 'Pedido Cardápio Web');
     const payments = orderData.payments || [];
     const rawPayment = payments[0] || payload.payment || payload.pagamento || {};
-    let paymentMethod: 'pix' | 'card_credit' | 'card_debit' | 'cash' = 'pix';
+    let paymentMethod: 'pix' | 'card_credit' | 'card_debit' | 'cash' = existing?.paymentMethod || 'pix';
     const paymentStr = JSON.stringify(rawPayment).toLowerCase();
-    if (paymentStr.includes('dinheiro') || paymentStr.includes('money') || paymentStr.includes('cash')) {
-      paymentMethod = 'cash';
-    } else if (paymentStr.includes('debito') || paymentStr.includes('debit')) {
-      paymentMethod = 'card_debit';
-    } else if (paymentStr.includes('credito') || paymentStr.includes('credit')) {
-      paymentMethod = 'card_credit';
-    }
+    if (paymentStr.includes('dinheiro') || paymentStr.includes('money') || paymentStr.includes('cash')) paymentMethod = 'cash';
+    else if (paymentStr.includes('debito') || paymentStr.includes('debit')) paymentMethod = 'card_debit';
+    else if (paymentStr.includes('credito') || paymentStr.includes('credit')) paymentMethod = 'card_credit';
 
-    // Mapeamento inteligente de status sincronizado com Cardápio Web
-    const cwStatus = String(orderData.status || payload.status || '').toLowerCase();
-    let mappedStatus: 'pending' | 'dispatched' | 'delivered' | 'failed' = 'pending';
-    if (cwStatus === 'closed' || cwStatus === 'released' || cwStatus === 'dispatched' || cwStatus === 'delivered') {
-      // Se já foi despachado no Cardápio Web, não entra na fila ativa de entrega
-      mappedStatus = 'delivered';
-    } else if (cwStatus === 'canceled' || cwStatus === 'cancelled') {
-      mappedStatus = 'failed';
-    }
-
-    const today = new Date();
-    const localDateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-    // PRESERVAÇÃO RIGOROSA DA DOCUMENTAÇÃO REAL:
-    // codeNumber é o número real do documento no Cardápio Web (ex: 50)
-    // displayCode é o código diferenciado visualmente (ex: HB-50 para Hope Burger, HP-50 para Hope Pizza)
-    const displayId = orderData.display_id || payload.code || payload.codigo || payload.id_curto;
-    const codeNumber = displayId ? Number(displayId) : (orderData.id ? Number(String(orderData.id).slice(-4)) : 0);
+    const now = new Date();
+    const localDateKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const displayId = orderData.display_id || payload.code || payload.codigo || payload.id_curto || existing?.codeNumber;
+    const codeNumber = displayId ? Number(displayId) : (orderData.id ? Number(String(orderData.id).slice(-4)) : existing?.codeNumber || 0);
     const branchPrefix = branch === 'hope_burger' ? 'HB' : 'HP';
     const displayCode = `${branchPrefix}-${codeNumber}`;
     const storeName = branch === 'hope_burger' ? 'Hope Burger' : 'Hope Pizza';
+    const subtotal = total > 0 ? total - deliveryFee : Number(payload.subtotal || existing?.subtotal || 0);
+    const trackingCode = existing?.trackingCode || `CW-${branchPrefix}-${codeNumber}-${Math.random().toString(36).substring(2,6).toUpperCase()}`;
 
-    const orderId = `cw_${cwOrderId || Date.now()}`;
-    const trackingCode = `CW-${branchPrefix}-${codeNumber}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-
-    const completeOrder = {
-      id: orderId,
-      codeNumber: Number(codeNumber),
-      displayCode,
-      clientName: finalClientName,
-      clientPhone,
-      address: fullAddress,
-      street,
-      houseNumber,
-      complement,
-      neighborhood,
-      lat,
-      lng,
-      items,
-      itemsSummary,
-      subtotal: subtotal || total,
-      deliveryFee,
-      total,
-      paymentMethod,
-      changeFor: rawPayment.change_for || rawPayment.troco_para || null,
-      status: mappedStatus,
-      createdAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      createdDate: localDateKey,
-      originChannel: 'cardapio_web',
-      storeBranch: branch,
-      storeName,
-      operationalEpoch: STORE_PILOT_RESET_VERSION,
-      trackingCode,
+    const completeOrder: any = {
+      id: orderId, codeNumber, displayCode, clientName: finalClientName, clientPhone: clientPhone || existing?.clientPhone || '',
+      address: fullAddress, street, houseNumber, complement, neighborhood, lat: coords.lat, lng: coords.lng,
+      items, itemsSummary, subtotal: subtotal || total, deliveryFee, total, paymentMethod,
+      changeFor: rawPayment.change_for || rawPayment.troco_para || existing?.changeFor || null,
+      status: mappedStatus, createdAt: existing?.createdAt || new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+      createdDate: existing?.createdDate || localDateKey, originChannel: 'cardapio_web', storeBranch: branch, storeName,
+      operationalEpoch: STORE_PILOT_RESET_VERSION, trackingCode, externalOrderId: String(cwOrderId || ''),
+      cardapioWebStatus: normalize(rawStatus), lastCardapioWebSyncAt: Date.now(), closedInCardapioWeb: mappedStatus === 'delivered',
     };
+    if (mappedStatus === 'dispatched') { completeOrder.dispatchedAt = existing?.dispatchedAt || new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); completeOrder.closedAt = null; }
+    if (mappedStatus === 'delivered') completeOrder.closedAt = existing?.closedAt || new Date().toISOString();
+    if (driver) { completeOrder.externalMotoboyName = driver; completeOrder.assignedMotoboyName = driver; }
 
-    await setDoc(doc(db, 'orders', orderId), completeOrder, { merge: true });
-
-    return res.status(200).json({ status: 'received', success: true, orderId, codeNumber, displayCode });
+    await setDoc(existingRef, completeOrder, { merge: true });
+    return res.status(200).json({ status: 'received', success: true, orderId, codeNumber, displayCode, mappedStatus, driver: driver || null });
   } catch (err: any) {
     console.error('Erro no webhook Vercel:', err);
     return res.status(500).json({ error: 'Erro ao processar pedido', details: err?.message });
