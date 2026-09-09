@@ -5,6 +5,7 @@ import {RuntimeCorrections} from './components/RuntimeCorrections';
 import {CardapioWebShadowSyncBridge} from './components/CardapioWebShadowSyncBridge';
 import {CardapioWebTerminalCleanup} from './components/CardapioWebTerminalCleanup';
 import {StoreBootstrapGuard} from './components/StoreBootstrapGuard';
+import {LiveOperationGuard} from './components/LiveOperationGuard';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -13,6 +14,7 @@ createRoot(document.getElementById('root')!).render(
     <RuntimeCorrections />
     <CardapioWebShadowSyncBridge />
     <CardapioWebTerminalCleanup />
+    <LiveOperationGuard />
     <App />
   </StrictMode>,
 );
