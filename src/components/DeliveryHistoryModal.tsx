@@ -1,24 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  X, 
-  Search, 
-  Calendar, 
-  User, 
-  Download, 
-  Printer, 
-  CheckCircle2, 
-  DollarSign, 
-  Bike, 
-  MapPin, 
-  Clock, 
-  CreditCard,
-  ChevronDown,
-  FileSpreadsheet,
-  TrendingUp,
-  Receipt
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { X, Search, Bike, DollarSign, FileSpreadsheet, Printer } from 'lucide-react';
 import { Order, Motoboy } from '../types';
-import { PaymentBadge, getPaymentMethodLabel, normalizePaymentMethod } from '../utils/paymentUtils';
+import { getPaymentMethodLabel } from '../utils/paymentUtils';
 
 interface DeliveryHistoryModalProps {
   isOpen: boolean;
@@ -28,645 +11,100 @@ interface DeliveryHistoryModalProps {
   storeName?: string;
 }
 
+type Period = 'today' | 'yesterday' | '7days' | 'month' | 'all';
+
+const dateOf = (order: Order) => new Date(order.deliveredTimestamp || order.deliveredAt || order.createdAt);
+const money = (value = 0) => `R$ ${value.toFixed(2).replace('.', ',')}`;
+
 export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
-  isOpen,
-  onClose,
-  orders,
-  motoboys,
-  storeName = 'Rota Fácil Delivery'
+  isOpen, onClose, orders, motoboys, storeName = 'Rota Fácil Delivery'
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMotoboyId, setSelectedMotoboyId] = useState<string>('all');
-  const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'yesterday' | '7days' | 'month' | 'all'>('today');
-  const [selectedPayment, setSelectedPayment] = useState<string>('all');
-  const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
+  const [search, setSearch] = useState('');
+  const [period, setPeriod] = useState<Period>('today');
+  const [motoboyId, setMotoboyId] = useState('all');
+
+  // Hooks must always run in the same order. The previous component returned before
+  // these hooks while closed, which crashed React when the report was opened.
+  const delivered = useMemo(() => orders.filter(o => o.status === 'delivered'), [orders]);
+
+  const filtered = useMemo(() => {
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startYesterday = new Date(startToday); startYesterday.setDate(startYesterday.getDate() - 1);
+    const start7 = new Date(startToday); start7.setDate(start7.getDate() - 6);
+    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const term = search.trim().toLowerCase();
+
+    return delivered.filter(order => {
+      const d = dateOf(order);
+      if (period === 'today' && d < startToday) return false;
+      if (period === 'yesterday' && (d < startYesterday || d >= startToday)) return false;
+      if (period === '7days' && d < start7) return false;
+      if (period === 'month' && d < startMonth) return false;
+      if (motoboyId !== 'all' && order.assignedMotoboyId !== motoboyId) return false;
+      if (!term) return true;
+      return [order.codeNumber, order.clientName, order.address, order.neighborhood, order.assignedMotoboyName]
+        .some(v => String(v || '').toLowerCase().includes(term));
+    });
+  }, [delivered, period, motoboyId, search]);
+
+  const stats = useMemo(() => {
+    const total = filtered.reduce((sum, o) => sum + (o.total || 0), 0);
+    const fees = filtered.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+    return { count: filtered.length, total, fees };
+  }, [filtered]);
 
   if (!isOpen) return null;
 
-  // Filter only completed/delivered or cancelled orders for history
-  const deliveredOrders = useMemo(() => {
-    return orders.filter(o => o.status === 'delivered' || o.status === 'cancelled');
-  }, [orders]);
-
-  // Apply period, motoboy, search, and payment filters
-  const filteredOrders = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(now.getDate() - 7);
-
-    return deliveredOrders.filter(o => {
-      // Status filter: only delivered for metrics
-      if (o.status !== 'delivered') return false;
-
-      // Date filtering
-      const orderDateStr = o.deliveredAt ? o.deliveredAt.split('T')[0] : (o.createdAt ? o.createdAt.split('T')[0] : '');
-      const orderDateObj = new Date(o.deliveredAt || o.createdAt);
-
-      if (selectedPeriod === 'today' && orderDateStr !== todayStr) return false;
-      if (selectedPeriod === 'yesterday' && orderDateStr !== yesterdayStr) return false;
-      if (selectedPeriod === '7days' && orderDateObj < sevenDaysAgo) return false;
-      if (selectedPeriod === 'month') {
-        if (orderDateObj.getMonth() !== now.getMonth() || orderDateObj.getFullYear() !== now.getFullYear()) {
-          return false;
-        }
-      }
-
-      // Motoboy filter
-      if (selectedMotoboyId !== 'all' && o.assignedMotoboyId !== selectedMotoboyId) {
-        return false;
-      }
-
-      // Payment filter
-      if (selectedPayment !== 'all') {
-        const norm = normalizePaymentMethod(o.paymentMethod);
-        if (selectedPayment === 'pix' && norm !== 'pix') return false;
-        if (selectedPayment === 'dinheiro' && norm !== 'dinheiro') return false;
-        if (selectedPayment === 'card_credit' && norm !== 'card_credit') return false;
-        if (selectedPayment === 'card_debit' && norm !== 'card_debit') return false;
-        if (selectedPayment === 'cards_all' && norm !== 'card_credit' && norm !== 'card_debit' && norm !== 'cartao_maquininha') return false;
-        if (selectedPayment === 'voucher' && norm !== 'voucher') return false;
-      }
-
-      // Search term
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
-        const codeStr = `#${o.codeNumber}`.toLowerCase();
-        const client = o.clientName.toLowerCase();
-        const phone = o.clientPhone.toLowerCase();
-        const address = o.address.toLowerCase();
-        const neighborhood = (o.neighborhood || '').toLowerCase();
-        const motoboy = (o.assignedMotoboyName || '').toLowerCase();
-
-        return codeStr.includes(term) ||
-          client.includes(term) ||
-          phone.includes(term) ||
-          address.includes(term) ||
-          neighborhood.includes(term) ||
-          motoboy.includes(term);
-      }
-
-      return true;
-    });
-  }, [deliveredOrders, selectedPeriod, selectedMotoboyId, selectedPayment, searchTerm]);
-
-  // Aggregate metrics
-  const totalDeliveries = filteredOrders.length;
-  const totalSalesRevenue = filteredOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-  const totalDeliveryFees = filteredOrders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
-  const avgDeliveryFee = totalDeliveries > 0 ? totalDeliveryFees / totalDeliveries : 0;
-
-  // Breakdown by Motoboy
-  const motoboyStats = useMemo(() => {
-    const statsMap: Record<string, {
-      motoboy: Motoboy | null;
-      id: string;
-      name: string;
-      count: number;
-      totalFees: number;
-      totalSales: number;
-      fixedFee: number;
-      perDeliveryFee: number;
-      calculatedPayout: number;
-    }> = {};
-
-    filteredOrders.forEach(o => {
-      const mbId = o.assignedMotoboyId || 'unassigned';
-      const mbName = o.assignedMotoboyName || 'Não Informado';
-
-      if (!statsMap[mbId]) {
-        const matchedMb = motoboys.find(m => m.id === mbId) || null;
-        const fixed = matchedMb?.fixedFee || 0;
-        const perDelivery = matchedMb?.perDeliveryFee || 0;
-
-        statsMap[mbId] = {
-          motoboy: matchedMb,
-          id: mbId,
-          name: mbName,
-          count: 0,
-          totalFees: 0,
-          totalSales: 0,
-          fixedFee: fixed,
-          perDeliveryFee: perDelivery,
-          calculatedPayout: fixed, // starts with daily fixed fee
-        };
-      }
-
-      statsMap[mbId].count += 1;
-      statsMap[mbId].totalFees += (o.deliveryFee || 0);
-      statsMap[mbId].totalSales += (o.total || 0);
-      statsMap[mbId].calculatedPayout += statsMap[mbId].perDeliveryFee;
-    });
-
-    return Object.values(statsMap);
-  }, [filteredOrders, motoboys]);
-
-  // Total payout to motoboys in selected filter
-  const totalMotoboyPayout = useMemo(() => {
-    return motoboyStats.reduce((sum, s) => sum + s.calculatedPayout, 0);
-  }, [motoboyStats]);
-
-  // Export to CSV
-  const handleExportCSV = () => {
-    if (filteredOrders.length === 0) {
-      alert('Nenhum pedido encontrado para exportar.');
-      return;
-    }
-
-    const headers = [
-      'Pedido',
-      'Data/Hora Entrega',
-      'Cliente',
-      'Telefone',
-      'Endereço',
-      'Bairro',
-      'Motoboy',
-      'Pagamento',
-      'Subtotal (R$)',
-      'Taxa Entrega (R$)',
-      'Total (R$)'
-    ];
-
-    const rows = filteredOrders.map(o => [
-      `"#${o.codeNumber}"`,
-      `"${o.deliveredAt ? new Date(o.deliveredAt).toLocaleString('pt-BR') : new Date(o.createdAt).toLocaleString('pt-BR')}"`,
-      `"${o.clientName.replace(/"/g, '""')}"`,
-      `"${o.clientPhone}"`,
-      `"${o.address.replace(/"/g, '""')}"`,
-      `"${(o.neighborhood || '').replace(/"/g, '""')}"`,
-      `"${(o.assignedMotoboyName || 'N/A').replace(/"/g, '""')}"`,
-      `"${getPaymentMethodLabel(o.paymentMethod).replace(/"/g, '""')}"`,
-      (o.subtotal || 0).toFixed(2).replace('.', ','),
+  const exportCsv = () => {
+    const header = ['Pedido','Data','Cliente','Endereco','Motoboy','Pagamento','Taxa','Total'];
+    const rows = filtered.map(o => [
+      o.codeNumber,
+      dateOf(o).toLocaleString('pt-BR'),
+      o.clientName,
+      o.address,
+      o.assignedMotoboyName || '',
+      getPaymentMethodLabel(o.paymentMethod),
       (o.deliveryFee || 0).toFixed(2).replace('.', ','),
       (o.total || 0).toFixed(2).replace('.', ',')
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'));
+    const blob = new Blob(['\uFEFF' + [header.join(';'), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `relatorio_entregas_${selectedPeriod}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Print Report
-  const handlePrint = () => {
-    window.print();
+    const a = document.createElement('a'); a.href = url; a.download = `relatorio-entregas-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 md:p-6 overflow-y-auto print:p-0 print:bg-white print:text-slate-900 print:static">
-      <div className="relative w-full max-w-6xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] print:max-h-none print:border-none print:shadow-none print:bg-white print:text-slate-900">
-        
-        {/* Header (Hidden when printing) */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/70 print:hidden">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
-              <Receipt className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-xl font-black text-white flex items-center gap-2">
-                Histórico & Relatórios de Entregas
-                <span className="text-xs font-extrabold px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full">
-                  {totalDeliveries} {totalDeliveries === 1 ? 'concluída' : 'concluídas'}
-                </span>
-              </h2>
-              <p className="text-xs text-slate-400">
-                Resumo financeiro, controle de entregas e fechamento por motoboy
-              </p>
-            </div>
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm p-4 md:p-6 flex items-center justify-center print:static print:bg-white print:p-0">
+      <section className="w-full max-w-6xl max-h-[92vh] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl flex flex-col print:max-h-none print:border-0 print:bg-white">
+        <header className="px-5 py-4 border-b border-slate-800 flex items-center justify-between gap-4 print:border-slate-300">
+          <div><h2 className="text-lg font-bold text-white print:text-black">Relatórios & Histórico</h2><p className="text-xs text-slate-400">{storeName} · entregas concluídas</p></div>
+          <div className="flex items-center gap-2 print:hidden">
+            <button onClick={exportCsv} className="px-3 py-2 rounded-lg border border-slate-700 text-xs font-semibold text-slate-200 flex gap-2 items-center hover:bg-slate-800"><FileSpreadsheet size={15}/> Exportar CSV</button>
+            <button onClick={() => window.print()} className="px-3 py-2 rounded-lg border border-slate-700 text-xs font-semibold text-slate-200 flex gap-2 items-center hover:bg-slate-800"><Printer size={15}/> Imprimir</button>
+            <button onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white"><X size={18}/></button>
+          </div>
+        </header>
+
+        <div className="p-5 overflow-y-auto space-y-5">
+          <div className="flex flex-wrap gap-2 items-center print:hidden">
+            <div className="relative flex-1 min-w-[220px]"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Pedido, cliente, endereço..." className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-violet-500"/></div>
+            {(['today','yesterday','7days','month','all'] as Period[]).map(p => <button key={p} onClick={()=>setPeriod(p)} className={`px-3 py-2 rounded-lg text-xs font-semibold border ${period===p?'bg-violet-600 border-violet-500 text-white':'border-slate-700 text-slate-300 hover:bg-slate-800'}`}>{p==='today'?'Hoje':p==='yesterday'?'Ontem':p==='7days'?'7 dias':p==='month'?'Este mês':'Todos'}</button>)}
+            <select value={motoboyId} onChange={e=>setMotoboyId(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200"><option value="all">Todos os motoboys</option>{motoboys.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExportCSV}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-2 border border-slate-700 transition-all cursor-pointer"
-              title="Exportar dados em formato CSV para Excel"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-              <span>Exportar Excel (CSV)</span>
-            </button>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-xs text-slate-400 flex items-center gap-2"><Bike size={15}/> Entregas</div><strong className="block text-2xl text-white mt-2">{stats.count}</strong></div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-xs text-slate-400 flex items-center gap-2"><DollarSign size={15}/> Valor dos pedidos</div><strong className="block text-2xl text-emerald-400 mt-2">{money(stats.total)}</strong></div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-xs text-slate-400">Taxas de entrega</div><strong className="block text-2xl text-sky-400 mt-2">{money(stats.fees)}</strong></div>
+          </div>
 
-            <button
-              onClick={handlePrint}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-2 border border-slate-700 transition-all cursor-pointer"
-              title="Imprimir relatório completo"
-            >
-              <Printer className="w-4 h-4 text-blue-400" />
-              <span>Imprimir / PDF</span>
-            </button>
-
-            <button
-              onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer ml-2"
-            >
-              <X className="w-5 h-5" />
-            </button>
+          <div className="rounded-xl border border-slate-800 overflow-hidden">
+            <div className="px-4 py-3 bg-slate-900 text-sm font-semibold text-white">Entregas concluídas</div>
+            {filtered.length === 0 ? <div className="py-14 text-center text-sm text-slate-500">Nenhuma entrega encontrada neste período.</div> : <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-slate-900/70 text-slate-400"><tr><th className="p-3 text-left">Pedido</th><th className="p-3 text-left">Data</th><th className="p-3 text-left">Cliente</th><th className="p-3 text-left">Motoboy</th><th className="p-3 text-right">Taxa</th><th className="p-3 text-right">Total</th></tr></thead><tbody className="divide-y divide-slate-800">{filtered.map(o=><tr key={o.id} className="text-slate-200"><td className="p-3 font-bold">#{o.codeNumber}</td><td className="p-3 whitespace-nowrap">{dateOf(o).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td><td className="p-3"><div className="font-medium">{o.clientName}</div><div className="text-slate-500 max-w-[330px] truncate">{o.address}</div></td><td className="p-3">{o.assignedMotoboyName || '—'}</td><td className="p-3 text-right">{money(o.deliveryFee || 0)}</td><td className="p-3 text-right font-bold text-emerald-400">{money(o.total || 0)}</td></tr>)}</tbody></table></div>}
           </div>
         </div>
-
-        {/* Print Header Visible ONLY during printing */}
-        <div className="hidden print:block p-6 border-b border-slate-300">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-black text-slate-900">{storeName}</h1>
-              <p className="text-sm text-slate-600">Relatório de Entregas & Produtividade dos Motoboys</p>
-            </div>
-            <div className="text-right text-xs text-slate-500">
-              <p>Gerado em: {new Date().toLocaleString('pt-BR')}</p>
-              <p>Filtro: {selectedPeriod.toUpperCase()} | Motoboy: {selectedMotoboyId === 'all' ? 'Todos' : motoboys.find(m => m.id === selectedMotoboyId)?.name || 'Específico'}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Filter Controls Bar (Hidden on print) */}
-        <div className="px-6 py-3.5 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center gap-3 print:hidden">
-          {/* Search Box */}
-          <div className="relative flex-1 min-w-[220px]">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar por #pedido, cliente, rua, bairro..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Period Selector */}
-          <div className="flex items-center gap-1 bg-slate-950 p-1 border border-slate-800 rounded-xl text-xs">
-            <button
-              onClick={() => setSelectedPeriod('today')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                selectedPeriod === 'today' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Hoje
-            </button>
-            <button
-              onClick={() => setSelectedPeriod('yesterday')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                selectedPeriod === 'yesterday' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Ontem
-            </button>
-            <button
-              onClick={() => setSelectedPeriod('7days')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                selectedPeriod === '7days' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              7 Dias
-            </button>
-            <button
-              onClick={() => setSelectedPeriod('month')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                selectedPeriod === 'month' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Este Mês
-            </button>
-            <button
-              onClick={() => setSelectedPeriod('all')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                selectedPeriod === 'all' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Todos
-            </button>
-          </div>
-
-          {/* Motoboy Filter Dropdown */}
-          <div className="relative">
-            <select
-              value={selectedMotoboyId}
-              onChange={(e) => setSelectedMotoboyId(e.target.value)}
-              className="appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl pl-3 pr-8 py-2 focus:outline-none focus:border-emerald-500 cursor-pointer"
-            >
-              <option value="all">🛵 Todos os Motoboys</option>
-              {motoboys.map((mb) => (
-                <option key={mb.id} value={mb.id}>
-                  🛵 {mb.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-
-          {/* Payment Method Filter */}
-          <div className="relative">
-            <select
-              value={selectedPayment}
-              onChange={(e) => setSelectedPayment(e.target.value)}
-              className="appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl pl-3 pr-8 py-2 focus:outline-none focus:border-emerald-500 cursor-pointer"
-            >
-              <option value="all">💳 Todos os Pagamentos</option>
-              <option value="pix">💚 PIX</option>
-              <option value="cards_all">💳 Todos os Cartões (Crédito/Débito)</option>
-              <option value="card_credit">💳 Cartão Crédito</option>
-              <option value="card_debit">💳 Cartão Débito</option>
-              <option value="dinheiro">💵 Dinheiro</option>
-              <option value="voucher">🍱 Vale Refeição</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-        </div>
-
-        {/* Scrollable Content Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          
-          {/* Key Metrics Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:grid-cols-4">
-            <div className="bg-slate-950/80 border border-slate-800/80 p-4 rounded-2xl print:bg-slate-100 print:border-slate-300">
-              <div className="flex items-center justify-between text-slate-400 print:text-slate-600 mb-1.5">
-                <span className="text-xs font-extrabold uppercase tracking-wide">Total Entregas</span>
-                <Bike className="w-4 h-4 text-emerald-400 print:text-slate-800" />
-              </div>
-              <div className="text-2xl font-black text-white print:text-slate-900">{totalDeliveries}</div>
-              <p className="text-[10px] text-slate-500 print:text-slate-600 mt-1">Concluídas com sucesso</p>
-            </div>
-
-            <div className="bg-slate-950/80 border border-slate-800/80 p-4 rounded-2xl print:bg-slate-100 print:border-slate-300">
-              <div className="flex items-center justify-between text-slate-400 print:text-slate-600 mb-1.5">
-                <span className="text-xs font-extrabold uppercase tracking-wide">Faturamento Total</span>
-                <DollarSign className="w-4 h-4 text-emerald-400 print:text-slate-800" />
-              </div>
-              <div className="text-2xl font-black text-emerald-400 print:text-slate-900">
-                R$ {totalSalesRevenue.toFixed(2).replace('.', ',')}
-              </div>
-              <p className="text-[10px] text-slate-500 print:text-slate-600 mt-1">Vendas dos pedidos em rota</p>
-            </div>
-
-            <div className="bg-slate-950/80 border border-slate-800/80 p-4 rounded-2xl print:bg-slate-100 print:border-slate-300">
-              <div className="flex items-center justify-between text-slate-400 print:text-slate-600 mb-1.5">
-                <span className="text-xs font-extrabold uppercase tracking-wide">Taxas de Entrega</span>
-                <TrendingUp className="w-4 h-4 text-blue-400 print:text-slate-800" />
-              </div>
-              <div className="text-2xl font-black text-blue-400 print:text-slate-900">
-                R$ {totalDeliveryFees.toFixed(2).replace('.', ',')}
-              </div>
-              <p className="text-[10px] text-slate-500 print:text-slate-600 mt-1">Média R$ {avgDeliveryFee.toFixed(2).replace('.', ',')} / entrega</p>
-            </div>
-
-            <div className="bg-slate-950/80 border border-slate-800/80 p-4 rounded-2xl print:bg-slate-100 print:border-slate-300">
-              <div className="flex items-center justify-between text-slate-400 print:text-slate-600 mb-1.5">
-                <span className="text-xs font-extrabold uppercase tracking-wide">Repasse aos Motoboys</span>
-                <Receipt className="w-4 h-4 text-amber-400 print:text-slate-800" />
-              </div>
-              <div className="text-2xl font-black text-amber-400 print:text-slate-900">
-                R$ {totalMotoboyPayout.toFixed(2).replace('.', ',')}
-              </div>
-              <p className="text-[10px] text-slate-500 print:text-slate-600 mt-1">Diárias + Taxas por corrida</p>
-            </div>
-          </div>
-
-          {/* Motoboy Productivity Breakdown Table */}
-          {motoboyStats.length > 0 && (
-            <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 print:bg-white print:border-slate-300">
-              <h3 className="text-sm font-black text-white print:text-slate-900 mb-3 flex items-center gap-2">
-                <User className="w-4 h-4 text-emerald-400" />
-                Resumo de Produtividade & Fechamento por Motoboy
-              </h3>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-300 print:text-slate-900">
-                  <thead className="bg-slate-900 print:bg-slate-200 text-slate-400 print:text-slate-800 uppercase font-black">
-                    <tr>
-                      <th className="py-2.5 px-3 rounded-l-lg">Motoboy</th>
-                      <th className="py-2.5 px-3 text-center">Entregas</th>
-                      <th className="py-2.5 px-3 text-right">Taxas Arrecadadas</th>
-                      <th className="py-2.5 px-3 text-right">Diária Fixa</th>
-                      <th className="py-2.5 px-3 text-right">Comissão / Corrida</th>
-                      <th className="py-2.5 px-3 text-right rounded-r-lg">Valor a Pagar ao Motoboy</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 print:divide-slate-200 font-medium">
-                    {motoboyStats.map((stat) => (
-                      <tr key={stat.id} className="hover:bg-slate-900/40 print:hover:bg-transparent">
-                        <td className="py-3 px-3 font-bold text-white print:text-slate-900 flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                          {stat.name}
-                        </td>
-                        <td className="py-3 px-3 text-center font-black text-emerald-400 print:text-slate-900">
-                          {stat.count} {stat.count === 1 ? 'corrida' : 'corridas'}
-                        </td>
-                        <td className="py-3 px-3 text-right text-slate-200 print:text-slate-900 font-bold">
-                          R$ {stat.totalFees.toFixed(2).replace('.', ',')}
-                        </td>
-                        <td className="py-3 px-3 text-right text-slate-400 print:text-slate-700">
-                          R$ {stat.fixedFee.toFixed(2).replace('.', ',')}
-                        </td>
-                        <td className="py-3 px-3 text-right text-slate-400 print:text-slate-700">
-                          R$ {(stat.perDeliveryFee * stat.count).toFixed(2).replace('.', ',')} (R$ {stat.perDeliveryFee.toFixed(2)}/un)
-                        </td>
-                        <td className="py-3 px-3 text-right font-black text-amber-400 print:text-slate-900 text-sm">
-                          R$ {stat.calculatedPayout.toFixed(2).replace('.', ',')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Orders Detailed Table */}
-          <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 print:bg-white print:border-slate-300">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-black text-white print:text-slate-900 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                Listagem Detalhada dos Pedidos Entregues
-              </h3>
-              <span className="text-xs text-slate-500 print:text-slate-600 font-medium">
-                Exibindo {filteredOrders.length} registros
-              </span>
-            </div>
-
-            {filteredOrders.length === 0 ? (
-              <div className="text-center py-10 border border-dashed border-slate-800 rounded-xl text-slate-500">
-                <Bike className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
-                <p className="text-sm font-bold">Nenhum pedido entregue encontrado com os filtros selecionados.</p>
-                <p className="text-xs mt-1 text-slate-600">Tente alterar o período de data ou o motoboy selecionado.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-300 print:text-slate-900">
-                  <thead className="bg-slate-900 print:bg-slate-200 text-slate-400 print:text-slate-800 uppercase font-black">
-                    <tr>
-                      <th className="py-2.5 px-3 rounded-l-lg">Código</th>
-                      <th className="py-2.5 px-3">Data & Hora</th>
-                      <th className="py-2.5 px-3">Cliente & Endereço</th>
-                      <th className="py-2.5 px-3">Motoboy</th>
-                      <th className="py-2.5 px-3 text-center">Pagamento</th>
-                      <th className="py-2.5 px-3 text-right">Taxa</th>
-                      <th className="py-2.5 px-3 text-right">Total</th>
-                      <th className="py-2.5 px-3 text-center rounded-r-lg print:hidden">Ação</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 print:divide-slate-200 font-medium">
-                    {filteredOrders.map((o) => (
-                      <tr key={o.id} className="hover:bg-slate-900/40 print:hover:bg-transparent">
-                        <td className="py-3 px-3 font-black text-emerald-400 print:text-slate-900">
-                          #{o.codeNumber}
-                        </td>
-                        <td className="py-3 px-3 text-slate-400 print:text-slate-700 whitespace-nowrap">
-                          {o.deliveredAt ? (
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-slate-500" />
-                              {new Date(o.deliveredAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          ) : (
-                            new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-                          )}
-                          <div className="text-[10px] text-slate-600 print:text-slate-500">
-                            {new Date(o.deliveredAt || o.createdAt).toLocaleDateString('pt-BR')}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="font-bold text-white print:text-slate-900">{o.clientName}</div>
-                          <div className="text-[11px] text-slate-400 print:text-slate-700 truncate max-w-[240px]">
-                            {o.address} ({o.neighborhood})
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 font-bold text-slate-200 print:text-slate-900 whitespace-nowrap">
-                          {o.assignedMotoboyName ? (
-                            <span className="flex items-center gap-1.5">
-                              <Bike className="w-3.5 h-3.5 text-emerald-400" />
-                              {o.assignedMotoboyName}
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 font-normal">S/ Motoboy</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-center whitespace-nowrap">
-                          <PaymentBadge 
-                            method={o.paymentMethod} 
-                            changeFor={o.changeFor} 
-                            total={o.total} 
-                            size="sm" 
-                          />
-                        </td>
-                        <td className="py-3 px-3 text-right text-slate-300 print:text-slate-900 font-bold whitespace-nowrap">
-                          R$ {(o.deliveryFee || 0).toFixed(2).replace('.', ',')}
-                        </td>
-                        <td className="py-3 px-3 text-right font-black text-emerald-400 print:text-slate-900 whitespace-nowrap">
-                          R$ {(o.total || 0).toFixed(2).replace('.', ',')}
-                        </td>
-                        <td className="py-3 px-3 text-center print:hidden">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedOrderDetails(o)}
-                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold rounded-lg transition-all cursor-pointer"
-                          >
-                            Ver itens
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Modal footer summary / status (Hidden when printing) */}
-        <div className="px-6 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 print:hidden">
-          <span>Exibindo histórico de pedidos entregues.</span>
-          <button
-            onClick={onClose}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all cursor-pointer"
-          >
-            Fechar
-          </button>
-        </div>
-
-      </div>
-
-      {/* Item Details Nested Modal */}
-      {selectedOrderDetails && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h4 className="font-black text-white text-base">Pedido #{selectedOrderDetails.codeNumber}</h4>
-                <p className="text-xs text-slate-400">{selectedOrderDetails.clientName} • {selectedOrderDetails.clientPhone}</p>
-              </div>
-              <button
-                onClick={() => setSelectedOrderDetails(null)}
-                className="p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-lg cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="text-slate-400 block font-bold mb-1">Endereço de Entrega:</span>
-                <p className="text-slate-200">{selectedOrderDetails.address}</p>
-                <p className="text-emerald-400 font-bold mt-1">Bairro: {selectedOrderDetails.neighborhood}</p>
-              </div>
-
-              {selectedOrderDetails.items && selectedOrderDetails.items.length > 0 ? (
-                <div className="space-y-1.5">
-                  <span className="text-slate-400 font-bold block">Itens do Pedido:</span>
-                  <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                    {selectedOrderDetails.items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between p-2 bg-slate-950/60 rounded-lg text-slate-200">
-                        <span>{item.quantity}x {item.name}</span>
-                        <span className="font-bold">R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="p-2.5 bg-slate-950 rounded-lg text-slate-300">
-                  <span className="text-slate-400 font-bold">Resumo:</span> {selectedOrderDetails.itemsSummary}
-                </div>
-              )}
-
-              <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-sm font-black">
-                <span className="text-slate-400">Total Pago:</span>
-                <div className="flex items-center gap-2">
-                  <PaymentBadge 
-                    method={selectedOrderDetails.paymentMethod} 
-                    changeFor={selectedOrderDetails.changeFor} 
-                    total={selectedOrderDetails.total} 
-                    size="sm" 
-                  />
-                  <span className="text-emerald-400 font-extrabold text-base">R$ {selectedOrderDetails.total.toFixed(2).replace('.', ',')}</span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setSelectedOrderDetails(null)}
-              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl cursor-pointer"
-            >
-              Fechar Detalhes
-            </button>
-          </div>
-        </div>
-      )}
-
+      </section>
     </div>
   );
 };
