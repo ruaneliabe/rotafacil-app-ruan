@@ -6,6 +6,7 @@ import {CardapioWebShadowSyncBridge} from './components/CardapioWebShadowSyncBri
 import {CardapioWebTerminalCleanup} from './components/CardapioWebTerminalCleanup';
 import {StoreBootstrapGuard} from './components/StoreBootstrapGuard';
 import {LiveOperationGuard} from './components/LiveOperationGuard';
+import {DispatchBoardProductionPatch} from './components/DispatchBoardProductionPatch';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -15,6 +16,7 @@ createRoot(document.getElementById('root')!).render(
     <CardapioWebShadowSyncBridge />
     <CardapioWebTerminalCleanup />
     <LiveOperationGuard />
+    <DispatchBoardProductionPatch />
     <App />
   </StrictMode>,
 );
