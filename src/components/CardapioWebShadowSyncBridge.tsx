@@ -2,26 +2,30 @@ import { useEffect } from 'react';
 
 /**
  * Read-only reconciliation with Cardápio Web.
- * The server endpoint owns the existing store credentials; the browser only triggers it.
- * This keeps Cardápio Web authoritative during the pilot without sending any Rota Fácil
- * action back to Cardápio Web.
+ * The server owns the existing store credentials; the browser only triggers it.
+ * Cardápio Web remains authoritative during the pilot and no Rota Fácil action is sent back.
  */
 export function CardapioWebShadowSyncBridge() {
   useEffect(() => {
     let stopped = false;
     let running = false;
 
+    const post = async (url: string) => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) console.warn(`Falha na reconciliação Cardápio Web (${url}):`, response.status);
+    };
+
     const runSync = async () => {
       if (stopped || running || document.visibilityState === 'hidden') return;
       running = true;
       try {
-        const response = await fetch('/api/sync-cardapio-web', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (!response.ok) {
-          console.warn('Falha na reconciliação de status do Cardápio Web:', response.status);
-        }
+        // Primeiro mantém a sincronização normal. Depois revisa especificamente pedidos
+        // que continuam em rota e força o webhook existente a consultar o detalhe remoto.
+        await post('/api/sync-cardapio-web');
+        if (!stopped) await post('/api/reconcile-cardapio-web-completed');
       } catch (error) {
         console.warn('Falha na reconciliação de status do Cardápio Web:', error);
       } finally {
