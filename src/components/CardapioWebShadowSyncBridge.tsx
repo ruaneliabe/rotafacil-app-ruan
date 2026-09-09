@@ -22,9 +22,8 @@ export function CardapioWebShadowSyncBridge() {
       if (stopped || running || document.visibilityState === 'hidden') return;
       running = true;
       try {
-        // Primeiro mantém a sincronização normal. Depois revisa especificamente pedidos
-        // que continuam em rota e força o webhook existente a consultar o detalhe remoto.
         await post('/api/sync-cardapio-web');
+        if (!stopped) await post('/api/reconcile-cardapio-web-couriers');
         if (!stopped) await post('/api/reconcile-cardapio-web-completed');
       } catch (error) {
         console.warn('Falha na reconciliação de status do Cardápio Web:', error);
