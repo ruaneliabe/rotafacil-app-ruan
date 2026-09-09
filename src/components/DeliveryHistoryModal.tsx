@@ -14,7 +14,8 @@ interface DeliveryHistoryModalProps {
 type Period = 'today' | 'yesterday' | '7days' | 'month' | 'all';
 
 const dateOf = (order: Order) => new Date(order.deliveredTimestamp || order.deliveredAt || order.createdAt);
-const money = (value = 0) => `R$ ${value.toFixed(2).replace('.', ',')}`;
+const moneyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (value = 0) => moneyFormatter.format(Number.isFinite(Number(value)) ? Number(value) : 0);
 
 export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
   isOpen, onClose, orders, motoboys, storeName = 'Rota Fácil Delivery'
@@ -23,8 +24,6 @@ export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
   const [period, setPeriod] = useState<Period>('today');
   const [motoboyId, setMotoboyId] = useState('all');
 
-  // Hooks must always run in the same order. The previous component returned before
-  // these hooks while closed, which crashed React when the report was opened.
   const delivered = useMemo(() => orders.filter(o => o.status === 'delivered'), [orders]);
 
   const filtered = useMemo(() => {
@@ -49,8 +48,8 @@ export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
   }, [delivered, period, motoboyId, search]);
 
   const stats = useMemo(() => {
-    const total = filtered.reduce((sum, o) => sum + (o.total || 0), 0);
-    const fees = filtered.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+    const total = filtered.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const fees = filtered.reduce((sum, o) => sum + Number(o.deliveryFee || 0), 0);
     return { count: filtered.length, total, fees };
   }, [filtered]);
 
@@ -65,8 +64,8 @@ export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
       o.address,
       o.assignedMotoboyName || '',
       getPaymentMethodLabel(o.paymentMethod),
-      (o.deliveryFee || 0).toFixed(2).replace('.', ','),
-      (o.total || 0).toFixed(2).replace('.', ',')
+      Number(o.deliveryFee || 0).toFixed(2).replace('.', ','),
+      Number(o.total || 0).toFixed(2).replace('.', ',')
     ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(';'));
     const blob = new Blob(['\uFEFF' + [header.join(';'), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -94,14 +93,14 @@ export const DeliveryHistoryModal: React.FC<DeliveryHistoryModalProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-xs text-slate-400 flex items-center gap-2"><Bike size={15}/> Entregas</div><strong className="block text-2xl text-white mt-2">{stats.count}</strong></div>
-            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-xs text-slate-400 flex items-center gap-2"><DollarSign size={15}/> Valor dos pedidos</div><strong className="block text-2xl text-emerald-400 mt-2">{money(stats.total)}</strong></div>
-            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-xs text-slate-400">Taxas de entrega</div><strong className="block text-2xl text-sky-400 mt-2">{money(stats.fees)}</strong></div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-xs text-slate-400 flex items-center gap-2"><Bike size={15}/> Entregas</div><strong className="block text-2xl text-white mt-2">{stats.count.toLocaleString('pt-BR')}</strong></div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-xs text-slate-400 flex items-center gap-2"><DollarSign size={15}/> Valor dos pedidos</div><strong className="block text-2xl text-emerald-400 mt-2 tabular-nums">{money(stats.total)}</strong></div>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><div className="text-xs text-slate-400">Taxas de entrega</div><strong className="block text-2xl text-sky-400 mt-2 tabular-nums">{money(stats.fees)}</strong></div>
           </div>
 
           <div className="rounded-xl border border-slate-800 overflow-hidden">
             <div className="px-4 py-3 bg-slate-900 text-sm font-semibold text-white">Entregas concluídas</div>
-            {filtered.length === 0 ? <div className="py-14 text-center text-sm text-slate-500">Nenhuma entrega encontrada neste período.</div> : <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-slate-900/70 text-slate-400"><tr><th className="p-3 text-left">Pedido</th><th className="p-3 text-left">Data</th><th className="p-3 text-left">Cliente</th><th className="p-3 text-left">Motoboy</th><th className="p-3 text-right">Taxa</th><th className="p-3 text-right">Total</th></tr></thead><tbody className="divide-y divide-slate-800">{filtered.map(o=><tr key={o.id} className="text-slate-200"><td className="p-3 font-bold">#{o.codeNumber}</td><td className="p-3 whitespace-nowrap">{dateOf(o).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td><td className="p-3"><div className="font-medium">{o.clientName}</div><div className="text-slate-500 max-w-[330px] truncate">{o.address}</div></td><td className="p-3">{o.assignedMotoboyName || '—'}</td><td className="p-3 text-right">{money(o.deliveryFee || 0)}</td><td className="p-3 text-right font-bold text-emerald-400">{money(o.total || 0)}</td></tr>)}</tbody></table></div>}
+            {filtered.length === 0 ? <div className="py-14 text-center text-sm text-slate-500">Nenhuma entrega encontrada neste período.</div> : <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="bg-slate-900/70 text-slate-400"><tr><th className="p-3 text-left">Pedido</th><th className="p-3 text-left">Data</th><th className="p-3 text-left">Cliente</th><th className="p-3 text-left">Motoboy</th><th className="p-3 text-right">Taxa</th><th className="p-3 text-right">Total</th></tr></thead><tbody className="divide-y divide-slate-800">{filtered.map(o=><tr key={o.id} className="text-slate-200"><td className="p-3 font-bold">#{o.codeNumber}</td><td className="p-3 whitespace-nowrap">{dateOf(o).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td><td className="p-3"><div className="font-medium">{o.clientName}</div><div className="text-slate-500 max-w-[330px] truncate">{o.address}</div></td><td className="p-3">{o.assignedMotoboyName || '—'}</td><td className="p-3 text-right tabular-nums whitespace-nowrap">{money(Number(o.deliveryFee || 0))}</td><td className="p-3 text-right font-bold text-emerald-400 tabular-nums whitespace-nowrap">{money(Number(o.total || 0))}</td></tr>)}</tbody></table></div>}
           </div>
         </div>
       </section>
