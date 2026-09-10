@@ -34,8 +34,6 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
   const [query, setQuery] = useState('');
   const today = getBrazilDateKey();
 
-  // Descobre o turno operacional mais recente a partir dos próprios pedidos.
-  // Isso impede pedidos históricos que tiveram deliveredTimestamp corrigido/migrado de entrarem no quadro atual.
   const currentShiftId = useMemo(() => {
     const withShift = orders
       .filter((order) => order.shiftId && order.createdDate === today)
@@ -47,13 +45,20 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
     return orders
       .filter((order) => {
         if (order.status !== 'delivered') return false;
-        if (deliveryDateKey(order) !== today) return false;
 
-        // Se existe turno atual identificado, o pedido TEM que pertencer a ele.
-        if (currentShiftId) return order.shiftId === currentShiftId;
+        // Regra principal: o pedido precisa ter sido CRIADO hoje.
+        // Isso evita que pedidos antigos encerrados/sincronizados hoje pelo Cardápio Web
+        // apareçam no dashboard do dia atual.
+        if (order.createdDate !== today) return false;
 
-        // Fallback seguro para registros sem shiftId: só aceita pedido criado hoje.
-        return order.createdDate === today;
+        // E a conclusão também precisa ter ocorrido hoje quando existe timestamp real.
+        const deliveredDate = deliveryDateKey(order);
+        if (deliveredDate && deliveredDate !== today) return false;
+
+        // Quando temos turno atual, exige pertencer ao turno atual também.
+        if (currentShiftId && order.shiftId) return order.shiftId === currentShiftId;
+
+        return true;
       })
       .sort((a, b) => Number(b.deliveredTimestamp || 0) - Number(a.deliveredTimestamp || 0));
   }, [orders, today, currentShiftId]);
@@ -79,7 +84,7 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><PackageCheck className="h-4 w-4" /></span>
           <div>
             <h3 className="text-[15px] font-black text-slate-950">Pedidos entregues hoje</h3>
-            <p className="mt-0.5 text-[10px] text-slate-400">Somente entregas concluídas no turno atual.</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">Somente pedidos criados e entregues hoje.</p>
           </div>
         </div>
         <div className="relative w-full lg:w-[310px]">
@@ -118,8 +123,8 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
       ) : (
         <div className="flex min-h-[150px] flex-col items-center justify-center px-5 text-center">
           <span className="grid h-11 w-11 place-items-center rounded-full bg-slate-50 text-slate-300"><PackageCheck className="h-5 w-5" /></span>
-          <p className="mt-3 text-[12px] font-black text-slate-600">Nenhum pedido entregue neste turno</p>
-          <p className="mt-1 text-[10px] text-slate-400">Quando uma entrega do turno atual for concluída, ela aparecerá aqui.</p>
+          <p className="mt-3 text-[12px] font-black text-slate-600">Nenhum pedido entregue hoje</p>
+          <p className="mt-1 text-[10px] text-slate-400">Quando um pedido criado hoje for entregue, ele aparecerá aqui.</p>
         </div>
       )}
     </section>
