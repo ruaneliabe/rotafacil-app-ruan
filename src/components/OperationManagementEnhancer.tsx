@@ -32,7 +32,6 @@ export const OperationManagementEnhancer: React.FC<Props> = ({
   orders,
   motoboys,
   onAssignOrderToMotoboy,
-  onConfirmArrivalAtStore,
   onOpenNewOrderModal,
 }) => {
   const [active, setActive] = useState(false);
@@ -91,30 +90,37 @@ export const OperationManagementEnhancer: React.FC<Props> = ({
     return () => observer.disconnect();
   }, [active, mode]);
 
+  const close = () => {
+    if (suppressOpenRef.current) return;
+    suppressOpenRef.current = true;
+    const btn = legacyCloseRef.current;
+    const overlay = legacyOverlayRef.current;
+
+    // Important: keep the legacy modal hidden while we close its React state.
+    // Unhiding it first caused the old management screen to flash/open again.
+    if (overlay?.isConnected) overlay.style.display = 'none';
+    btn?.click();
+    setActive(false);
+
+    window.setTimeout(() => {
+      legacyOverlayRef.current = null;
+      legacyCloseRef.current = null;
+      suppressOpenRef.current = false;
+    }, 250);
+  };
+
   useEffect(() => {
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [active]);
-
-  const close = () => {
-    suppressOpenRef.current = true;
-    setActive(false);
-    const btn = legacyCloseRef.current;
-    const overlay = legacyOverlayRef.current;
-    if (overlay?.isConnected) overlay.style.display = '';
-    requestAnimationFrame(() => {
-      btn?.click();
-      window.setTimeout(() => {
-        legacyOverlayRef.current = null;
-        legacyCloseRef.current = null;
-        suppressOpenRef.current = false;
-      }, 150);
-    });
-  };
 
   const notify = (msg: string) => {
     setToast(msg);
