@@ -318,15 +318,29 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   };
 
   return (
-    <div className="w-full min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-[860px] bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden grid md:grid-cols-2">
+    <div className="w-full min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
+      <svg
+        className="absolute inset-0 w-full h-full opacity-[0.06] pointer-events-none"
+        preserveAspectRatio="none"
+        viewBox="0 0 1600 900"
+        aria-hidden="true"
+      >
+        <path d="M-40,830 Q260,690 420,540 T760,340 T1120,170 T1560,40" fill="none" stroke="#E2E8F0" strokeWidth="2" strokeDasharray="7 11" />
+        <path d="M1640,760 Q1360,630 1180,480 T840,280 T480,110 T-60,-30" fill="none" stroke="#E2E8F0" strokeWidth="2" strokeDasharray="7 11" />
+        <circle cx="1560" cy="40" r="7" fill="#10B981" />
+        <circle cx="-40" cy="830" r="7" fill="#F5B942" />
+        <circle cx="-60" cy="-30" r="7" fill="#10B981" />
+        <circle cx="1640" cy="760" r="7" fill="#F5B942" />
+      </svg>
+
+      <div className="w-full max-w-[1040px] bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden grid md:grid-cols-2 relative z-10">
 
         {/* Painel de identidade — compacto no celular, completo no desktop */}
-        <div className="px-5 py-4 sm:px-6 md:p-8 md:border-r border-b md:border-b-0 border-slate-800 flex items-center justify-between md:flex-col md:items-stretch gap-4 md:gap-6">
+        <div className="px-5 py-4 sm:px-6 md:p-10 md:border-r border-b md:border-b-0 border-slate-800 flex items-center justify-between md:flex-col md:items-stretch gap-4 md:gap-8">
           <div className="flex items-center gap-2 md:block">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-            <span className="hidden md:inline text-[11px] text-slate-400">Painel operacional</span>
-            <h1 className="text-base md:text-2xl font-extrabold text-white tracking-tight md:mt-2.5">
+            <span className="hidden md:inline text-xs text-slate-400">Painel operacional</span>
+            <h1 className="text-base md:text-3xl font-extrabold text-white tracking-tight md:mt-3">
               Rota Fácil
             </h1>
           </div>
@@ -347,12 +361,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
           <div className="hidden md:flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span className="text-[11px] text-slate-500">Rotas, entregadores e pedidos em um só lugar</span>
+            <span className="text-xs text-slate-500">Rotas, entregadores e pedidos em um só lugar</span>
           </div>
         </div>
 
         {/* Painel de acesso */}
-        <div className="p-6 sm:p-8 space-y-5">
+        <div className="p-6 sm:p-8 md:p-10 space-y-5">
 
           {/* Seletor de Abas (sublinhado) */}
           <div className="flex gap-5 border-b border-slate-800 text-xs font-semibold">
@@ -469,7 +483,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer shadow-sm mt-2"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer shadow-sm mt-2"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Entrar no Painel</span>
@@ -601,7 +615,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmittingSignup}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50 mt-2"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50 mt-2"
               >
                 <span>{isSubmittingSignup ? 'Cadastrando...' : 'Concluir Cadastro'}</span>
               </button>
@@ -656,7 +670,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer mt-2"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer mt-2"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Acessar Entregador</span>
@@ -708,7 +722,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-2 text-xs cursor-pointer mt-2"
+                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-2 text-xs cursor-pointer mt-2"
               >
                 <Crown className="w-4 h-4" />
                 <span>Entrar como Master</span>
