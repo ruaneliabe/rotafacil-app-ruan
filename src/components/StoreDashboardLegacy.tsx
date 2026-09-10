@@ -47,6 +47,7 @@ import { DeliveryHistoryModal } from './DeliveryHistoryModal';
 import { IntegrationsModal } from './IntegrationsModal';
 import { KanbanBoard } from './KanbanBoard';
 import OperationDispatchView from './OperationDispatchView';
+import DeliveredOrdersDashboard from './DeliveredOrdersDashboard';
 import { ActionHeroLevel1 } from './ActionHeroLevel1';
 import { ManagementHub } from './ManagementHub';
 import { getSoundEnabled, setSoundEnabled, playNewOrderSound } from '../utils/soundUtils';
@@ -889,6 +890,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           getMotoboyLoad={getMotoboyLoad}
           assignOrderRespectingLoad={assignOrderRespectingLoad}
         />
+      )}
+
+      {activeTab === 'operacao' && (
+        <DeliveredOrdersDashboard orders={orders} />
       )}
 
       {/* KANBAN BOARD TAB */}
