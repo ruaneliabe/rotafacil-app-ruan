@@ -1,12 +1,12 @@
 import React from 'react';
 import { StoreDashboard as LegacyStoreDashboard } from './StoreDashboardLegacy';
-import { TeamManagementEnhancer } from './TeamManagementEnhancer';
+import { TeamManagementPanel } from './TeamManagementPanel';
 
 export const StoreDashboard: React.FC<any> = (props) => {
   return (
     <>
       <LegacyStoreDashboard {...props} />
-      <TeamManagementEnhancer {...props} />
+      <TeamManagementPanel {...props} />
     </>
   );
 };
