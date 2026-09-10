@@ -1,0 +1,96 @@
+name: Fix today filter and motoboy layout
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-today-and-motoboy-layout.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch files
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          # 1) Pedidos entregues hoje: usar SOMENTE timestamp real da entrega.
+          p = Path('src/components/DeliveredOrdersDashboard.tsx')
+          text = p.read_text(encoding='utf-8')
+          start = text.index('const deliveredDateKey = (order: Order) => {')
+          end = text.index('\n};', start) + 3
+          text = text[:start] + '''const deliveredDateKey = (order: Order) => {
+  if (!order.deliveredTimestamp) return '';
+  const timestamp = Number(order.deliveredTimestamp);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return '';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  return getBrazilDateKey(date);
+};''' + text[end:]
+          p.write_text(text, encoding='utf-8')
+
+          # 2) App motoboy: mesma regra de dia real + acabamento mais próximo do mockup aprovado.
+          p = Path('src/components/MotoboyApp.tsx')
+          text = p.read_text(encoding='utf-8')
+
+          start = text.index('const deliveryDayKey = (order: Order) => {')
+          end = text.index('\n};', start) + 3
+          text = text[:start] + '''const deliveryDayKey = (order: Order) => {
+  if (!order.deliveredTimestamp) return '';
+  const timestamp = Number(order.deliveredTimestamp);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return '';
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  return getBrazilDateKey(date);
+};''' + text[end:]
+
+          # Histórico/contadores contam apenas status entregue de verdade.
+          text = re.sub(
+            r"const isDelivered = \(order: Order\) => \{.*?\n\};",
+            "const isDelivered = (order: Order) => order.status === 'delivered' && Boolean(order.deliveredTimestamp);",
+            text,
+            count=1,
+            flags=re.S,
+          )
+
+          # Cabeçalho mais baixo, como o layout de referência.
+          text = text.replace(
+            'className="bg-[#071A2E] px-4 pb-3 pt-[max(10px,env(safe-area-inset-top))] text-white"',
+            'className="bg-[#071A2E] px-4 pb-2.5 pt-[max(8px,env(safe-area-inset-top))] text-white"'
+          )
+          text = text.replace('className="text-[22px] font-black leading-tight tracking-tight">Rota Fácil</h1>', 'className="text-[20px] font-black leading-tight tracking-tight">Rota Fácil</h1>')
+          text = text.replace('className="mt-1 flex min-w-0 items-center gap-1.5 text-[10.5px] font-medium text-slate-300"', 'className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-slate-300"')
+
+          # KPIs e tabs mais compactos e proporcionais.
+          text = text.replace('className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white px-2 py-2.5"', 'className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white px-2 py-2"')
+          text = text.replace('className="mx-auto h-4.5 w-4.5 text-[#0A1C31]"', 'className="mx-auto h-4 w-4 text-[#0A1C31]"')
+          text = text.replace('className="mt-1 text-[20px] font-black leading-none"', 'className="mt-1 text-[18px] font-black leading-none"')
+          text = text.replace('className="mt-1 text-[16px] font-black leading-none"', 'className="mt-1 text-[15px] font-black leading-none"')
+          text = text.replace('className="grid grid-cols-4 gap-1.5 bg-[#F4F6F9] px-2.5 py-2.5"', 'className="grid grid-cols-4 gap-1.5 bg-[#F4F6F9] px-2.5 py-2"')
+          text = text.replace('className={`relative flex h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-black transition ${', 'className={`relative flex h-[54px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-black transition ${')
+
+          # Cards mais baixos/limpos, igual ao mockup.
+          text = text.replace('className="flex items-center gap-3 border-b border-slate-100 px-4 py-4"', 'className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5"')
+          text = text.replace('className="rounded-xl border border-amber-200 bg-[#FFF9E8] p-4"', 'className="rounded-xl border border-amber-200 bg-[#FFF9E8] p-3.5"')
+          text = text.replace('className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4"', 'className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5"')
+          text = text.replace('className="mx-3 mb-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-3 text-[10px] leading-relaxed text-slate-500"', 'className="mx-3 mb-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-relaxed text-slate-500"')
+
+          p.write_text(text, encoding='utf-8')
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-today-and-motoboy-layout.yml
+          git add src/components/DeliveredOrdersDashboard.tsx src/components/MotoboyApp.tsx
+          git commit -m "fix: strict delivery date and match approved motoboy layout"
+          git push origin main
