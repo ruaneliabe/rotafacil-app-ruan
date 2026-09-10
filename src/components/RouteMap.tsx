@@ -229,23 +229,23 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         className: 'custom-origin-pin z-50',
         html: `
           <div class="relative flex flex-col items-center justify-center">
-            <div class="bg-slate-900/95 text-emerald-400 px-3 py-1 rounded-xl shadow-2xl border border-emerald-500/70 flex items-center gap-1.5 font-extrabold text-xs z-50">
+            <div class="bg-white text-emerald-700 px-3 py-1.5 rounded-xl shadow-lg border border-emerald-200 flex items-center gap-1.5 font-bold text-xs z-50 whitespace-nowrap">
               <span class="text-sm">🏪</span>
-              <span class="tracking-wide uppercase text-[11px] text-white block max-w-[88px] truncate">${origin.name || 'Minha Loja'}</span>
+              <span class="tracking-wide text-slate-800">${origin.name || 'Minha Loja'}</span>
             </div>
-            <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-emerald-500/80 -mt-0.5"></div>
+            <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-white -mt-0.5"></div>
           </div>
         `,
-        iconSize: [110, 36],
-        iconAnchor: [55, 36],
+        iconSize: [180, 36],
+        iconAnchor: [90, 36],
       });
 
       const originMarker = L.marker([originLat, originLng], { icon: originIcon, zIndexOffset: 1000 })
         .bindPopup(`
-          <div class="p-2 min-w-[210px] text-slate-100">
-            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-950 text-emerald-400 border border-emerald-800">🏪 Estabelecimento / Loja</span>
-            <h4 class="font-extrabold text-white text-sm mt-1.5">${origin.name || 'Loja Principal'}</h4>
-            <p class="text-xs text-slate-300 mt-0.5">${origin.address}</p>
+          <div class="p-2 min-w-[210px] text-slate-800">
+            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">🏪 Estabelecimento / Loja</span>
+            <h4 class="font-extrabold text-slate-900 text-sm mt-1.5">${origin.name || 'Loja Principal'}</h4>
+            <p class="text-xs text-slate-500 mt-0.5">${origin.address}</p>
           </div>
         `);
       markersGroup.addLayer(originMarker);
@@ -763,40 +763,6 @@ export const RouteMap: React.FC<RouteMapProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Tile Switcher */}
-            <div className="bg-slate-950 border border-slate-700 rounded-lg p-0.5 flex items-center text-[11px] font-bold">
-              <button
-                type="button"
-                onClick={() => setMapStyle('streets')}
-                className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
-                  mapStyle === 'streets' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-white'
-                }`}
-                title="Ruas Claras com Alta Legibilidade"
-              >
-                🏙️ Ruas
-              </button>
-              <button
-                type="button"
-                onClick={() => setMapStyle('dark')}
-                className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
-                  mapStyle === 'dark' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-white'
-                }`}
-                title="Modo Noturno Nítido"
-              >
-                🌙 Noturno
-              </button>
-              <button
-                type="button"
-                onClick={() => setMapStyle('satellite')}
-                className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
-                  mapStyle === 'satellite' ? 'bg-indigo-600 text-white font-black' : 'text-slate-400 hover:text-white'
-                }`}
-                title="Imagens de Satélite"
-              >
-                🛰️ Satélite
-              </button>
-            </div>
-
             {/* Minimize / Close Button */}
             <button
               type="button"
@@ -817,40 +783,6 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         {/* Non-Expanded Floating Controls (Top Right) */}
         {!isExpanded && (
           <div className="absolute top-3 right-3 z-[400] flex items-center gap-1.5">
-            {/* Tile Switcher Dropdown/Pill */}
-            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-0.5 flex items-center text-[10px] font-bold shadow-lg">
-              <button
-                type="button"
-                onClick={() => setMapStyle('streets')}
-                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
-                  mapStyle === 'streets' ? 'bg-indigo-600 text-white font-black' : 'text-slate-300 hover:text-white'
-                }`}
-                title="Ruas Claras (Legível)"
-              >
-                🏙️ Ruas
-              </button>
-              <button
-                type="button"
-                onClick={() => setMapStyle('dark')}
-                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
-                  mapStyle === 'dark' ? 'bg-indigo-600 text-white font-black' : 'text-slate-300 hover:text-white'
-                }`}
-                title="Modo Escuro Nítido"
-              >
-                🌙 Escuro
-              </button>
-              <button
-                type="button"
-                onClick={() => setMapStyle('satellite')}
-                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
-                  mapStyle === 'satellite' ? 'bg-indigo-600 text-white font-black' : 'text-slate-300 hover:text-white'
-                }`}
-                title="Satélite"
-              >
-                🛰️
-              </button>
-            </div>
-
             {/* Expand Map Button */}
             <button
               type="button"
