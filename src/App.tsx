@@ -465,6 +465,9 @@ export default function App() {
       const updatedShift: StoreShift = {
         ...shift,
         isOpen: true,
+        setupRequired: false,
+        pilotMode: true,
+        demoDataDisabled: true,
         openedAt: nowTime,
         openedTimestamp: nowTs,
         shiftId: newShiftId,
@@ -568,7 +571,6 @@ export default function App() {
       showToast(`Bem-vindo, entregador ${userSession.motoboyName}! 🛵`);
     } else {
       setActiveViewMode('store');
-      if (shift.setupRequired) setIsAccountSettingsOpen(true);
       showToast(`Bem-vindo ao Painel Rota Fácil! 🛵`);
     }
   };
@@ -754,8 +756,8 @@ export default function App() {
       />
 
       <StoreAccountSettingsModal
-        isOpen={isAccountSettingsOpen || Boolean(shift.setupRequired && isStoreAdminOrMaster)}
-        onClose={() => { if (!shift.setupRequired) setIsAccountSettingsOpen(false); }}
+        isOpen={isAccountSettingsOpen}
+        onClose={() => setIsAccountSettingsOpen(false)}
         shift={shift}
         onSaveSettings={handleSaveStoreSettings}
         onActivateRealPilot={shift.setupRequired ? undefined : handleActivateRealPilot}

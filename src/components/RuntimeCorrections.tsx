@@ -97,19 +97,6 @@ export function RuntimeCorrections() {
 
     const decorate = () => {
       decorateStoreOpeningModal();
-      Array.from(document.querySelectorAll('button')).forEach((button) => {
-        const raw = (button.textContent || '').trim();
-        const text = raw.toLowerCase();
-        if (text.startsWith('operação aberta') || text.startsWith('operação fechada') || text.startsWith('loja aberta') || text.startsWith('loja fechada')) {
-          const open = text.includes('aberta');
-          button.classList.add('runtime-operation-toggle');
-          button.classList.toggle('runtime-operation-open', open);
-          if (!button.querySelector('.runtime-operation-copy')) {
-            button.innerHTML = `<span class="runtime-operation-copy"><span class="runtime-operation-dot"></span><span><span class="runtime-operation-label">${open ? 'Operação aberta' : 'Operação fechada'}</span><span class="runtime-operation-help">${open ? 'Turno recebendo pedidos' : 'Abra para iniciar o turno'}</span></span></span><span class="runtime-operation-action">${open ? 'Encerrar' : 'Abrir'}</span>`;
-          }
-        }
-      });
-
       const teamTitle = Array.from(document.querySelectorAll('h1,h2,h3')).find((el) => (el.textContent || '').includes('Gestão da Equipe de Motoboys'));
       if (teamTitle) {
         const shell = teamTitle.closest('div[class*="rounded-2xl"]') as HTMLElement | null;
@@ -172,16 +159,7 @@ export function RuntimeCorrections() {
     decorate();
     let ticks = 0;
     const timer = window.setInterval(() => { decorate(); ticks += 1; if (ticks >= 24) window.clearInterval(timer); }, 300);
-    const onClick = (event: MouseEvent) => {
-      const button = (event.target as HTMLElement | null)?.closest('button');
-      const label = (button?.textContent || '').trim().toLowerCase();
-      if (button && (label === 'abrir' || label.includes('operação fechada'))) {
-        const hidden = document.querySelector<HTMLElement>('[data-rota-facil-opening-dismissed="true"]');
-        if (hidden) {
-          hidden.style.display = '';
-          delete hidden.dataset.rotaFacilOpeningDismissed;
-        }
-      }
+    const onClick = () => {
       window.setTimeout(decorate, 80);
       window.setTimeout(decorate, 300);
     };
