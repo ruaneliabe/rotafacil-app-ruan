@@ -1,8 +1,9 @@
 import React,{useEffect,useMemo,useRef,useState}from'react';
 import{Motoboy,Order,StoreShift}from'../types';
 import{RouteMap}from'./RouteMap';
-import{saveMotoboyLocationToCloud}from'../lib/firebase';
-import{ArrowDown,ArrowUp,CheckCircle2,Clock3,DollarSign,History,LogOut,MapPin,Navigation,Package,Phone,Route,ShoppingBag,X,Map,Bike}from'lucide-react';
+import{saveMotoboyLocationToCloud,changeMotoboyPassword}from'../lib/firebase';
+import{ArrowDown,ArrowUp,CheckCircle2,Clock3,DollarSign,History,LogOut,MapPin,Navigation,Package,Phone,Route,ShoppingBag,X,Map,Bike,KeyRound}from'lucide-react';
+import{verifyCredential}from'../lib/passwordSecurity';
 
 interface P{motoboys:Motoboy[];orders:Order[];shift:StoreShift;onUpdateOrderStatus:(id:string,s:Order['status'])=>void;onSimulateArrival:(o:Order)=>void;onReorderMotoboyRoute?:(id:string,ids:string[])=>void;onConfirmArrivalAtStore?:(id:string)=>void;onUpdateMotoboyStatus?:(id:string,s:Motoboy['status'])=>void;initialMotoboyId?:string;isLockedToMotoboy?:boolean;onLogout?:()=>void}
 type Tab='orders'|'route'|'history';
@@ -20,6 +21,13 @@ export const MotoboyApp:React.FC<P>=({motoboys,orders,shift,onUpdateOrderStatus,
   const[orderIds,setOrderIds]=useState<string[]>([]);
   const[showMap,setShowMap]=useState(false);
   const[navRequest,setNavRequest]=useState<NavRequest>(null);
+  const[showPwdModal,setShowPwdModal]=useState(false);
+  const[pwdCurrent,setPwdCurrent]=useState('');
+  const[pwdNew,setPwdNew]=useState('');
+  const[pwdConfirm,setPwdConfirm]=useState('');
+  const[pwdError,setPwdError]=useState<string|null>(null);
+  const[pwdSuccess,setPwdSuccess]=useState(false);
+  const[pwdSaving,setPwdSaving]=useState(false);
   const wake=useRef<any>(null);
 
   const driver=useMemo(()=>initialMotoboyId?motoboys.find(m=>m.id===initialMotoboyId):isLockedToMotoboy?undefined:motoboys[0],[motoboys,initialMotoboyId,isLockedToMotoboy]);
@@ -48,6 +56,26 @@ export const MotoboyApp:React.FC<P>=({motoboys,orders,shift,onUpdateOrderStatus,
   const openGoogle=()=>{if(!navRequest)return;const r=navRequest.fullRoute?remaining(navRequest.from):remaining(navRequest.from).slice(0,1);if(!r.length)return;const destination=encodeURIComponent(addr(r[r.length-1])),wp=r.slice(0,-1).map(addr).join('|'),origin=gps?`&origin=${encodeURIComponent(`${gps.lat},${gps.lng}`)}`:'';const url=`https://www.google.com/maps/dir/?api=1${origin}&destination=${destination}${wp?`&waypoints=${encodeURIComponent(wp)}`:''}&travelmode=driving`;setNavRequest(null);window.location.href=url};
   const openWaze=()=>{if(!navRequest)return;const target=remaining(navRequest.from)[0];if(!target)return;const dest=target.lat&&target.lng?`ll=${target.lat},${target.lng}`:`q=${encodeURIComponent(target.address)}`;setNavRequest(null);window.location.href=`https://waze.com/ul?${dest}&navigate=yes`};
   const chooseNav=(req:NonNullable<NavRequest>)=>setNavRequest(req);
+  const closePwdModal=()=>{setShowPwdModal(false);setPwdCurrent('');setPwdNew('');setPwdConfirm('');setPwdError(null);setPwdSuccess(false);setPwdSaving(false)};
+  const submitPwdChange=async(e:React.FormEvent)=>{
+    e.preventDefault();
+    setPwdError(null);
+    if(!driver)return;
+    if(pwdNew.trim().length<4){setPwdError('A nova senha precisa ter pelo menos 4 caracteres.');return}
+    if(pwdNew!==pwdConfirm){setPwdError('As senhas não coincidem.');return}
+    setPwdSaving(true);
+    try{
+      const check=await verifyCredential(pwdCurrent,{passwordHash:driver.passwordHash,passwordSalt:driver.passwordSalt,legacyPlainPassword:driver.password});
+      if(!check.valid){setPwdError('Senha atual incorreta.');setPwdSaving(false);return}
+      await changeMotoboyPassword(driver.id,pwdNew.trim());
+      setPwdSuccess(true);
+      setTimeout(closePwdModal,1800);
+    }catch(err){
+      setPwdError('Não foi possível trocar a senha agora. Tente novamente.');
+    }finally{
+      setPwdSaving(false);
+    }
+  };
 
   const pickupAll=()=>{ready.forEach(o=>onUpdateOrderStatus(o.id,'picked_up'));setOrderIds(prev=>[...prev,...ready.map(o=>o.id).filter(id=>!prev.includes(id))]);setTab('route')};
   const startRoute=()=>{if(!route.length)return;route.forEach((o,i)=>onUpdateOrderStatus(o.id,i===0?'in_transit':'picked_up'));if(driver)onUpdateMotoboyStatus?.(driver.id,'delivering')};
@@ -63,7 +91,7 @@ export const MotoboyApp:React.FC<P>=({motoboys,orders,shift,onUpdateOrderStatus,
   const statusText=activeRun?'Em rota':returning?'Retornando para a loja':inQueue?(ready.length?'Pedidos prontos para retirada':preparing.length?'Aguardando cozinha':'Na fila'):'Fora da fila';
 
   return <div className="w-full max-w-md mx-auto bg-slate-100 text-slate-900 min-h-[720px] rounded-2xl overflow-hidden">
-    <header className="bg-slate-950 text-white p-4 flex justify-between"><div><b>{driver.name}</b><p className="text-[11px] text-slate-400">{statusText}</p></div><button onClick={onLogout}><LogOut className="w-4 h-4"/></button></header>
+    <header className="bg-slate-950 text-white p-4 flex justify-between"><div><b>{driver.name}</b><p className="text-[11px] text-slate-400">{statusText}</p></div><div className="flex items-center gap-3"><button onClick={()=>setShowPwdModal(true)} title="Trocar senha"><KeyRound className="w-4 h-4"/></button><button onClick={onLogout}><LogOut className="w-4 h-4"/></button></div></header>
     <div className="grid grid-cols-3 gap-2 p-3 bg-white"><div className="text-center"><ShoppingBag className="w-4 h-4 mx-auto"/><b>{route.length}</b><p className="text-[9px]">na rota</p></div><div className="text-center"><Package className="w-4 h-4 mx-auto"/><b>{completed.length}</b><p className="text-[9px]">entregues</p></div><div className="text-center"><DollarSign className="w-4 h-4 mx-auto"/><b>{money(earned)}</b><p className="text-[9px]">hoje</p></div></div>
     <nav className="grid grid-cols-3 gap-1 p-2">{([['orders',`Pedidos (${inQueue?preparing.length+ready.length:0})`],['route',`Minha rota (${route.length})`],['history','Histórico']]as[Tab,string][]).map(([id,l])=><button key={id} onClick={()=>setTab(id)} className={`p-2 rounded-lg text-xs ${tab===id?'bg-slate-950 text-white':'bg-white'}`}>{l}</button>)}</nav>
     <main className="p-3 space-y-3">
@@ -83,6 +111,16 @@ export const MotoboyApp:React.FC<P>=({motoboys,orders,shift,onUpdateOrderStatus,
     {showMap&&<div className="fixed inset-0 z-[100] bg-black/80 p-3 flex items-center justify-center"><div className="w-full max-w-md h-[78vh] bg-white rounded-2xl overflow-hidden flex flex-col"><div className="p-3 bg-slate-950 text-white flex justify-between items-center"><div><b className="text-sm">Mapa da rota</b><p className="text-[10px] text-slate-400">{route.length} parada(s) na sequência definida</p></div><button onClick={()=>setShowMap(false)} className="w-8 h-8 grid place-items-center bg-slate-900 rounded-lg"><X className="w-4 h-4"/></button></div><div className="flex-1 min-h-0"><RouteMap origin={{name:shift.storeName||'Loja',address:shift.storeAddress,lat:shift.storeLat,lng:shift.storeLng}} motoboyName={driver.name} showMotoboyMarker motoboyLat={gps?.lat||driver.currentLat} motoboyLng={gps?.lng||driver.currentLng} stops={routeStops}/></div><div className="p-3 border-t"><button onClick={()=>{setShowMap(false);current&&chooseNav({from:current.id,fullRoute:true})}} className="w-full py-3 bg-violet-600 text-white rounded-lg"><Navigation className="w-4 h-4 inline mr-2"/>Abrir navegação</button></div></div></div>}
 
     {navRequest&&<div className="fixed inset-0 z-[120] bg-black/70 p-4 flex items-end sm:items-center justify-center"><div className="w-full max-w-sm bg-white rounded-2xl p-4 shadow-2xl"><div className="flex items-center justify-between"><div><h3 className="font-semibold">Como quer navegar?</h3><p className="text-xs text-slate-500 mt-1">A navegação abre fora do Rota Fácil. Se já estiver com o GPS aberto, não precisa tocar aqui de novo.</p></div><button onClick={()=>setNavRequest(null)} className="w-8 h-8 grid place-items-center rounded-lg bg-slate-100"><X className="w-4 h-4"/></button></div><div className="space-y-2 mt-4"><button onClick={openGoogle} className="w-full py-3.5 rounded-xl bg-[#4285F4] text-white font-medium">Google Maps {navRequest.fullRoute?'• rota restante':'• próxima parada'}</button><button onClick={openWaze} className="w-full py-3.5 rounded-xl bg-[#33CCFF] text-slate-950 font-medium">Waze • próxima parada</button></div></div></div>}
+    {showPwdModal&&<div className="fixed inset-0 z-[130] bg-black/70 p-4 flex items-end sm:items-center justify-center"><div className="w-full max-w-sm bg-white rounded-2xl p-4 shadow-2xl"><div className="flex items-center justify-between"><div><h3 className="font-semibold flex items-center gap-2"><KeyRound className="w-4 h-4"/>Trocar senha</h3><p className="text-xs text-slate-500 mt-1">Escolha uma senha só sua, fácil de lembrar.</p></div><button onClick={closePwdModal} className="w-8 h-8 grid place-items-center rounded-lg bg-slate-100"><X className="w-4 h-4"/></button></div>
+      {pwdSuccess?<div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-emerald-700 text-sm font-medium"><CheckCircle2 className="w-6 h-6 mx-auto mb-1"/>Senha alterada com sucesso!</div>:
+      <form onSubmit={submitPwdChange} className="space-y-3 mt-4">
+        {pwdError&&<div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-medium">{pwdError}</div>}
+        <div><label className="text-xs font-medium text-slate-600 block mb-1">Senha atual</label><input type="password" autoComplete="current-password" required value={pwdCurrent} onChange={e=>setPwdCurrent(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"/></div>
+        <div><label className="text-xs font-medium text-slate-600 block mb-1">Nova senha</label><input type="password" autoComplete="new-password" required minLength={4} value={pwdNew} onChange={e=>setPwdNew(e.target.value)} placeholder="Mín. 4 caracteres" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"/></div>
+        <div><label className="text-xs font-medium text-slate-600 block mb-1">Confirmar nova senha</label><input type="password" autoComplete="new-password" required minLength={4} value={pwdConfirm} onChange={e=>setPwdConfirm(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm"/></div>
+        <button type="submit" disabled={pwdSaving} className="w-full py-3 bg-slate-950 disabled:opacity-60 text-white rounded-xl font-medium">{pwdSaving?'Salvando...':'Salvar nova senha'}</button>
+      </form>}
+    </div></div>}
   </div>
 };
 export default MotoboyApp;

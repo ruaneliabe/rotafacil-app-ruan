@@ -17,6 +17,7 @@ import {
   subscribeToShift,
   saveOrderToCloud,
   saveMotoboyToCloud,
+  resetMotoboyPassword,
   saveMotoboyLocationToCloud,
   deleteMotoboyFromCloud,
   deleteAllMotoboysFromCloud,
@@ -544,6 +545,17 @@ export default function App() {
     showToast('Entregador removido com sucesso.');
   };
 
+  const handleResetMotoboyPassword = async (motoboyId: string) => {
+    try {
+      const newPassword = await resetMotoboyPassword(motoboyId);
+      // Usa alert (não some sozinho) porque essa senha só aparece esta vez —
+      // um toast de poucos segundos poderia sumir antes do admin anotar.
+      window.alert(`Nova senha gerada para o motoboy: ${newPassword}\n\nAnote e repasse ao entregador agora — ela não vai aparecer de novo.`);
+    } catch (err: any) {
+      showToast('Não foi possível gerar uma nova senha. Tente novamente.');
+    }
+  };
+
   const handleDeleteAllMotoboys = () => {
     deleteAllMotoboysFromCloud();
     showToast('Todos os motoboys foram removidos com sucesso! Pode cadastrar do zero. 🛵');
@@ -771,6 +783,7 @@ export default function App() {
             onOpenMotoboyModal={() => setIsMotoboyModalOpen(true)}
             onOpenStoreSettings={() => setIsAccountSettingsOpen(true)}
             onDeleteMotoboy={handleDeleteMotoboy}
+            onResetMotoboyPassword={handleResetMotoboyPassword}
             onDeleteAllMotoboys={handleDeleteAllMotoboys}
             onAddOrder={handleAddOrder}
             onSaveIntegrations={(integrations, branches) => {

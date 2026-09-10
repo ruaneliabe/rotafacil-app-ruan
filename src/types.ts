@@ -76,7 +76,10 @@ export interface Motoboy {
   model?: string;
   vehicleModel?: string;
   pixKey?: string;
+  /** @deprecated legado (texto puro) — mantido só para migração automática de contas antigas. */
   password?: string;
+  passwordHash?: string;
+  passwordSalt?: string;
   username?: string;
   status: MotoboyStatus;
   currentLat?: number;

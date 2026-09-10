@@ -19,8 +19,9 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geoUtils';
-import { saveStoreAccountToCloud, getStoreAccountFromCloud, upgradeStoreCredentialsToHash } from '../lib/firebase';
+import { saveStoreAccountToCloud, getStoreAccountFromCloud, upgradeStoreCredentialsToHash, upgradeMotoboyPasswordToHash } from '../lib/firebase';
 import { verifyCredential } from '../lib/passwordSecurity';
+import { DEFAULT_MASTER_USERNAME, DEFAULT_MASTER_PASSWORD } from '../lib/masterCredentials';
 
 interface LoginModalProps {
   isOpen?: boolean;
@@ -138,7 +139,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       console.warn('Erro ao autenticar loja no Firestore:', err);
     }
 
-    if (inputUser === (shift?.masterUsername || 'ruan') && inputPass === (shift?.masterPassword || 'ruan123')) {
+    if (inputUser === (shift?.masterUsername || DEFAULT_MASTER_USERNAME) && inputPass === (shift?.masterPassword || DEFAULT_MASTER_PASSWORD)) {
       onLoginSuccess({
         role: 'master_admin',
         storeName: shift?.storeName || 'Rota Fácil Master',
@@ -243,7 +244,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   };
 
   // 3. Motoboy Login
-  const handleMotoboyLogin = (e: React.FormEvent) => {
+  const handleMotoboyLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -261,9 +262,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    if (!targetMotoboy.password || targetMotoboy.password !== motoboyPass) {
+    const check = await verifyCredential(motoboyPass, {
+      passwordHash: targetMotoboy.passwordHash,
+      passwordSalt: targetMotoboy.passwordSalt,
+      legacyPlainPassword: targetMotoboy.password,
+    });
+
+    if (!check.valid) {
       setErrorMsg('Senha incorreta.');
       return;
+    }
+
+    if (check.needsUpgrade) {
+      upgradeMotoboyPasswordToHash(targetMotoboy.id, motoboyPass);
     }
 
     onLoginSuccess({
@@ -281,8 +292,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    const expectedUser = (shift?.masterUsername || 'ruan').trim().toLowerCase();
-    const expectedPass = shift?.masterPassword || 'ruan123';
+    const expectedUser = (shift?.masterUsername || DEFAULT_MASTER_USERNAME).trim().toLowerCase();
+    const expectedPass = shift?.masterPassword || DEFAULT_MASTER_PASSWORD;
 
     const inputUser = masterUser.trim().toLowerCase();
     const inputPass = masterPass;
