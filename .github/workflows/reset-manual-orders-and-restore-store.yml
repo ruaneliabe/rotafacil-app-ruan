@@ -1,4 +1,3 @@
-# trigger: 2026-09-10 safe reset
 name: Reset manual orders and restore store data
 
 on:
@@ -18,24 +17,22 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Patch Firebase cleanup and store recovery
-        shell: python
+      - name: Patch sources
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           firebase = Path('src/lib/firebase.ts')
           f = firebase.read_text(encoding='utf-8')
-
           marker = "export async function deleteAllOrdersFromCloud() {\n  const snapshot = await getDocs(collection(db, 'orders'));\n  await Promise.all(snapshot.docs.map((d) => deleteDoc(d.ref)));\n}\n"
-          addition = marker + """
+          if 'export async function clearManualOrdersOnce' not in f:
+              if marker not in f:
+                  raise SystemExit('deleteAllOrdersFromCloud marker not found')
+              addition = marker + """
 
 const MANUAL_ORDER_RESET_VERSION = 'manual_orders_reset_2026_09_10_v1';
 
-/**
- * One-shot cleanup requested for the live pilot: remove only orders created
- * manually in Rota Fácil, preserving Cardápio Web/iFood/other integrations.
- * The marker on current_shift makes the operation idempotent across reloads.
- */
 export async function clearManualOrdersOnce(): Promise<number> {
   const shiftRef = doc(db, 'shifts', 'current_shift');
   const shiftSnap = await getDoc(shiftRef);
@@ -43,73 +40,50 @@ export async function clearManualOrdersOnce(): Promise<number> {
   if (shiftData.manualOrderResetVersion === MANUAL_ORDER_RESET_VERSION) return 0;
 
   const snapshot = await getDocs(collection(db, 'orders'));
-  const manualDocs = snapshot.docs.filter((d) => {
-    const data = d.data() as Partial<Order>;
-    return data.originChannel === 'manual';
-  });
+  const manualDocs = snapshot.docs.filter((d) => (d.data() as Partial<Order>).originChannel === 'manual');
+  if (manualDocs.length) await Promise.all(manualDocs.map((d) => deleteDoc(d.ref)));
 
-  if (manualDocs.length) {
-    await Promise.all(manualDocs.map((d) => deleteDoc(d.ref)));
-  }
-
-  await setDoc(
-    shiftRef,
-    {
-      manualOrderResetVersion: MANUAL_ORDER_RESET_VERSION,
-      manualOrderResetAt: Date.now(),
-      manualOrderResetCount: manualDocs.length,
-    },
-    { merge: true }
-  );
-
+  await setDoc(shiftRef, {
+    manualOrderResetVersion: MANUAL_ORDER_RESET_VERSION,
+    manualOrderResetAt: Date.now(),
+    manualOrderResetCount: manualDocs.length,
+  }, { merge: true });
   return manualDocs.length;
 }
 """
-          if 'export async function clearManualOrdersOnce' not in f:
-              if marker not in f:
-                  raise SystemExit('deleteAllOrdersFromCloud marker not found')
               f = f.replace(marker, addition, 1)
               firebase.write_text(f, encoding='utf-8')
 
           app = Path('src/App.tsx')
           a = app.read_text(encoding='utf-8')
-
-          a = a.replace(
-              "  seedInitialDataIfEmpty,\n} from './lib/firebase';",
-              "  seedInitialDataIfEmpty,\n  clearManualOrdersOnce,\n  getStoreAccountFromCloud,\n} from './lib/firebase';"
-          )
+          if 'clearManualOrdersOnce,' not in a:
+              a = a.replace(
+                  "  seedInitialDataIfEmpty,\n} from './lib/firebase';",
+                  "  seedInitialDataIfEmpty,\n  clearManualOrdersOnce,\n  getStoreAccountFromCloud,\n} from './lib/firebase';"
+              )
 
           old_seed = "    seedInitialDataIfEmpty().catch((err) => console.warn('Erro ao inicializar Firestore:', err));\n"
-          new_seed = """    seedInitialDataIfEmpty()
+          if 'const removed = await clearManualOrdersOnce();' not in a:
+              a = a.replace(old_seed, """    seedInitialDataIfEmpty()
       .then(async () => {
         try {
           const removed = await clearManualOrdersOnce();
-          if (removed > 0) console.info(`[Rota Fácil] ${removed} pedido(s) manual(is) removido(s) para reinício limpo.`);
+          if (removed > 0) console.info(`[Rota Fácil] ${removed} pedido(s) manual(is) removido(s).`);
         } catch (err) {
           console.warn('Erro ao limpar pedidos manuais:', err);
         }
       })
       .catch((err) => console.warn('Erro ao inicializar Firestore:', err));
-"""
-          if 'clearManualOrdersOnce();' not in a:
-              if old_seed not in a:
-                  raise SystemExit('seed marker not found')
-              a = a.replace(old_seed, new_seed, 1)
+""", 1)
 
           old_shift = """      setShift(mergedShift);
       setCloudSynced(true);
     });"""
-          new_shift = """      setShift(mergedShift);
+          if 'needsStoreRecovery' not in a:
+              new_shift = """      setShift(mergedShift);
       setCloudSynced(true);
 
-      // Self-heal the operational shift if the store identity/address was lost.
-      // The canonical store account is preserved in `stores/{username}` and is
-      // safer than falling back to placeholder coordinates.
-      const hasValidCoords =
-        Number.isFinite(Number(mergedShift.storeLat)) &&
-        Number.isFinite(Number(mergedShift.storeLng)) &&
-        Number(mergedShift.storeLat) !== 0 &&
-        Number(mergedShift.storeLng) !== 0;
+      const hasValidCoords = Number.isFinite(Number(mergedShift.storeLat)) && Number.isFinite(Number(mergedShift.storeLng)) && Number(mergedShift.storeLat) !== 0 && Number(mergedShift.storeLng) !== 0;
       const needsStoreRecovery = !mergedShift.storeAddress?.trim() || !hasValidCoords || !mergedShift.storeName?.trim();
       const recoveryUsername = (mergedShift.storeUsername || session?.username || '').trim().toLowerCase();
 
@@ -127,13 +101,7 @@ export async function clearManualOrdersOnce(): Promise<number> {
               storeLng: Number(account.storeLng ?? mergedShift.storeLng),
               setupRequired: false,
             };
-
-            const recoveredHasCoords =
-              Number.isFinite(recoveredShift.storeLat) &&
-              Number.isFinite(recoveredShift.storeLng) &&
-              recoveredShift.storeLat !== 0 &&
-              recoveredShift.storeLng !== 0;
-
+            const recoveredHasCoords = Number.isFinite(recoveredShift.storeLat) && Number.isFinite(recoveredShift.storeLng) && recoveredShift.storeLat !== 0 && recoveredShift.storeLng !== 0;
             if (recoveredShift.storeAddress?.trim() && recoveredHasCoords) {
               setShift(recoveredShift);
               saveShiftToCloud(recoveredShift).catch((err) => console.warn('Falha ao reparar dados da loja no turno:', err));
@@ -142,23 +110,23 @@ export async function clearManualOrdersOnce(): Promise<number> {
           .catch((err) => console.warn('Falha ao recuperar cadastro da loja:', err));
       }
     });"""
-          if 'needsStoreRecovery' not in a:
               if old_shift not in a:
                   raise SystemExit('shift subscription marker not found')
               a = a.replace(old_shift, new_shift, 1)
 
           app.write_text(a, encoding='utf-8')
+          PY
 
-      - name: Validate production build
+      - name: Validate build
         run: |
           npm ci
           npm run build
 
-      - name: Commit validated changes and remove workflow
+      - name: Commit validated patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/reset-manual-orders-and-restore-store.yml
           git add src/App.tsx src/lib/firebase.ts
-          git commit -m "fix: reset manual orders and recover store location"
+          git rm .github/workflows/reset-manual-orders-and-restore-store.yml
+          git commit -m "fix: clear manual orders and recover store location"
           git push origin main
