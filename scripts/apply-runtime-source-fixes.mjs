@@ -90,6 +90,28 @@ patch('src/components/MotoboyApp.tsx', (input) => {
     s = s.slice(0, start) + replacement + s.slice(end);
   }
 
+  // Ao iniciar, abre o Google Maps com TODOS os destinos na ordem definida como paradas.
+  s = s.replace(
+    `  const startRoute = () => {\n    if (!route.length) return;\n    route.forEach((order, index) =>\n      onUpdateOrderStatus(order.id, index === 0 ? 'in_transit' : 'picked_up')\n    );\n    if (driver) onUpdateMotoboyStatus?.(driver.id, 'delivering');\n  };`,
+    `  const startRoute = () => {\n    if (!route.length) return;\n    route.forEach((order, index) =>\n      onUpdateOrderStatus(order.id, index === 0 ? 'in_transit' : 'picked_up')\n    );\n    if (driver) onUpdateMotoboyStatus?.(driver.id, 'delivering');\n\n    const destination = encodeURIComponent(addressForNav(route[route.length - 1]));\n    const waypoints = route.slice(0, -1).map(addressForNav).join('|');\n    const origin = gps ? '&origin=' + encodeURIComponent(gps.lat + ',' + gps.lng) : '';\n    const url = 'https://www.google.com/maps/dir/?api=1' + origin + '&destination=' + destination + (waypoints ? '&waypoints=' + encodeURIComponent(waypoints) : '') + '&travelmode=driving';\n    window.location.href = url;\n  };`
+  );
+
+  // Ao concluir a última entrega, volta automaticamente para Pedidos.
+  s = s.replace(
+    `  const finish = (order: Order) => {\n    onUpdateOrderStatus(order.id, 'delivered');\n    setArrived((prev) => {\n      const next = { ...prev };\n      delete next[order.id];\n      return next;\n    });\n  };`,
+    `  const finish = (order: Order) => {\n    const isLastStop = route.length === 1 && route[0]?.id === order.id;\n    onUpdateOrderStatus(order.id, 'delivered');\n    setArrived((prev) => {\n      const next = { ...prev };\n      delete next[order.id];\n      return next;\n    });\n    if (isLastStop) {\n      setShowMap(false);\n      setNavRequest(null);\n      setTab('orders');\n    }\n  };`
+  );
+
+  // Impede que os textos dos botões de ação quebrem ou sejam cortados no celular.
+  s = s.replace(
+    `className="inline-flex h-9 flex-1 items-center justify-center rounded-lg bg-emerald-600 px-3 text-[11px] font-black text-white">Concluir entrega</button>`,
+    `className="inline-flex min-h-11 flex-1 items-center justify-center whitespace-nowrap rounded-lg bg-emerald-600 px-2 text-[10px] font-black leading-none text-white">Concluir entrega</button>`
+  );
+  s = s.replace(
+    `className="inline-flex h-9 flex-1 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-3 text-[11px] font-black text-violet-700">Próxima parada</button>`,
+    `className="inline-flex min-h-11 min-w-[126px] flex-1 items-center justify-center whitespace-nowrap rounded-lg border border-violet-200 bg-violet-50 px-2 text-[10px] font-black leading-none text-violet-700">Próxima parada</button>`
+  );
+
   return s;
 });
 
