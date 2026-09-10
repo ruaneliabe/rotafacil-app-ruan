@@ -38,7 +38,6 @@ export function playNewOrderSound() {
 
     const now = ctx.currentTime;
     
-    // Tone 1 - E5 (659.25 Hz)
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.type = 'sine';
@@ -50,7 +49,6 @@ export function playNewOrderSound() {
     osc1.start(now);
     osc1.stop(now + 0.3);
 
-    // Tone 2 - B5 (987.77 Hz)
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.type = 'sine';
@@ -66,6 +64,33 @@ export function playNewOrderSound() {
   }
 }
 
+/** Loud repeating-style alert used when the store calls a motoboy to the counter. */
+export function playCounterCallSound() {
+  if (!getSoundEnabled()) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [880, 1174.66, 880, 1174.66, 1396.91];
+
+    notes.forEach((freq, idx) => {
+      const start = now + idx * 0.16;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.22, start);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.13);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.14);
+    });
+  } catch (err) {
+    console.warn('Counter call audio error:', err);
+  }
+}
+
 /**
  * Play a multi-tone dispatch sound (e.g., Motoboy assigned or route started)
  */
@@ -76,7 +101,7 @@ export function playDispatchSound() {
     if (!ctx) return;
 
     const now = ctx.currentTime;
-    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    const notes = [523.25, 659.25, 783.99, 1046.50];
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -104,7 +129,7 @@ export function playDeliverySuccessSound() {
     if (!ctx) return;
 
     const now = ctx.currentTime;
-    const notes = [587.33, 880, 1174.66]; // D5, A5, D6
+    const notes = [587.33, 880, 1174.66];
     notes.forEach((freq, idx) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
