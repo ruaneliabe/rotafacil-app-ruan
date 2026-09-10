@@ -1,0 +1,157 @@
+name: Final current-shift and motoboy UI fix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/final-fix-today-motoboy.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch files
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          # Delivered dashboard must represent THIS OPEN SHIFT, not historical imports.
+          p = Path('src/components/DeliveredOrdersDashboard.tsx')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace("import { Order } from '../types';", "import { Order, StoreShift } from '../types';")
+          text = text.replace(
+              "interface DeliveredOrdersDashboardProps {\n  orders: Order[];\n}",
+              "interface DeliveredOrdersDashboardProps {\n  orders: Order[];\n  shift: StoreShift;\n}"
+          )
+          text = text.replace(
+              "export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> = ({ orders }) => {",
+              "export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> = ({ orders, shift }) => {"
+          )
+          pattern = re.compile(r"  const deliveredToday = useMemo\(\(\) => \{.*?\n  \}, \[orders, today\]\);", re.S)
+          replacement = '''  const deliveredToday = useMemo(() => {
+    const openedTs = Number(shift.openedTimestamp || 0);
+    const currentShiftId = String(shift.shiftId || '');
+
+    return orders
+      .filter((order) => {
+        if (order.status !== 'delivered') return false;
+
+        const deliveredTs = Number(order.deliveredTimestamp || 0);
+        const createdTs = Number(order.createdTimestamp || 0);
+        if (!deliveredTs || !createdTs) return false;
+        if (deliveryDateKey(order) !== today) return false;
+
+        // Only orders that were actually created during this operation.
+        // This removes historical Cardápio Web orders that got re-stamped on sync.
+        if (openedTs && createdTs < openedTs) return false;
+        if (openedTs && deliveredTs < openedTs) return false;
+        if (order.createdDate && order.createdDate !== today) return false;
+        if (currentShiftId && order.shiftId && String(order.shiftId) !== currentShiftId) return false;
+
+        return true;
+      })
+      .sort((a, b) => Number(b.deliveredTimestamp || 0) - Number(a.deliveredTimestamp || 0));
+  }, [orders, today, shift.openedTimestamp, shift.shiftId]);'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Delivered dashboard useMemo not found')
+          text = text.replace('Somente pedidos cuja data original do pedido é hoje.', 'Somente entregas concluídas na operação aberta hoje.')
+          p.write_text(text, encoding='utf-8')
+
+          # Pass the shift into dashboard.
+          p = Path('src/components/StoreDashboardLegacy.tsx')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace('<DeliveredOrdersDashboard orders={orders} />', '<DeliveredOrdersDashboard orders={orders} shift={shift} />')
+          p.write_text(text, encoding='utf-8')
+
+          # Stamp real delivery date/current shift when completing a delivery.
+          p = Path('src/App.tsx')
+          text = p.read_text(encoding='utf-8')
+          marker = "deliveredTimestamp: newStatus === 'delivered' ? Date.now() : target.deliveredTimestamp,"
+          if marker in text and "deliveredDate: newStatus === 'delivered'" not in text[text.find(marker):text.find(marker)+500]:
+              text = text.replace(marker, marker + "\n      deliveredDate: newStatus === 'delivered' ? getBrazilDateKey() : target.deliveredDate,\n      shiftId: newStatus === 'delivered' ? (shift.shiftId || target.shiftId) : target.shiftId,\n      shiftDate: newStatus === 'delivered' ? (shift.shiftDate || getBrazilDateKey()) : target.shiftDate,", 1)
+          p.write_text(text, encoding='utf-8')
+
+          # Motoboy: current operation stats only + unmistakably compact approved UI.
+          p = Path('src/components/MotoboyApp.tsx')
+          text = p.read_text(encoding='utf-8')
+
+          pattern = re.compile(r"  const completedToday = useMemo\(.*?\n  \);", re.S)
+          replacement = '''  const completedToday = useMemo(
+    () =>
+      orders
+        .filter((order) => {
+          if (!mine(order) || order.status !== 'delivered') return false;
+          const deliveredTs = Number(order.deliveredTimestamp || 0);
+          const createdTs = Number(order.createdTimestamp || 0);
+          if (!deliveredTs || !createdTs) return false;
+          if (deliveryDayKey(order) !== todayKey) return false;
+          if (order.createdDate && order.createdDate !== todayKey) return false;
+          if (shift.openedTimestamp && createdTs < shift.openedTimestamp) return false;
+          if (shift.openedTimestamp && deliveredTs < shift.openedTimestamp) return false;
+          if (shift.shiftId && order.shiftId && order.shiftId !== shift.shiftId) return false;
+          return true;
+        })
+        .sort((a, b) => Number(b.deliveredTimestamp || 0) - Number(a.deliveredTimestamp || 0)),
+    [orders, driver?.id, todayKey, shift.openedTimestamp, shift.shiftId]
+  );'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Motoboy completedToday not found')
+
+          # Tighten dimensions to match the approved 4-screen mockup.
+          replacements = [
+            ('max-w-md flex-col', 'max-w-[430px] flex-col'),
+            ('bg-[#071A2E] px-4 pb-3 pt-[max(10px,env(safe-area-inset-top))]', 'bg-[#071A2E] px-4 pb-2 pt-[max(7px,env(safe-area-inset-top))]'),
+            ('text-[22px] font-black leading-tight tracking-tight', 'text-[19px] font-black leading-tight tracking-tight'),
+            ('mt-1 flex min-w-0 items-center gap-1.5 text-[10.5px]', 'mt-0.5 flex min-w-0 items-center gap-1.5 text-[9.5px]'),
+            ('bg-white px-2 py-2.5', 'bg-white px-2 py-1.5'),
+            ('mt-1 text-[20px] font-black leading-none', 'mt-0.5 text-[17px] font-black leading-none'),
+            ('mt-1 text-[16px] font-black leading-none', 'mt-0.5 text-[14px] font-black leading-none'),
+            ('grid grid-cols-4 gap-1.5 bg-[#F4F6F9] px-2.5 py-2.5', 'grid grid-cols-4 gap-1.5 bg-[#F4F6F9] px-2.5 py-2'),
+            ('relative flex h-[58px]', 'relative flex h-[50px]'),
+            ('flex-1 space-y-3 px-3 pb-6', 'flex-1 space-y-2.5 px-3 pb-5'),
+            ('border-b border-slate-100 px-4 py-4', 'border-b border-slate-100 px-4 py-3'),
+            ('rounded-xl border border-amber-200 bg-[#FFF9E8] p-4', 'rounded-xl border border-amber-200 bg-[#FFF9E8] p-3'),
+            ('rounded-xl border border-emerald-200 bg-[#ECFDF7] p-4', 'rounded-xl border border-emerald-200 bg-[#ECFDF7] p-3'),
+            ('mx-3 mb-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-3', 'mx-3 mb-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2.5'),
+            ('rounded-xl border p-3.5', 'rounded-xl border p-3'),
+          ]
+          for a, b in replacements:
+              text = text.replace(a, b)
+
+          # Primary CTAs use one solid purple as in reference, no gradient.
+          text = text.replace('bg-gradient-to-r from-violet-600 to-purple-600', 'bg-violet-600')
+
+          # Route card current state gets the exact light violet treatment.
+          text = text.replace("'border-violet-300 bg-violet-50/70 shadow-sm'", "'border-violet-300 bg-[#F7F3FF] shadow-sm'")
+
+          p.write_text(text, encoding='utf-8')
+
+          # Force installed PWA to take this build.
+          p = Path('public/sw.js')
+          sw = p.read_text(encoding='utf-8')
+          sw = re.sub(r"const CACHE_NAME = '[^']+';", "const CACHE_NAME = 'rotafacil-v7-final-ui';", sw, count=1)
+          p.write_text(sw, encoding='utf-8')
+
+          p = Path('index.html')
+          html = p.read_text(encoding='utf-8')
+          html = re.sub(r"/sw\.js\?v=[^'\"]+", "/sw.js?v=20260910-1924-v7", html)
+          p.write_text(html, encoding='utf-8')
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/final-fix-today-motoboy.yml
+          git add src/components/DeliveredOrdersDashboard.tsx src/components/StoreDashboardLegacy.tsx src/App.tsx src/components/MotoboyApp.tsx public/sw.js index.html
+          git commit -m "fix: current-shift delivered dashboard and approved motoboy layout"
+          git push origin main
