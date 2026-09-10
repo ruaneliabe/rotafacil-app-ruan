@@ -25,6 +25,27 @@ const isTeamTabActive = () => {
   );
 };
 
+const hideUselessAssignButtons = () => {
+  const modal = document.querySelector<HTMLElement>('[data-operation-enhanced-modal="true"]');
+  if (!modal) return;
+
+  modal.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
+    if (button.textContent?.trim() === 'Atribuir') {
+      button.style.display = 'none';
+    }
+  });
+};
+
+const openGlobalOrderModal = () => {
+  const globalOrderButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => {
+    if (button.closest('[data-operation-enhanced-modal="true"]')) return false;
+    const label = button.textContent?.trim() || '';
+    return label === 'Pedido' || label === '+ Pedido' || label === 'Novo pedido';
+  });
+
+  globalOrderButton?.click();
+};
+
 export const DashboardUiBehaviorFixes: React.FC = () => {
   useEffect(() => {
     const sync = () => {
@@ -40,6 +61,8 @@ export const DashboardUiBehaviorFixes: React.FC = () => {
           if (button.title?.includes('Pedido de teste')) button.title = 'Pedido';
         }
       });
+
+      hideUselessAssignButtons();
     };
 
     const onClick = (event: MouseEvent) => {
@@ -47,6 +70,27 @@ export const DashboardUiBehaviorFixes: React.FC = () => {
       if (!button) return;
 
       const label = button.textContent?.trim() || '';
+
+      if (label === 'Novo despacho' && button.closest('[data-operation-enhanced-modal="true"]')) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const modal = button.closest('[data-operation-enhanced-modal="true"]');
+        const closeButton = Array.from(modal?.querySelectorAll<HTMLButtonElement>('button') || []).find((candidate) =>
+          candidate.title === 'Fechar gestão de entrega'
+        );
+
+        closeButton?.click();
+        window.setTimeout(openGlobalOrderModal, 300);
+        return;
+      }
+
+      if (label === 'Atribuir' && button.closest('[data-operation-enhanced-modal="true"]')) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
       if (label.startsWith('Entregadores')) {
         requestAnimationFrame(sync);
         return;
