@@ -229,15 +229,14 @@ export const RouteMap: React.FC<RouteMapProps> = ({
         className: 'custom-origin-pin z-50',
         html: `
           <div class="relative flex flex-col items-center justify-center">
-            <div class="bg-white text-emerald-700 px-3 py-1.5 rounded-xl shadow-lg border border-emerald-200 flex items-center gap-1.5 font-bold text-xs z-50 whitespace-nowrap">
-              <span class="text-sm">🏪</span>
-              <span class="tracking-wide text-slate-800">${origin.name || 'Minha Loja'}</span>
+            <div class="w-9 h-9 rounded-full bg-white border-2 border-emerald-400 shadow-lg flex items-center justify-center text-base z-50">
+              🏪
             </div>
-            <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-white -mt-0.5"></div>
+            <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-emerald-400 -mt-0.5"></div>
           </div>
         `,
-        iconSize: [180, 36],
-        iconAnchor: [90, 36],
+        iconSize: [40, 40],
+        iconAnchor: [20, 40],
       });
 
       const originMarker = L.marker([originLat, originLng], { icon: originIcon, zIndexOffset: 1000 })

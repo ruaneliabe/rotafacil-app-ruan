@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Bike, CheckCircle2, Clock3, MapPin, Navigation, PackageOpen, Search, X, LayoutGrid, List, Zap } from 'lucide-react';
+import { Bike, CheckCircle2, Clock3, MapPin, Navigation, PackageOpen, Search, X, LayoutGrid, List, Zap, Check } from 'lucide-react';
 import { Motoboy, Order, Stop, StoreShift } from '../types';
 import ReactiveRouteMap from './ReactiveRouteMap';
 import { FleetBottleneckBanner } from './FleetBottleneckBanner';
@@ -18,7 +18,7 @@ const distanceKm=(a?:number,b?:number,c?:number,d?:number)=>{if(![a,b,c,d].every
 
 export const OperationDispatchView:React.FC<P>=(p)=>{
  const{motoboys,shift,activeOrders,motoboysAvailable,onSelectOrderForTracking,onUpdateOrderStatus,assignOrderRespectingLoad,handleCallCounter,triggerActionToast}=p;
- const[q,setQ]=useState(''),[selected,setSelected]=useState<string[]>([]),[batchDriver,setBatchDriver]=useState(''),[manage,setManage]=useState(false),[mapMode,setMapMode]=useState<MapMode>('all'),[mapOrderFilter,setMapOrderFilter]=useState<MapOrderFilter>('all'),[mapDriverFilter,setMapDriverFilter]=useState<MapDriverFilter>('all'),[focusDriverId,setFocusDriverId]=useState<string|null>(null),[density,setDensity]=useState<'cards'|'compact'>('cards');
+ const[q,setQ]=useState(''),[selected,setSelected]=useState<string[]>([]),[batchDriver,setBatchDriver]=useState(''),[manage,setManage]=useState(false),[mapMode,setMapMode]=useState<MapMode>('all'),[mapOrderFilter,setMapOrderFilter]=useState<MapOrderFilter>('all'),[mapDriverFilter,setMapDriverFilter]=useState<MapDriverFilter>('all'),[focusDriverId,setFocusDriverId]=useState<string|null>(null),[density,setDensity]=useState<'cards'|'compact'>('cards'),[driverSearch,setDriverSearch]=useState('');
  const load=(id:string)=>activeOrders.filter(o=>o.assignedMotoboyId===id&&!['delivered','cancelled'].includes(o.status)).length;
  const freeDrivers=useMemo(()=>motoboysAvailable.filter(m=>load(m.id)===0),[motoboysAvailable,activeOrders]);
  const driverLabel=(m?:Motoboy)=>{if(!m)return'Sem entregador';const n=load(m.id);if(n>0)return n===1?'1 pedido vinculado':`${n} pedidos vinculados`;return m.status==='available'?'Disponível':m.status==='delivering'?'Em entrega':m.status==='returning_to_store'?'Voltando':m.status==='offline'?'Offline':'Ocupado'};
@@ -50,7 +50,11 @@ export const OperationDispatchView:React.FC<P>=(p)=>{
   <span className="truncate flex-1 min-w-0">{o.clientName}</span>
   <span className={`shrink-0 whitespace-nowrap ${late?'text-red-600 font-semibold':'text-slate-400'}`}>{rightLabel}</span>
  </div>};
- const chip=(active:boolean,disabled=false)=>`h-9 px-3 rounded-lg border text-xs font-medium whitespace-nowrap ${disabled?'opacity-35 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400':active?'bg-violet-600 border-violet-200 text-white':'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'}`;
+ const Checkbox:React.FC<{checked:boolean;label:string;count?:number;onClick:()=>void}>=({checked,label,count,onClick})=><button type="button" onClick={onClick} className="w-full flex items-center gap-2 py-1 cursor-pointer text-left">
+  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${checked?'bg-violet-600 border-violet-600':'border-slate-300'}`}>{checked&&<Check className="w-2.5 h-2.5 text-white" strokeWidth={3}/>}</span>
+  <span className={`text-xs ${checked?'text-slate-900 font-medium':'text-slate-500'}`}>{label}</span>
+  {typeof count==='number'&&<span className="ml-auto text-xs text-slate-400">{count}</span>}
+ </button>;
  const orderFilterCount=(id:MapOrderFilter)=>id==='all'?activeOrders.length:activeOrders.filter(o=>stage(o)===id).length;
  const driverFilterCount=(id:MapDriverFilter)=>id==='all'?motoboys.filter(m=>m.status!=='offline').length:mapDriverFilter==='available'?freeDrivers.length:motoboys.filter(m=>m.status===id).length;
  const queueIndex=(m:Motoboy)=>freeDrivers.findIndex(x=>x.id===m.id);
@@ -63,10 +67,55 @@ export const OperationDispatchView:React.FC<P>=(p)=>{
   {critical.slice(0,3).map(o=>{const s=stage(o),wait=s==='ready'?minsSince(readyStamp(o)):minsSince(stamp(o));return <div key={o.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3"><div className="flex-1 min-w-[260px]"><b className="text-sm text-red-800">{code(o)} {s==='ready'?(o.assignedMotoboyId?'pronto e aguardando retirada':'pronto e aguardando entregador'):'sem entregador'} há {duration(wait)}</b><p className="text-xs text-slate-500 mt-0.5">{o.clientName} · {o.neighborhood||o.address}</p></div>{!o.assignedMotoboyId&&<button onClick={()=>assignCritical(o)} className="h-8 px-3 rounded-md bg-violet-600 text-white text-xs font-semibold">Atribuir entregador</button>}<button onClick={()=>onSelectOrderForTracking(o)} className="h-8 px-3 rounded-md border border-slate-200 bg-white text-slate-700 text-xs">Ver pedido</button></div>})}
   {selected.length>0&&<div className="bg-violet-50 border border-violet-200 rounded-lg px-3 py-2.5 flex items-center gap-2"><b className="text-xs text-slate-900">{selected.length} selecionado(s)</b><select value={batchDriver} onChange={e=>setBatchDriver(e.target.value)} className="ml-auto h-8 min-w-[190px] bg-white border border-slate-200 text-slate-700 rounded-md px-2 text-xs"><option value="">Escolher entregador...</option>{motoboys.filter(m=>m.status!=='offline').map(m=><option key={m.id} value={m.id}>{m.name} — {driverLabel(m)}</option>)}</select><button disabled={!batchDriver} onClick={batch} className="h-8 bg-violet-600 disabled:opacity-40 text-white rounded-md px-3 text-xs">Vincular</button><button onClick={()=>setSelected([])} className="w-8 h-8 text-slate-500"><X className="w-4 h-4"/></button></div>}
   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">{cols.map(([id,title,sub,items])=><section key={id} className="min-w-0"><div className="pb-3 border-b border-slate-200 flex items-start justify-between gap-2"><div><h3 className="text-sm font-semibold text-slate-900">{title}</h3><p className="text-xs text-slate-400 mt-1">{sub}</p></div><span className={`shrink-0 min-w-7 h-6 px-2 rounded-full grid place-items-center text-xs font-bold ${id==='ready'&&items.some(o=>minsSince(readyStamp(o))>=10)?'bg-red-100 text-red-700 border border-red-200':'bg-slate-100 text-slate-600'}`}>{id==='ready'&&items.some(o=>minsSince(readyStamp(o))>=10)?`${items.length} atraso`:items.length}</span></div><div className={`pt-3 min-h-[220px] max-h-[610px] overflow-y-auto ${density==='compact'?'space-y-0.5':'space-y-2'}`}>{items.length?items.map(o=>density==='compact'?<Row key={o.id} o={o} s={id}/>:<Card key={o.id} o={o} s={id}/>):<div className="h-40 grid place-items-center text-center px-4"><div><PackageOpen className="w-6 h-6 text-slate-300 mx-auto mb-2"/><p className="text-xs text-slate-400">{empty[id]}</p></div></div>}</div></section>)}</div>
-  {manage&&<div className="fixed inset-0 z-[80] bg-black/50 p-4 flex items-center justify-center"><div className="w-full max-w-[1500px] h-[88vh] bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col shadow-2xl"><div className="px-5 py-3 border-b border-slate-200 flex justify-between"><div><h3 className="text-slate-900 text-base font-semibold">Gestão de entrega</h3><p className="text-xs text-slate-500 mt-1">Acompanhe pedidos, entregadores e a ordem da fila.</p></div><button onClick={()=>setManage(false)}><X className="w-5 h-5 text-slate-500"/></button></div>
-   <div className="px-5 py-2.5 border-b border-slate-200 flex flex-wrap gap-2 items-center">{([['all','Pedidos + entregadores'],['orders','Só pedidos'],['drivers','Só entregadores']]as[MapMode,string][]).map(([id,l])=><button key={id} onClick={()=>setMapMode(id)} className={chip(mapMode===id)}>{l}</button>)}<span className="w-px h-5 bg-slate-200 mx-1"/>{mapMode!=='drivers'&&([['all','Todos'],['waiting','Sem entregador'],['preparing','Atribuídos'],['ready','Prontos'],['route','Em entrega']]as[MapOrderFilter,string][]).filter(([id,l])=>id==='all'||orderFilterCount(id)>0).map(([id,l])=><button key={id} onClick={()=>setMapOrderFilter(id)} className={chip(mapOrderFilter===id)}>{l} ({orderFilterCount(id)})</button>)}{mapMode!=='orders'&&mapMode!=='drivers'&&<span className="w-px h-5 bg-slate-200 mx-1"/>}{mapMode!=='orders'&&([['all','Todos'],['available','Livres'],['delivering','Em entrega'],['returning_to_store','Voltando']]as[MapDriverFilter,string][]).filter(([id])=>id==='all'||(id==='available'?freeDrivers.length>0:driverFilterCount(id)>0)).map(([id,l])=>{const n=id==='available'?freeDrivers.length:driverFilterCount(id);return <button key={id} onClick={()=>setMapDriverFilter(id)} className={chip(mapDriverFilter===id)}>{l} ({n})</button>})}</div>
-   <div className="grid lg:grid-cols-[minmax(0,1fr)_350px] flex-1 min-h-0"><div className="p-3 min-h-0"><ReactiveRouteMap origin={{name:shift.storeName||'Loja',address:shift.storeAddress||'',lat:shift.storeLat||-26.9194,lng:shift.storeLng||-49.0661}} stops={mapMode==='drivers'?[]:stops} motoboysList={mapMode==='orders'?[]:mapDrivers} selectedMotoboyId={focusDriverId} onSelectMotoboy={(id:string|null)=>setFocusDriverId(id)}/></div><aside className="border-l border-slate-200 p-3 overflow-y-auto"><h4 className="text-sm font-semibold text-slate-900 mb-1">Fila de entregadores</h4><p className="text-xs text-slate-400 mb-3">O primeiro realmente livre é o próximo a receber uma saída.</p>{sortedDrivers.map(m=>{const qi=queueIndex(m),focused=focusDriverId===m.id,active=activeOrders.filter(o=>o.assignedMotoboyId===m.id&&!['delivered','cancelled'].includes(o.status));return <button key={m.id} onClick={()=>setFocusDriverId(focused?null:m.id)} className={`w-full text-left border rounded-xl p-3 mb-2 ${focused?'border-violet-200 bg-violet-50':'border-slate-200 bg-slate-50'}`}><div className="flex justify-between gap-2"><div><b className="text-sm text-slate-900">{m.name}</b><p className="text-xs text-slate-500 mt-1">{driverLabel(m)}</p></div>{qi>=0?<span className={`h-fit rounded-full px-2 py-1 text-[10px] font-bold ${qi===0?'bg-violet-600 text-white':'bg-slate-100 text-slate-600'}`}>{qi===0?'1º da fila · próximo':`${qi+1}º da fila`}</span>:active.length?<span className="h-fit rounded-full px-2 py-1 text-[10px] font-bold bg-slate-100 text-slate-600">Com pedido</span>:<Bike className="w-4 h-4 text-slate-400"/>}</div><p className="text-xs text-slate-400 mt-2">{active.length} pedido(s) vinculados · {returnEta(m)}</p>{m.status==='returning_to_store'&&<span onClick={e=>{e.stopPropagation();handleCallCounter(m.id,m.name)}} className="inline-block mt-2 text-xs text-violet-700">Chamar no balcão</span>}</button>})}</aside></div>
-  </div></div>}
+  {manage&&(
+    <div className="fixed inset-0 z-[80] bg-black/50 p-4 flex items-center justify-center">
+      <div className="w-full max-w-[1500px] h-[88vh] bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col shadow-2xl">
+        <div className="px-5 py-3 border-b border-slate-200 flex justify-between">
+          <div><h3 className="text-slate-900 text-base font-semibold">Gestão de entrega</h3><p className="text-xs text-slate-500 mt-1">Acompanhe pedidos, entregadores e a ordem da fila.</p></div>
+          <button onClick={()=>setManage(false)}><X className="w-5 h-5 text-slate-500"/></button>
+        </div>
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_320px] flex-1 min-h-0">
+          <div className="relative p-3 min-h-0">
+            <div className="absolute top-6 left-6 z-[60] bg-white rounded-xl shadow-lg border border-slate-200 p-3 w-[220px] space-y-2.5">
+              <div className="flex gap-1 bg-slate-50 border border-slate-200 rounded-lg p-0.5">
+                {([['all','Tudo'],['orders','Pedidos'],['drivers','Entreg.']]as[MapMode,string][]).map(([id,l])=>
+                  <button key={id} onClick={()=>setMapMode(id)} className={`flex-1 h-7 rounded-md text-[11px] font-semibold ${mapMode===id?'bg-violet-600 text-white':'text-slate-500 hover:text-slate-800'}`}>{l}</button>
+                )}
+              </div>
+              {mapMode!=='drivers'&&(
+                <div className="space-y-0.5">
+                  <Checkbox checked={mapOrderFilter==='all'} label="Todos os pedidos" onClick={()=>setMapOrderFilter('all')}/>
+                  {([['waiting','Sem entregador'],['preparing','Atribuídos'],['ready','Prontos'],['route','Em entrega']]as[MapOrderFilter,string][])
+                    .filter(([id])=>orderFilterCount(id)>0)
+                    .map(([id,l])=><Checkbox key={id} checked={mapOrderFilter===id} label={l} count={orderFilterCount(id)} onClick={()=>setMapOrderFilter(id)}/>)}
+                </div>
+              )}
+              {mapMode!=='orders'&&mapMode!=='drivers'&&<div className="h-px bg-slate-100"/>}
+              {mapMode!=='orders'&&(
+                <div className="space-y-0.5">
+                  <Checkbox checked={mapDriverFilter==='all'} label="Todos os entregadores" onClick={()=>setMapDriverFilter('all')}/>
+                  {([['available','Livres'],['delivering','Em entrega'],['returning_to_store','Voltando']]as[MapDriverFilter,string][])
+                    .filter(([id])=>id==='available'?freeDrivers.length>0:driverFilterCount(id)>0)
+                    .map(([id,l])=>{const n=id==='available'?freeDrivers.length:driverFilterCount(id);return <Checkbox key={id} checked={mapDriverFilter===id} label={l} count={n} onClick={()=>setMapDriverFilter(id)}/>})}
+                </div>
+              )}
+            </div>
+            <ReactiveRouteMap origin={{name:shift.storeName||'Loja',address:shift.storeAddress||'',lat:shift.storeLat||-26.9194,lng:shift.storeLng||-49.0661}} stops={mapMode==='drivers'?[]:stops} motoboysList={mapMode==='orders'?[]:mapDrivers} selectedMotoboyId={focusDriverId} onSelectMotoboy={(id:string|null)=>setFocusDriverId(id)}/>
+          </div>
+          <aside className="border-l border-slate-200 p-3 overflow-y-auto flex flex-col">
+            <div className="relative mb-2">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400"/>
+              <input value={driverSearch} onChange={e=>setDriverSearch(e.target.value)} placeholder="Buscar entregador" className="w-full pl-8 pr-2 h-8 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400"/>
+            </div>
+            <p className="text-xs text-slate-400 mb-2">
+              <span className="text-slate-600 font-medium">{freeDrivers.length}</span> livre{freeDrivers.length===1?'':'s'} · <span className="text-slate-600 font-medium">{motoboys.filter(m=>m.status==='delivering').length}</span> em rota · <span className="text-slate-600 font-medium">{motoboys.filter(m=>m.status==='offline').length}</span> offline
+            </p>
+            {(()=>{const list=sortedDrivers.filter(m=>!driverSearch||m.name.toLowerCase().includes(driverSearch.toLowerCase()));if(!list.length)return <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-10"><div className="w-11 h-11 rounded-full bg-violet-50 flex items-center justify-center mb-3"><Bike className="w-5 h-5 text-violet-600"/></div><p className="text-sm font-medium text-slate-700">Nenhum entregador encontrado</p><p className="text-xs text-slate-400 mt-1">Seus entregadores em turno aparecerão aqui.</p></div>;return list.map(m=>{const qi=queueIndex(m),focused=focusDriverId===m.id,active=activeOrders.filter(o=>o.assignedMotoboyId===m.id&&!['delivered','cancelled'].includes(o.status));return <button key={m.id} onClick={()=>setFocusDriverId(focused?null:m.id)} className={`w-full text-left border rounded-xl p-3 mb-2 ${focused?'border-violet-200 bg-violet-50':'border-slate-200 bg-slate-50'}`}><div className="flex justify-between gap-2"><div><b className="text-sm text-slate-900">{m.name}</b><p className="text-xs text-slate-500 mt-1">{driverLabel(m)}</p></div>{qi>=0?<span className={`h-fit rounded-full px-2 py-1 text-[10px] font-bold ${qi===0?'bg-violet-600 text-white':'bg-slate-100 text-slate-600'}`}>{qi===0?'1º da fila · próximo':`${qi+1}º da fila`}</span>:active.length?<span className="h-fit rounded-full px-2 py-1 text-[10px] font-bold bg-slate-100 text-slate-600">Com pedido</span>:<Bike className="w-4 h-4 text-slate-400"/>}</div><p className="text-xs text-slate-400 mt-2">{active.length} pedido(s) vinculados · {returnEta(m)}</p>{m.status==='returning_to_store'&&<span onClick={e=>{e.stopPropagation();handleCallCounter(m.id,m.name)}} className="inline-block mt-2 text-xs text-violet-700">Chamar no balcão</span>}</button>})})()}
+          </aside>
+        </div>
+      </div>
+    </div>
+  )}
  </div>
 };
 export default OperationDispatchView;
