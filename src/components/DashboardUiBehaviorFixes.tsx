@@ -72,6 +72,18 @@ const hideUselessAssignButtons = () => {
   });
 };
 
+const hideDuplicateDirectRouteSuggestion = () => {
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>('div'));
+  candidates.forEach((element) => {
+    const text = element.textContent?.trim() || '';
+    if (!text.startsWith('Rota sugerida:')) return;
+    if (!text.includes('Despachar rota')) return;
+
+    // Esconde apenas a faixa verde duplicada no topo. O bloco "Rotas que combinam" permanece.
+    element.style.display = 'none';
+  });
+};
+
 const openGlobalOrderModal = () => {
   const globalOrderButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => {
     if (button.closest('[data-operation-enhanced-modal="true"]')) return false;
@@ -80,6 +92,14 @@ const openGlobalOrderModal = () => {
   });
 
   globalOrderButton?.click();
+};
+
+const openPedidosTab = () => {
+  const pedidosButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
+    (button.textContent?.trim() || '').includes('Pedidos e despacho')
+  );
+
+  if (pedidosButton) pedidosButton.click();
 };
 
 export const DashboardUiBehaviorFixes: React.FC = () => {
@@ -100,6 +120,7 @@ export const DashboardUiBehaviorFixes: React.FC = () => {
         }
       });
 
+      hideDuplicateDirectRouteSuggestion();
       hideUselessAssignButtons();
     };
 
@@ -148,8 +169,6 @@ export const DashboardUiBehaviorFixes: React.FC = () => {
         return;
       }
 
-      // If the previous hidden legacy modal was left mounted, React still thinks
-      // management is open. Reset that state first, then replay the user's click.
       if (label === 'Gestão de entrega' && !enhancedModal && getLegacyManagementOverlay() && !reopeningManagement) {
         event.preventDefault();
         event.stopPropagation();
@@ -160,8 +179,6 @@ export const DashboardUiBehaviorFixes: React.FC = () => {
       }
 
       if (button.title === 'Fechar gestão de entrega' && enhancedModal) {
-        // Let the enhanced modal close itself, then guarantee the hidden legacy
-        // React modal is also closed so the next open always works.
         window.setTimeout(closeLegacyManagementState, 0);
         window.setTimeout(closeLegacyManagementState, 100);
       }
@@ -191,12 +208,20 @@ export const DashboardUiBehaviorFixes: React.FC = () => {
     };
 
     sync();
+
+    // F5/reload deve sempre voltar para a operação principal, nunca para Financeiro.
+    const initialTabTimer = window.setTimeout(() => {
+      openPedidosTab();
+      sync();
+    }, 120);
+
     document.addEventListener('click', onClick, true);
     window.addEventListener('keydown', onKeyDown, true);
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
 
     return () => {
+      window.clearTimeout(initialTabTimer);
       document.removeEventListener('click', onClick, true);
       window.removeEventListener('keydown', onKeyDown, true);
       observer.disconnect();
