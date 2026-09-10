@@ -1,0 +1,112 @@
+name: Fix shift pause resume semantics
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-shift-pause-resume.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch shift toggle behavior
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/App.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          old = '''    if (isOpening) {
+      const newShiftId = `shift_${todayKey}_${nowTs}`;
+      const updatedShift: StoreShift = {
+        ...shift,
+        isOpen: true,
+        setupRequired: false,
+        pilotMode: true,
+        demoDataDisabled: true,
+        openedAt: nowTime,
+        openedTimestamp: nowTs,
+        shiftId: newShiftId,
+        shiftDate: todayKey,
+        closedAt: undefined,
+        closedTimestamp: undefined,
+        totalOrdersCount: 0,
+        totalDeliveriesValue: 0,
+        currentCash: shift.initialCash || 0,
+      };
+      setShift(updatedShift);
+      saveShiftToCloud(updatedShift);
+
+      // Zera contadores diários dos entregadores para o novo turno
+      motoboys.forEach((m) => {
+        saveMotoboyToCloud({
+          ...m,
+          deliveriesCountToday: 0,
+          totalEarnedToday: 0,
+          statsDate: todayKey,
+        });
+      });
+
+      showToast('Turno aberto! Faturamento zerado e pronto para os pedidos de hoje. 🟢');
+    } else {'''
+
+          new = '''    if (isOpening) {
+      // Reabrir no mesmo dia significa RETOMAR a operação, não criar um turno novo.
+      // Isso preserva faturamento, pedidos e estatísticas já acumulados hoje.
+      const isResumingToday = Boolean(shift.shiftId && shift.shiftDate === todayKey);
+      const activeShiftId = isResumingToday ? shift.shiftId! : `shift_${todayKey}_${nowTs}`;
+      const updatedShift: StoreShift = {
+        ...shift,
+        isOpen: true,
+        setupRequired: false,
+        pilotMode: true,
+        demoDataDisabled: true,
+        openedAt: isResumingToday ? (shift.openedAt || nowTime) : nowTime,
+        openedTimestamp: isResumingToday ? (shift.openedTimestamp || nowTs) : nowTs,
+        shiftId: activeShiftId,
+        shiftDate: todayKey,
+        closedAt: undefined,
+        closedTimestamp: undefined,
+        // Só inicializa os acumuladores quando for realmente o primeiro turno do dia.
+        totalOrdersCount: isResumingToday ? shift.totalOrdersCount : 0,
+        totalDeliveriesValue: isResumingToday ? shift.totalDeliveriesValue : 0,
+        currentCash: isResumingToday ? shift.currentCash : (shift.initialCash || 0),
+      };
+      setShift(updatedShift);
+      saveShiftToCloud(updatedShift);
+
+      // Contadores do motoboy são DIÁRIOS. Não zerar ao pausar/reabrir a loja.
+      // Em um novo dia, saveMotoboyToCloud já normaliza statsDate e zera quando necessário.
+      if (!isResumingToday) {
+        motoboys.forEach((m) => {
+          saveMotoboyToCloud({ ...m, statsDate: todayKey });
+        });
+      }
+
+      showToast(isResumingToday
+        ? 'Operação retomada! Os pedidos e o faturamento de hoje foram mantidos. 🟢'
+        : 'Operação aberta! Pronto para receber os pedidos de hoje. 🟢');
+    } else {'''
+
+          if old not in text:
+              raise SystemExit('Expected handleToggleShift opening block not found')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit and cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-shift-pause-resume.yml
+          git add src/App.tsx
+          git commit -m "fix: treat same-day reopen as pause resume"
+          git push origin main
