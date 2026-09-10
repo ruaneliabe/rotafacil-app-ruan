@@ -44,7 +44,59 @@ export function RuntimeCorrections() {
     `;
     document.head.appendChild(style);
 
+    const findStoreOpeningOverlay = () => {
+      return Array.from(document.querySelectorAll<HTMLElement>('div.fixed, div[role="dialog"], div[class*="fixed"]')).find((el) => {
+        const copy = (el.textContent || '').toLowerCase();
+        return copy.includes('abrir loja') && (copy.includes('saldo inicial') || copy.includes('antes de começar'));
+      }) || null;
+    };
+
+    const closeStoreOpeningOverlay = () => {
+      const overlay = findStoreOpeningOverlay();
+      if (!overlay) return;
+      overlay.dataset.rotaFacilOpeningDismissed = 'true';
+      overlay.style.display = 'none';
+    };
+
+    const decorateStoreOpeningModal = () => {
+      const overlay = findStoreOpeningOverlay();
+      if (!overlay || overlay.dataset.rotaFacilOpeningDecorated === 'true') return;
+      overlay.dataset.rotaFacilOpeningDecorated = 'true';
+
+      const card = Array.from(overlay.querySelectorAll<HTMLElement>('div')).find((el) => {
+        const copy = (el.textContent || '').toLowerCase();
+        return copy.includes('abrir loja') && copy.includes('saldo inicial') && el.querySelectorAll('button').length > 0;
+      }) || overlay.firstElementChild as HTMLElement | null;
+      if (!card) return;
+
+      if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.setAttribute('aria-label', 'Cancelar abertura da loja');
+      close.title = 'Cancelar';
+      close.innerHTML = '×';
+      close.style.cssText = 'position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:24px;line-height:28px;font-weight:400;display:grid;place-items:center;cursor:pointer;z-index:5;';
+      close.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); closeStoreOpeningOverlay(); });
+      card.appendChild(close);
+
+      const primary = Array.from(card.querySelectorAll<HTMLButtonElement>('button')).find((b) => {
+        const label = (b.textContent || '').trim().toLowerCase();
+        return label.includes('iniciar operação') || label.includes('abrir loja');
+      });
+      if (primary && !card.querySelector('[data-rota-facil-opening-cancel="true"]')) {
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.dataset.rotaFacilOpeningCancel = 'true';
+        cancel.textContent = 'Cancelar';
+        cancel.style.cssText = 'width:100%;margin-top:10px;height:38px;border-radius:9px;border:1px solid #e2e8f0;background:#fff;color:#475569;font-size:12px;font-weight:700;cursor:pointer;';
+        cancel.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); closeStoreOpeningOverlay(); });
+        primary.insertAdjacentElement('afterend', cancel);
+      }
+    };
+
     const decorate = () => {
+      decorateStoreOpeningModal();
       Array.from(document.querySelectorAll('button')).forEach((button) => {
         const raw = (button.textContent || '').trim();
         const text = raw.toLowerCase();
@@ -120,12 +172,29 @@ export function RuntimeCorrections() {
     decorate();
     let ticks = 0;
     const timer = window.setInterval(() => { decorate(); ticks += 1; if (ticks >= 24) window.clearInterval(timer); }, 300);
-    const onClick = () => { window.setTimeout(decorate, 80); window.setTimeout(decorate, 300); };
+    const onClick = (event: MouseEvent) => {
+      const button = (event.target as HTMLElement | null)?.closest('button');
+      const label = (button?.textContent || '').trim().toLowerCase();
+      if (button && (label === 'abrir' || label.includes('operação fechada'))) {
+        const hidden = document.querySelector<HTMLElement>('[data-rota-facil-opening-dismissed="true"]');
+        if (hidden) {
+          hidden.style.display = '';
+          delete hidden.dataset.rotaFacilOpeningDismissed;
+        }
+      }
+      window.setTimeout(decorate, 80);
+      window.setTimeout(decorate, 300);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && findStoreOpeningOverlay()) closeStoreOpeningOverlay();
+    };
     document.addEventListener('click', onClick);
+    window.addEventListener('keydown', onKeyDown);
 
     return () => {
       window.clearInterval(timer);
       document.removeEventListener('click', onClick);
+      window.removeEventListener('keydown', onKeyDown);
       style.remove();
       unsubscribeSessionGuard();
     };

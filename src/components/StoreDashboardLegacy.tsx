@@ -351,20 +351,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
   const todayDateKey = getBrazilDateKey();
 
-  // Pedidos ativos de entrega da operação atual.
-  // Pedido MANUAL pendente criado hoje precisa continuar visível mesmo com a operação fechada.
-  // Isso evita o caso em que o pedido é salvo no Firestore, entra na sugestão de rota,
-  // mas some das colunas/contadores por não existir um turno aberto no momento do cadastro.
+  // Pedidos ativos de entrega da operação atual:
+  // Se a loja estiver fechada, não há entregas ativas do dia.
+  // Se a loja estiver aberta, inclui apenas pedidos ativos pertencentes ao turno operacional atual.
   const activeOrders = orders.filter((o) => {
     if (o.status === 'delivered' || o.status === 'cancelled' || o.status === 'failed') return false;
     if (isTakeoutOrder(o)) return false;
-
-    const isManualPendingToday =
-      o.originChannel === 'manual' &&
-      o.createdDate === todayDateKey &&
-      (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready_at_counter');
-
-    if (isManualPendingToday) return true;
     if (!shift.isOpen) return false;
     if (!isOrderInCurrentShift(o, shift)) return false;
     return true;
