@@ -1,0 +1,232 @@
+name: Redesign operation dashboard
+
+on:
+  push:
+    paths:
+      - '.github/workflows/redesign-operation-dashboard.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Redesign operation dashboard
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('src/components/OperationDispatchView.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          # Imports for richer KPI/header cards.
+          text = text.replace(
+            "  Bike,\n  Check,",
+            "  Bike,\n  Boxes,\n  Check,\n  CircleDollarSign,\n  CreditCard,"
+          )
+          text = text.replace(
+            "  PackageOpen,\n  Route,",
+            "  PackageOpen,\n  ReceiptText,\n  Route,"
+          )
+
+          # Richer payment labels used by order cards.
+          helper_marker = "const duration = (mins: number) => (mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, '0')}`);\n"
+          helper_add = helper_marker + """const paymentLabel = (method?: string) => {
+  const value = String(method || '').toLowerCase();
+  if (value.includes('pix')) return 'Pix';
+  if (value.includes('card') || value.includes('cart')) return 'Cartão';
+  if (value.includes('cash') || value.includes('dinheiro')) return 'Dinheiro';
+  return 'Outro';
+};
+const channelLabel = (channel?: string) => {
+  if (channel === 'cardapio_web') return 'Cardápio Web';
+  if (channel === 'ifood') return 'iFood';
+  if (channel === 'manual') return 'Manual';
+  if (channel === 'pdv') return 'PDV';
+  return channel || 'Pedido';
+};
+"""
+          if helper_marker not in text:
+            raise SystemExit('duration marker not found')
+          text = text.replace(helper_marker, helper_add, 1)
+
+          # Replace the order card with a more commercial/operational version.
+          card_pattern = re.compile(r"  const Card: React\.FC<\{ o: Order; s: Stage \}> = \(\{ o, s \}\) => \{.*?\n  \};\n\n  const Row:", re.S)
+          card_replacement = r'''  const Card: React.FC<{ o: Order; s: Stage }> = ({ o, s }) => {
+    const m = motoboys.find((x) => x.id === o.assignedMotoboyId);
+    const wait = s === 'ready' ? minsSince(readyStamp(o)) : minsSince(stamp(o));
+    const late = (s === 'ready' && wait >= 10) || (s === 'waiting' && wait >= 15);
+    const payment = paymentLabel(o.paymentMethod);
+    return (
+      <article
+        onClick={() => s === 'waiting' && toggle(o.id)}
+        className={`group rounded-2xl border bg-white p-3.5 shadow-[0_1px_2px_rgba(15,23,42,.04)] transition-all ${
+          s === 'waiting' ? 'cursor-pointer hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg' : ''
+        } ${selected.includes(o.id) ? 'border-violet-400 ring-2 ring-violet-100' : 'border-slate-200'} ${late ? 'border-red-300 ring-1 ring-red-100' : ''}`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <b className="text-[15px] text-slate-950">{code(o)}</b>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-500">{channelLabel(o.originChannel)}</span>
+              {late && <span className="rounded-full bg-red-50 px-2 py-0.5 text-[9px] font-black text-red-700">ATENÇÃO</span>}
+            </div>
+            <p className="mt-1 truncate text-[13px] font-semibold text-slate-800">{o.clientName}</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <b className="whitespace-nowrap text-[13px] text-slate-950">{money(o.total)}</b>
+            {s === 'waiting' && <div className={`grid h-5 w-5 place-items-center rounded-md border ${selected.includes(o.id) ? 'border-violet-600 bg-violet-600' : 'border-slate-300 bg-white'}`}>{selected.includes(o.id) && <CheckCircle2 className="h-3 w-3 text-white" />}</div>}
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5">
+          <p className="flex gap-1.5 text-[11px] leading-relaxed text-slate-600"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />{o.address}</p>
+          {o.neighborhood && <p className="mt-1 pl-5 text-[10px] font-semibold text-slate-400">{o.neighborhood}</p>}
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[9px] font-bold text-slate-600"><CreditCard className="h-3 w-3" />{payment}</span>
+          <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-bold ${late ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'}`}><Clock3 className="h-3 w-3" />{s === 'ready' ? `Pronto há ${duration(wait)}` : `Há ${duration(wait)}`}</span>
+          {o.deliveryFee ? <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700"><CircleDollarSign className="h-3 w-3" />Entrega {money(o.deliveryFee)}</span> : null}
+        </div>
+
+        {s === 'preparing' && <div className="mt-3"><p className="mb-2 text-[10px] font-semibold text-slate-500"><Bike className="mr-1 inline h-3.5 w-3.5" />{o.assignedMotoboyName} · {driverLabel(m)}</p><button onClick={(e) => { e.stopPropagation(); onUpdateOrderStatus(o.id, 'ready_at_counter'); }} className="h-9 w-full rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-800 hover:bg-emerald-100">Marcar como pronto</button></div>}
+        {s === 'ready' && <div className="mt-3"><p className="mb-2 text-[10px] font-semibold text-slate-500"><Bike className="mr-1 inline h-3.5 w-3.5" />{o.assignedMotoboyName || 'Sem entregador'} · {m ? 'vinculado' : 'aguardando atribuição'}</p>{!o.assignedMotoboyId && <button onClick={(e) => { e.stopPropagation(); assignCritical(o); }} className="h-9 w-full rounded-lg bg-violet-600 text-xs font-bold text-white hover:bg-violet-500">Atribuir 1º da fila</button>}</div>}
+        {s === 'route' && <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3"><span className="text-[10px] font-semibold text-slate-500"><Bike className="mr-1 inline h-3.5 w-3.5" />{o.assignedMotoboyName || 'Em rota'}</span><button onClick={(e) => { e.stopPropagation(); onSelectOrderForTracking(o); }} className="rounded-lg bg-sky-50 px-2.5 py-1.5 text-[10px] font-bold text-sky-700">Rastrear</button></div>}
+      </article>
+    );
+  };
+
+  const Row:'''
+          text, n = card_pattern.subn(card_replacement, text, count=1)
+          if n != 1:
+            raise SystemExit('Card block not replaced')
+
+          # Upgrade KPI data structure.
+          metrics_pattern = re.compile(r"  const metrics = \[.*?\n  \] as const;", re.S)
+          metrics_replacement = r'''  const metrics = [
+    { label: 'Ativos', value: activeOrders.length, helper: 'pedidos na operação', icon: Boxes, iconClass: 'bg-slate-100 text-slate-700', valueClass: 'text-slate-950' },
+    { label: 'Sem entregador', value: grouped.waiting.length, helper: 'precisam de decisão', icon: Users, iconClass: 'bg-amber-50 text-amber-600', valueClass: grouped.waiting.length ? 'text-amber-700' : 'text-slate-950' },
+    { label: 'Atribuídos', value: grouped.preparing.length, helper: 'reservados para retirada', icon: Bike, iconClass: 'bg-violet-50 text-violet-600', valueClass: 'text-violet-700' },
+    { label: 'Prontos', value: grouped.ready.length, helper: 'aguardando balcão', icon: CheckCircle2, iconClass: 'bg-emerald-50 text-emerald-600', valueClass: grouped.ready.length ? 'text-emerald-700' : 'text-slate-950' },
+    { label: 'Em entrega', value: grouped.route.length, helper: 'na rua agora', icon: Navigation, iconClass: 'bg-sky-50 text-sky-600', valueClass: 'text-sky-700' },
+    { label: 'Livres na fila', value: queueDrivers.length, helper: queueDrivers[0] ? `${queueDrivers[0].name.split(' ')[0]} é o próximo` : 'nenhum livre agora', icon: Bike, iconClass: 'bg-emerald-50 text-emerald-600', valueClass: queueDrivers.length ? 'text-emerald-700' : 'text-slate-950' },
+  ];'''
+          text, n = metrics_pattern.subn(metrics_replacement, text, count=1)
+          if n != 1:
+            raise SystemExit('metrics block not replaced')
+
+          # Replace header + KPI visual block.
+          old_header_start = '''      <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">'''
+          old_header_end = '''      <FleetBottleneckBanner orders={activeOrders} motoboys={motoboys} shift={shift} onSelectOrders={(orderIds) => setSelected(orderIds)} />'''
+          start = text.find(old_header_start)
+          end = text.find(old_header_end)
+          if start < 0 or end < 0 or end <= start:
+            raise SystemExit('header region not found')
+          new_header = r'''      <header className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-[22px] font-black tracking-tight text-slate-950">Central de pedidos</h2>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-black ${shift.isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><span className={`h-2 w-2 rounded-full ${shift.isOpen ? 'bg-emerald-500' : 'bg-slate-400'}`} />{shift.isOpen ? 'OPERAÇÃO ABERTA' : 'OPERAÇÃO FECHADA'}</span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Pedidos, fila e entregadores em uma visão operacional rápida.</p>
+          </div>
+          <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+            <div className="relative min-w-[260px] flex-1 xl:max-w-[430px]">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar pedido, cliente, bairro ou endereço" className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-100" />
+            </div>
+            <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+              <button onClick={() => setDensity('cards')} className={`flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold ${density === 'cards' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}><LayoutGrid className="h-3.5 w-3.5" />Cards</button>
+              <button onClick={() => setDensity('compact')} className={`flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold ${density === 'compact' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}><List className="h-3.5 w-3.5" />Compacto</button>
+            </div>
+            <button onClick={() => setManage(true)} className="flex h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-xs font-black text-white shadow-sm transition hover:bg-violet-500"><Navigation className="h-4 w-4" />Gestão de entrega</button>
+          </div>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+        {metrics.map(({ label, value, helper, icon: Icon, iconClass, valueClass }) => (
+          <div key={label} className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${iconClass}`}><Icon className="h-4.5 w-4.5" /></span>
+              <div className="min-w-0"><div className={`text-[22px] font-black leading-none tracking-tight ${valueClass}`}>{value}</div><div className="mt-1 text-[10px] font-black uppercase tracking-[.06em] text-slate-500">{label}</div><div className="mt-1 truncate text-[9px] text-slate-400">{helper}</div></div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+'''
+          text = text[:start] + new_header + text[end:]
+
+          # Replace columns grid with workspace + right sidebar.
+          board_pattern = re.compile(r'''      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">.*?\n      </div>\n\n      \{manage && \(''', re.S)
+          board_replacement = r'''      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_310px]">
+        <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-4">
+          {columns.map(([id, title, sub, items]) => {
+            const empty = emptyState[id];
+            const hasLate = id === 'ready' && items.some((o) => minsSince(readyStamp(o)) >= 10);
+            return (
+              <section key={id} className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-start justify-between gap-2 border-b border-slate-100 bg-white px-3.5 py-3">
+                  <div className="flex min-w-0 gap-2.5"><span className={`w-1 self-stretch min-h-9 rounded-full ${stageTone[id]}`} /><div><h3 className="text-[13px] font-black text-slate-900">{title}</h3><p className="mt-0.5 text-[10px] text-slate-400">{sub}</p></div></div>
+                  <span className={`grid h-7 min-w-7 shrink-0 place-items-center rounded-full px-2 text-xs font-black ${hasLate ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>{items.length}</span>
+                </div>
+                <div className={`max-h-[650px] min-h-[310px] overflow-y-auto p-2.5 ${density === 'compact' ? 'space-y-0.5' : 'space-y-2'}`}>
+                  {items.length ? items.map((o) => density === 'compact' ? <Row key={o.id} o={o} s={id} /> : <Card key={o.id} o={o} s={id} />) : <div className="flex h-[220px] flex-col items-center justify-center px-5 text-center"><div className="mb-3 grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-slate-50"><PackageOpen className="h-5 w-5 text-slate-300" /></div><p className="text-xs font-bold text-slate-600">{empty.title}</p><p className="mt-1.5 max-w-[220px] text-[10px] leading-relaxed text-slate-400">{empty.subtitle}</p></div>}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+
+        <aside className="space-y-3 xl:sticky xl:top-3 xl:self-start">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 px-3.5 py-3"><div><h3 className="text-[13px] font-black text-slate-900">Mapa da operação</h3><p className="mt-0.5 text-[10px] text-slate-400">Pedidos e entregadores agora</p></div><button onClick={() => setManage(true)} className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-[10px] font-black text-violet-700">Expandir</button></div>
+            <div className="h-[235px] overflow-hidden bg-slate-100">
+              <ReactiveRouteMap origin={{ name: shift.storeName || 'Loja', address: shift.storeAddress || '', lat: shift.storeLat || -26.9194, lng: shift.storeLng || -49.0661 }} stops={stops.slice(0, 12)} motoboysList={motoboys.filter((m) => m.status !== 'offline')} selectedMotoboyId={null} />
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 px-3.5 py-3"><div className="flex items-center gap-2"><Users className="h-4 w-4 text-violet-600"/><h3 className="text-[13px] font-black text-slate-900">Entregadores</h3></div><span className="text-[10px] font-bold text-slate-400">{motoboys.filter((m) => m.status !== 'offline').length} online</span></div>
+            <div className="max-h-[305px] divide-y divide-slate-100 overflow-y-auto">
+              {sortedDrivers.slice(0, 8).map((m) => {
+                const qi = queueIndex(m);
+                const active = load(m.id);
+                return <button key={m.id} onClick={() => { setFocusDriverId(m.id); setManage(true); }} className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50"><div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-[11px] font-black ${qi === 0 ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{m.name.slice(0,1).toUpperCase()}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><p className="truncate text-[11px] font-black text-slate-900">{m.name}</p>{qi === 0 && <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[8px] font-black text-violet-700">PRÓXIMO</span>}</div><p className="mt-0.5 truncate text-[9px] text-slate-400">{qi >= 0 ? `${qi + 1}º da fila` : driverLabel(m)} · {active} pedido{active === 1 ? '' : 's'}</p></div><ChevronRight className="h-4 w-4 text-slate-300"/></button>;
+              })}
+              {!sortedDrivers.length && <div className="px-4 py-8 text-center text-[11px] text-slate-400">Nenhum entregador online agora.</div>}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-slate-950 p-3.5 text-white shadow-sm">
+            <div className="flex items-center gap-2"><ReceiptText className="h-4 w-4 text-violet-300"/><h3 className="text-[12px] font-black">Resumo rápido</h3></div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-center"><div className="rounded-xl bg-white/5 p-2.5"><p className="text-[18px] font-black">{critical.length}</p><p className="mt-1 text-[9px] text-slate-400">atenções</p></div><div className="rounded-xl bg-white/5 p-2.5"><p className="text-[18px] font-black">{queueDrivers.length}</p><p className="mt-1 text-[9px] text-slate-400">livres na fila</p></div></div>
+          </section>
+        </aside>
+      </div>
+
+      {manage && ('''
+          text, n = board_pattern.subn(board_replacement, text, count=1)
+          if n != 1:
+            raise SystemExit('board region not replaced')
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit redesign
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/redesign-operation-dashboard.yml
+          git add src/components/OperationDispatchView.tsx
+          git commit -m "feat: redesign order operation dashboard"
+          git push origin main
