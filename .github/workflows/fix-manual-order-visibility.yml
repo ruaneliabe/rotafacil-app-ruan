@@ -1,0 +1,44 @@
+name: Apply manual order visibility hotfix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-manual-order-visibility.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch dashboard filter
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/components/StoreDashboardLegacy.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          old = """  // Pedidos ativos de entrega da operação atual:\n  // Se a loja estiver fechada, não há entregas ativas do dia.\n  // Se a loja estiver aberta, inclui apenas pedidos ativos pertencentes ao turno operacional atual.\n  const activeOrders = orders.filter((o) => {\n    if (o.status === 'delivered' || o.status === 'cancelled' || o.status === 'failed') return false;\n    if (isTakeoutOrder(o)) return false;\n    if (!shift.isOpen) return false;\n    if (!isOrderInCurrentShift(o, shift)) return false;\n    return true;\n  });"""
+
+          new = """  // Pedidos ativos de entrega da operação atual.\n  // Pedido MANUAL pendente criado hoje precisa continuar visível mesmo com a operação fechada.\n  // Isso evita o caso em que o pedido é salvo no Firestore, entra na sugestão de rota,\n  // mas some das colunas/contadores por não existir um turno aberto no momento do cadastro.\n  const activeOrders = orders.filter((o) => {\n    if (o.status === 'delivered' || o.status === 'cancelled' || o.status === 'failed') return false;\n    if (isTakeoutOrder(o)) return false;\n\n    const isManualPendingToday =\n      o.originChannel === 'manual' &&\n      o.createdDate === todayDateKey &&\n      (o.status === 'pending' || o.status === 'preparing' || o.status === 'ready_at_counter');\n\n    if (isManualPendingToday) return true;\n    if (!shift.isOpen) return false;\n    if (!isOrderInCurrentShift(o, shift)) return false;\n    return true;\n  });"""
+
+          if old not in text:
+              raise SystemExit('Trecho esperado não encontrado; hotfix não aplicado.')
+
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+      - name: Commit hotfix and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-manual-order-visibility.yml
+          git add src/components/StoreDashboardLegacy.tsx
+          git commit -m "fix: keep manual pending orders visible when operation is closed"
+          git push origin main
