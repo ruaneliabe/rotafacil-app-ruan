@@ -1,12 +1,9 @@
 import { useEffect } from 'react';
-import { deleteDoc, doc } from 'firebase/firestore';
-import { db, subscribeToMotoboys, subscribeToOrders } from '../lib/firebase';
-import { getBrazilDateKey } from '../utils/dateUtils';
+import { subscribeToMotoboys } from '../lib/firebase';
 
 export function RuntimeCorrections() {
   useEffect(() => {
     let logoutInProgress = false;
-    let cleanupStarted = false;
 
     const clearMotoboySessionAndReturnToLogin = () => {
       if (logoutInProgress) return;
@@ -34,33 +31,8 @@ export function RuntimeCorrections() {
       }
     });
 
-    const unsubscribeOrders = subscribeToOrders((cloudOrders) => {
-      if (cleanupStarted) return;
-      cleanupStarted = true;
-
-      const today = getBrazilDateKey();
-      const testOrders = cloudOrders.filter((order: any) => {
-        const isToday = order.createdDate === today;
-        const isRealIntegration =
-          order.originChannel === 'cardapio_web' ||
-          order.originChannel === 'ifood' ||
-          Boolean(order.externalOrderId);
-
-        return isToday && !isRealIntegration;
-      });
-
-      if (testOrders.length === 0) return;
-
-      Promise.all(
-        testOrders.map((order) => deleteDoc(doc(db, 'orders', order.id)))
-      ).catch((error) => {
-        console.warn('Falha ao limpar pedidos de teste de hoje:', error);
-      });
-    });
-
     return () => {
       unsubscribeSessionGuard();
-      unsubscribeOrders();
     };
   }, []);
 
