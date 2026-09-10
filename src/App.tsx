@@ -639,7 +639,7 @@ export default function App() {
   const storeDisplayName = session.storeName || shift.storeName || 'Minha Loja';
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col selection:bg-slate-700 selection:text-white">
+    <div className={`min-h-screen font-sans flex flex-col selection:bg-slate-700 selection:text-white ${isStoreAdminOrMaster ? 'bg-[#FAF9F6] text-slate-900' : 'bg-slate-900 text-slate-100'}`}>
       {!isOnline && (
         <div className="sticky top-0 z-[100] bg-rose-600 text-white text-center text-xs font-black px-3 py-2 shadow-lg">
           ⚠️ SEM INTERNET — alterações podem não chegar aos outros dispositivos até a conexão voltar.
@@ -655,123 +655,21 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Top Header Navigation (Control Panel Bar) */}
-      {isStoreAdminOrMaster && (
-        <header className="bg-slate-950/90 border-b border-slate-800/80 sticky top-0 z-40 backdrop-blur-md text-white shadow-md">
-          <div className="max-w-[1680px] mx-auto px-3 sm:px-5 py-2.5 flex items-center justify-between gap-4">
-            
-            {/* Left: Brand Identity & Active Store Hierarchy */}
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="flex items-center gap-2.5 shrink-0">
-                <div className="w-8 h-8 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-center text-blue-400 font-bold shadow-xs">
-                  <Building2 className="w-4 h-4 text-blue-400" />
-                </div>
-                <div className="leading-tight">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-sm text-white tracking-tight">Rota Fácil</span>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider hidden sm:inline">OS</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Vertical divider */}
-              <div className="h-5 w-px bg-slate-800 hidden sm:block shrink-0" />
-
-              {/* Store & Status Pill */}
-              <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-xl px-2.5 py-1 min-w-0">
-                <Store className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span className="text-xs font-bold text-slate-100 truncate max-w-[140px] sm:max-w-[200px]">
-                  {storeDisplayName}
-                </span>
-                <span
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide shrink-0 ${
-                    shift.isOpen
-                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                      : 'bg-slate-800 text-slate-400 border border-slate-700'
-                  }`}
-                >
-                  {shift.isOpen ? 'Aberto' : 'Fechado'}
-                </span>
-              </div>
-            </div>
-
-            {/* Center: System Telemetry & Operational State (Hidden on small screens) */}
-            <div className="hidden lg:flex items-center gap-3">
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-xs">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-[11px] font-medium text-slate-300">Conectado</span>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                <div className="flex items-center gap-1 bg-slate-900/60 px-2 py-0.5 rounded-lg border border-slate-800/80">
-                  <Package className="w-3 h-3 text-amber-400" />
-                  <span className="text-[11px] font-semibold text-slate-200">{activeOrdersCount} {activeOrdersCount === 1 ? 'pedido ativo' : 'pedidos ativos'}</span>
-                </div>
-                <div className="flex items-center gap-1 bg-slate-900/60 px-2 py-0.5 rounded-lg border border-slate-800/80">
-                  <Bike className="w-3 h-3 text-blue-400" />
-                  <span className="text-[11px] font-semibold text-slate-200">{activeMotoboysCount} {activeMotoboysCount === 1 ? 'entregador ativo' : 'entregadores ativos'}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Actions, Configuration & User Profile */}
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsAccountSettingsOpen(true)}
-                className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                title="Configurações da Loja"
-              >
-                <Settings className="w-3.5 h-3.5 text-slate-400" />
-                <span className="hidden md:inline">Configurações</span>
-              </button>
-
-              {/* User Session Chip */}
-              <div className="flex items-center gap-1.5 bg-slate-900/90 pl-2 pr-1 py-1 rounded-xl border border-slate-800 text-xs">
-                {session.role === 'master_admin' ? (
-                  <div className="flex items-center gap-1.5 text-purple-300 font-bold">
-                    <Crown className="w-3.5 h-3.5 text-purple-400" />
-                    <span className="hidden sm:inline">Master</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-slate-300 font-medium">
-                    <div className="w-5 h-5 rounded-md bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-200">
-                      <User className="w-3 h-3 text-slate-400" />
-                    </div>
-                    <span className="hidden sm:inline max-w-[100px] truncate text-slate-200 font-semibold">
-                      {session.username || 'Admin'}
-                    </span>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSession(null);
-                    showToast('Sessão encerrada.');
-                  }}
-                  className="ml-1 p-1 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 rounded-lg transition-all text-xs cursor-pointer"
-                  title="Sair da conta"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </header>
-      )}
+      {/* A barra de identidade/navegação para lojista agora vive dentro do
+          StoreDashboard (sidebar), então não duplicamos aqui. */}
 
       {/* Main Content Area */}
-      <main className={`flex-1 w-full mx-auto ${session.role === 'motoboy' ? 'p-1 sm:p-3 max-w-md' : 'max-w-[1680px] p-3 md:p-4 space-y-4'}`}>
+      <main className={`flex-1 w-full ${session.role === 'motoboy' ? 'mx-auto p-1 sm:p-3 max-w-md' : 'p-3 md:p-4'}`}>
         {isStoreAdminOrMaster && (
           <StoreDashboard
             shift={shift}
             orders={orders}
             motoboys={motoboys}
+            username={session.username}
+            onLogout={() => {
+              setSession(null);
+              showToast('Sessão encerrada.');
+            }}
             onToggleShift={handleToggleShift}
             onAssignOrderToMotoboy={handleAssignOrderToMotoboy}
             onAssignBatchToMotoboy={handleAssignBatchToMotoboy}

@@ -34,6 +34,10 @@ import {
   RotateCw,
   Sparkles,
   Map,
+  Settings,
+  LogOut,
+  User,
+  Kanban,
 } from 'lucide-react';
 import { RouteMap } from './RouteMap';
 import { RouteModal } from './RouteModal';
@@ -75,6 +79,8 @@ interface StoreDashboardProps {
   onDeleteAllMotoboys?: () => void;
   onAddOrder?: (newOrder: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'>) => void;
   onSaveIntegrations?: (integrations: StoreIntegrations, branches?: StoreBranch[]) => void;
+  username?: string;
+  onLogout?: () => void;
 }
 
 export const StoreDashboard: React.FC<StoreDashboardProps> = ({
@@ -97,6 +103,8 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   onDeleteAllMotoboys,
   onAddOrder,
   onSaveIntegrations,
+  username,
+  onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<'kanban' | 'operacao' | 'mapa' | 'equipe' | 'gestao' | 'financeiro' | 'historico'>('operacao');
   const [selectedMotoboyId, setSelectedMotoboyId] = useState<string | null>(null);
@@ -545,196 +553,223 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   };
 
   return (
-    <div className="space-y-4 text-slate-100 relative">
-      {/* Real-time Store Action Toast */}
-      {actionToast && (
-        <div className="fixed top-4 right-4 z-50 bg-slate-900 border border-blue-500/40 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 animate-slideDown">
-          <span className="text-blue-400 font-bold text-base">🔔</span>
-          <span className="text-xs font-medium text-slate-100">{actionToast}</span>
-        </div>
-      )}
+    <div className="flex min-h-screen bg-[#FAF9F6] text-slate-900 -m-3 md:-m-4">
 
-      {/* 1. CABEÇALHO SÓBRIO & DIRETO - FILOSOFIA PDV / CARDÁPIO WEB */}
-      <header className="bg-slate-900 border border-slate-800 rounded-xl p-3 sm:p-4 shadow-sm space-y-3">
-        {/* Linha 1: Marca + Lojas + Status da Loja + Gestão */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-lg sm:text-xl font-black text-white tracking-tight flex items-center gap-1.5">
-                <span className="text-emerald-400">🛵</span> Rota Fácil
-              </span>
-              <span className="text-xs text-slate-500 font-medium hidden sm:inline">|</span>
-            </div>
-
-            {/* Seletor de Loja (Pílulas diretas) */}
-            <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 gap-1 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setStoreFilter('all')}
-                className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
-                  storeFilter === 'all'
-                    ? 'bg-slate-800 text-white font-black'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Todas ({activeOrders.length})
-              </button>
-              {(shift.branches || [
-                { id: 'hope_burger', name: 'Hope Burger', icon: '🍔', tag: 'HB' },
-                { id: 'hope_pizza', name: 'Hope Pizza', icon: '🍕', tag: 'HP' },
-              ]).map((branch) => {
-                const isSel = storeFilter === branch.id;
-                const count = activeOrders.filter((o) => {
-                  if (o.storeBranch === branch.id) return true;
-                  if (o.storeId === branch.id) return true;
-                  if (branch.id === 'hope_burger' && (o.storeBranch === 'hope_burger' || o.storeName?.toLowerCase().includes('burger'))) return true;
-                  if (branch.id === 'hope_pizza' && (o.storeBranch === 'hope_pizza' || o.storeName?.toLowerCase().includes('pizz') || o.storeName?.toLowerCase().includes('pizza'))) return true;
-                  return false;
-                }).length;
-
-                return (
-                  <button
-                    key={branch.id}
-                    type="button"
-                    onClick={() => setStoreFilter(branch.id)}
-                    className={`px-2.5 py-1 rounded transition-all flex items-center gap-1 cursor-pointer ${
-                      isSel
-                        ? 'bg-indigo-600 text-white font-black'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <span>{branch.icon || '🏪'}</span>
-                    <span>{branch.name}</span>
-                    {count > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
-                        isSel ? 'bg-white text-indigo-950' : 'bg-slate-800 text-slate-300'
-                      }`}>
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+      {/* SIDEBAR — identidade, status da loja e navegação principal */}
+      <aside className="hidden md:flex md:w-56 shrink-0 flex-col justify-between bg-[#FAF9F6] border-r border-[#E5E3DC] p-4 sticky top-0 h-screen">
+        <div>
+          <div className="mb-5">
+            <div className="text-[15px] font-semibold text-slate-900 tracking-tight">Rota Fácil</div>
+            <div className="text-xs text-slate-500 truncate mt-0.5">{shift.storeName || 'Minha loja'}</div>
           </div>
 
-          {/* Direita: Status da Loja + CW + Gestão */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1.5 ${
-                shift.isOpen
-                  ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
+          <nav className="space-y-0.5">
+            <button
+              type="button"
+              onClick={() => setActiveTab('operacao')}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-colors ${
+                activeTab === 'operacao'
+                  ? 'bg-violet-50 text-violet-900 font-medium border-l-2 border-violet-600'
+                  : 'text-slate-600 hover:bg-slate-100 border-l-2 border-transparent'
               }`}
             >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  shift.isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
-                }`}
-              />
-              {shift.isOpen ? 'Loja Aberta' : 'Loja Fechada'}
-            </span>
-            <button
-              type="button"
-              onClick={onToggleShift}
-              className="text-xs text-slate-400 hover:text-white underline cursor-pointer px-1"
-            >
-              {shift.isOpen ? 'Encerrar' : 'Abrir'}
+              <Package className={`w-4 h-4 ${activeTab === 'operacao' ? 'text-violet-700' : 'text-slate-400'}`} />
+              <span className="flex-1 text-left">Pedidos e despacho</span>
+              {unassignedOrders.length > 0 && (
+                <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 rounded-full px-1.5 py-0.5">
+                  {unassignedOrders.length}
+                </span>
+              )}
             </button>
 
-            <span
-              className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700/60 hidden md:inline-flex items-center gap-1"
-              title="Status do Cardápio Web"
+            <button
+              type="button"
+              onClick={() => setActiveTab('kanban')}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-colors ${
+                activeTab === 'kanban'
+                  ? 'bg-violet-50 text-violet-900 font-medium border-l-2 border-violet-600'
+                  : 'text-slate-600 hover:bg-slate-100 border-l-2 border-transparent'
+              }`}
             >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  shift.cardapioWebStatus?.isOpen ? 'bg-emerald-400' : 'bg-slate-500'
-                }`}
-              />
-              CW: {shift.cardapioWebStatus?.isOpen ? 'Aberto' : 'Fechado'}
-            </span>
+              <Kanban className={`w-4 h-4 ${activeTab === 'kanban' ? 'text-violet-700' : 'text-slate-400'}`} />
+              <span className="flex-1 text-left">Kanban</span>
+            </button>
 
             <button
               type="button"
-              onClick={() => handleSyncCardapioWeb(true)}
-              disabled={isSyncingCw}
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all border border-slate-700 cursor-pointer"
-              title="Sincronizar com Cardápio Web"
+              onClick={() => setActiveTab('equipe')}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-colors ${
+                activeTab === 'equipe'
+                  ? 'bg-violet-50 text-violet-900 font-medium border-l-2 border-violet-600'
+                  : 'text-slate-600 hover:bg-slate-100 border-l-2 border-transparent'
+              }`}
             >
-              <RotateCw className={`w-3.5 h-3.5 ${isSyncingCw ? 'animate-spin text-blue-400' : ''}`} />
+              <Bike className={`w-4 h-4 ${activeTab === 'equipe' ? 'text-violet-700' : 'text-slate-400'}`} />
+              <span className="flex-1 text-left">Entregadores</span>
+              <span className="text-[10px] text-slate-400">{motoboysAvailable.length}/{motoboys.filter((m) => m.status !== 'offline').length}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('financeiro')}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-colors ${
+                activeTab === 'gestao' || activeTab === 'financeiro'
+                  ? 'bg-violet-50 text-violet-900 font-medium border-l-2 border-violet-600'
+                  : 'text-slate-600 hover:bg-slate-100 border-l-2 border-transparent'
+              }`}
+            >
+              <DollarSign className={`w-4 h-4 ${activeTab === 'gestao' || activeTab === 'financeiro' ? 'text-violet-700' : 'text-slate-400'}`} />
+              <span className="flex-1 text-left">Financeiro</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('gestao')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'gestao'
-                  ? 'bg-slate-800 text-white border-slate-600'
-                  : 'bg-slate-950 text-slate-300 hover:text-white border-slate-800'
-              }`}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-colors text-slate-600 hover:bg-slate-100 border-l-2 border-transparent"
             >
-              <span>⚙️ Gestão</span>
+              <Settings className="w-4 h-4 text-slate-400" />
+              <span className="flex-1 text-left">Gestão e fechamento</span>
             </button>
-          </div>
+          </nav>
         </div>
 
-        {/* Linha 2: Fita de Números Vitais + Botões de Ação de Expedição */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2.5 border-t border-slate-800/80">
-          <div className="flex items-center gap-2 sm:gap-4 flex-wrap text-xs">
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <span className="text-slate-500 font-medium">Pedidos:</span>
-              <strong className="text-white font-black text-sm">{activeOrders.length}</strong>
-            </div>
-            <span className="text-slate-700">•</span>
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <span className="text-slate-500 font-medium">Prontos:</span>
-              <strong className="text-emerald-400 font-black text-sm">{unassignedOrders.length}</strong>
-            </div>
-            <span className="text-slate-700">•</span>
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <span className="text-slate-500 font-medium">Em rota:</span>
-              <strong className="text-blue-400 font-black text-sm">{inTransitOrders.length}</strong>
-            </div>
-            <span className="text-slate-700">•</span>
-            <div className="flex items-center gap-1.5 text-slate-300">
-              <span className="text-slate-500 font-medium">Motoboys:</span>
-              <strong className="text-amber-300 font-black text-sm">{motoboysAvailable.length} livres</strong>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {brainAnalysis.recommendations[0] && (
-              <button
-                type="button"
-                onClick={() => handleApplyBrainRecommendation(brainAnalysis.recommendations[0])}
-                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                title="Despachar a rota sugerida pelo sistema"
-              >
-                <span>🚀 Despachar ({brainAnalysis.recommendations[0].orders.length})</span>
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            onClick={onToggleShift}
+            className="w-full flex items-center gap-2 text-xs text-slate-500 hover:text-slate-800"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${shift.isOpen ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+            {shift.isOpen ? 'Loja aberta · encerrar' : 'Loja fechada · abrir'}
+          </button>
+          <button
+            type="button"
+            onClick={onOpenStoreSettings}
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-slate-600 hover:bg-slate-100"
+          >
+            <Settings className="w-4 h-4 text-slate-400" />
+            Configurações
+          </button>
+          <div className="flex items-center justify-between px-2.5 pt-2 border-t border-[#E5E3DC]">
+            <span className="flex items-center gap-1.5 text-xs text-slate-600">
+              <User className="w-3.5 h-3.5 text-slate-400" />
+              {username || 'Admin'}
+            </span>
+            {onLogout && (
+              <button type="button" onClick={onLogout} title="Sair" className="text-slate-400 hover:text-rose-600">
+                <LogOut className="w-3.5 h-3.5" />
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={onOpenNewOrderModal}
-              disabled={Boolean(shift.pilotMode && activeOrders.length >= 5)}
-              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ Novo Pedido</span>
-            </button>
           </div>
         </div>
-      </header>
+      </aside>
+
+      {/* CONTEÚDO */}
+      <div className="flex-1 min-w-0 p-3 md:p-4 space-y-4">
+      {/* Real-time Store Action Toast */}
+      {actionToast && (
+        <div className="fixed top-4 right-4 z-50 bg-white border border-violet-200 text-slate-900 px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 animate-slideDown">
+          <span className="text-violet-500 font-bold text-base">🔔</span>
+          <span className="text-xs font-medium text-slate-700">{actionToast}</span>
+        </div>
+      )}
+
+      {/* Filtro de marca (múltiplas bandeiras na mesma loja) */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center bg-white p-1 rounded-lg border border-[#E5E3DC] gap-1 text-xs font-medium">
+          <button
+            type="button"
+            onClick={() => setStoreFilter('all')}
+            className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
+              storeFilter === 'all' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Todas ({activeOrders.length})
+          </button>
+          {(shift.branches || [
+            { id: 'hope_burger', name: 'Hope Burger', icon: '🍔', tag: 'HB' },
+            { id: 'hope_pizza', name: 'Hope Pizza', icon: '🍕', tag: 'HP' },
+          ]).map((branch) => {
+            const isSel = storeFilter === branch.id;
+            const count = activeOrders.filter((o) => {
+              if (o.storeBranch === branch.id) return true;
+              if (o.storeId === branch.id) return true;
+              if (branch.id === 'hope_burger' && (o.storeBranch === 'hope_burger' || o.storeName?.toLowerCase().includes('burger'))) return true;
+              if (branch.id === 'hope_pizza' && (o.storeBranch === 'hope_pizza' || o.storeName?.toLowerCase().includes('pizz') || o.storeName?.toLowerCase().includes('pizza'))) return true;
+              return false;
+            }).length;
+
+            return (
+              <button
+                key={branch.id}
+                type="button"
+                onClick={() => setStoreFilter(branch.id)}
+                className={`px-2.5 py-1 rounded transition-all flex items-center gap-1 cursor-pointer ${
+                  isSel ? 'bg-violet-600 text-white' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <span>{branch.icon || '🏪'}</span>
+                <span>{branch.name}</span>
+                {count > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-semibold ${isSel ? 'bg-white text-violet-800' : 'bg-slate-100 text-slate-500'}`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className="px-2 py-1 rounded text-[11px] font-medium bg-white border border-[#E5E3DC] text-slate-500 hidden md:inline-flex items-center gap-1"
+            title="Status do Cardápio Web"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${shift.cardapioWebStatus?.isOpen ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+            CW: {shift.cardapioWebStatus?.isOpen ? 'Aberto' : 'Fechado'}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => handleSyncCardapioWeb(true)}
+            disabled={isSyncingCw}
+            className="p-1.5 bg-white hover:bg-slate-50 text-slate-400 hover:text-slate-700 rounded-lg transition-all border border-[#E5E3DC] cursor-pointer"
+            title="Sincronizar com Cardápio Web"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isSyncingCw ? 'animate-spin text-violet-500' : ''}`} />
+          </button>
+
+          {brainAnalysis.recommendations[0] && (
+            <button
+              type="button"
+              onClick={() => handleApplyBrainRecommendation(brainAnalysis.recommendations[0])}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Despachar a rota sugerida pelo sistema"
+            >
+              <span>Despachar ({brainAnalysis.recommendations[0].orders.length})</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onOpenNewOrderModal}
+            disabled={Boolean(shift.pilotMode && activeOrders.length >= 5)}
+            className="px-3.5 py-1.5 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white font-semibold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Novo pedido</span>
+          </button>
+        </div>
+      </div>
 
       {/* 2. AVISOS DIRETOS (SEM POLUIÇÃO DE DASHBOARD) */}
       {(brainAnalysis.recommendations[0] || (motoboysAvailable.length === 0 && unassignedOrders.length > 0) || delayedOrders.length > 0) && (
         <div className="space-y-1.5">
           {/* Rota sugerida direta */}
           {brainAnalysis.recommendations[0] && (
-            <div className="bg-emerald-950/40 border border-emerald-500/40 text-emerald-200 px-3.5 py-2 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3.5 py-2 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-emerald-400 font-black">🟢 Rota sugerida:</span>
+                <span className="text-emerald-700 font-semibold">Rota sugerida:</span>
                 <span>
                   Enviar <strong>{brainAnalysis.recommendations[0].motoboyName}</strong> com{' '}
                   {brainAnalysis.recommendations[0].orders.map((o) => `#${o.codeNumber}`).join(', ')}{' '}
@@ -744,7 +779,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => handleApplyBrainRecommendation(brainAnalysis.recommendations[0])}
-                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-lg cursor-pointer shrink-0"
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-lg cursor-pointer shrink-0"
               >
                 Despachar rota
               </button>
@@ -753,23 +788,23 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
           {/* Aguardando motoboy */}
           {motoboysAvailable.length === 0 && unassignedOrders.length > 0 && (
-            <div className="bg-amber-950/40 border border-amber-500/40 text-amber-200 px-3.5 py-1.5 rounded-xl text-xs flex items-center justify-between gap-2 shadow-xs">
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3.5 py-1.5 rounded-xl text-xs flex items-center justify-between gap-2">
               <span>
-                🟡 <strong>Aguardando motoboy:</strong> {unassignedOrders.length} {unassignedOrders.length === 1 ? 'pedido pronto' : 'pedidos prontos'} no balcão • Entregador retorna em breve
+                <strong>Aguardando motoboy:</strong> {unassignedOrders.length} {unassignedOrders.length === 1 ? 'pedido pronto' : 'pedidos prontos'} no balcão • Entregador retorna em breve
               </span>
             </div>
           )}
 
           {/* Pedidos com atraso */}
           {delayedOrders.length > 0 && (
-            <div className="bg-rose-950/40 border border-rose-500/40 text-rose-200 px-3.5 py-1.5 rounded-xl text-xs flex items-center justify-between gap-2 shadow-xs">
+            <div className="bg-rose-50 border border-rose-200 text-rose-800 px-3.5 py-1.5 rounded-xl text-xs flex items-center justify-between gap-2">
               <span>
-                🔴 <strong>{delayedOrders.length} {delayedOrders.length === 1 ? 'pedido atrasado' : 'pedidos atrasados'}</strong> (+20 min esperando) • Priorize estes despachos
+                <strong>{delayedOrders.length} {delayedOrders.length === 1 ? 'pedido atrasado' : 'pedidos atrasados'}</strong> (+20 min esperando) • Priorize estes despachos
               </span>
               <button
                 type="button"
                 onClick={() => setSelectedOrderIds(delayedOrders.map((o) => o.id))}
-                className="text-xs text-rose-300 hover:text-white underline cursor-pointer"
+                className="text-xs text-rose-700 hover:text-rose-900 underline cursor-pointer"
               >
                 Selecionar atrasados
               </button>
@@ -825,87 +860,6 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
         </div>
       )}
-
-      {/* 3. NAVEGAÇÃO DE ABAS DIRETA */}
-      <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-1 text-xs font-bold text-slate-400 shadow-xs">
-        <div className="flex items-center gap-1 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setActiveTab('operacao')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'operacao'
-                ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
-                : 'hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <Package className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Pedidos & Despacho</span>
-            <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${
-              unassignedOrders.length > 0
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : 'bg-slate-800 text-slate-400'
-            }`}>
-              {unassignedOrders.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('kanban')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'kanban'
-                ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
-                : 'hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <span>📋 Kanban</span>
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-slate-800 text-slate-400">
-              {activeOrders.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('equipe')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'equipe'
-                ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
-                : 'hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <Bike className="w-3.5 h-3.5 text-blue-400" />
-            <span>Entregadores</span>
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-slate-800 text-slate-400">
-              {motoboysAvailable.length}/{motoboys.filter((m) => m.status !== 'offline').length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('gestao')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'gestao' || activeTab === 'financeiro'
-                ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
-                : 'hover:text-slate-200 hover:bg-slate-800/60'
-            }`}
-          >
-            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Financeiro</span>
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('gestao')}
-          className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'gestao'
-              ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
-              : 'hover:text-slate-200'
-          }`}
-        >
-          <span>⚙️ Gestão & Fechamento</span>
-        </button>
-      </div>
 
       {activeTab === 'operacao' && (
         <OperationDispatchView
@@ -1536,6 +1490,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
