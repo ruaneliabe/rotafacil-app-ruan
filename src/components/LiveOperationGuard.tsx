@@ -28,6 +28,7 @@ export function LiveOperationGuard() {
     let latestMotoboys: Motoboy[] = [];
     let latestOrders: Order[] = [];
     let decorateQueued = false;
+    let queueTabActive = false;
 
     const removeBadge = () => {
       badge?.remove();
@@ -35,9 +36,21 @@ export function LiveOperationGuard() {
       document.getElementById('rota-live-health')?.remove();
     };
 
+    const restoreMain = () => {
+      document.querySelectorAll<HTMLElement>('[data-motoboy-hidden-by-queue="true"]').forEach((el) => {
+        el.style.display = el.dataset.motoboyPreviousDisplay || '';
+        delete el.dataset.motoboyHiddenByQueue;
+        delete el.dataset.motoboyPreviousDisplay;
+      });
+      document.querySelector<HTMLElement>('[data-motoboy-queue-panel="true"]')?.remove();
+      queueTabActive = false;
+    };
+
     const removeMotoboyEnhancements = () => {
+      restoreMain();
       document.querySelector('[data-motoboy-queue-info="true"]')?.remove();
       document.querySelector('[data-motoboy-pending-preview="true"]')?.remove();
+      document.querySelector('[data-motoboy-queue-tab="true"]')?.remove();
     };
 
     const ensureBadge = () => {
@@ -59,6 +72,63 @@ export function LiveOperationGuard() {
       return badge;
     };
 
+    const buildQueuePanel = (main: HTMLElement, driver: Motoboy, queue: Motoboy[], position: number | null) => {
+      restoreMain();
+      queueTabActive = true;
+
+      Array.from(main.children).forEach((child) => {
+        const el = child as HTMLElement;
+        el.dataset.motoboyPreviousDisplay = el.style.display || '';
+        el.dataset.motoboyHiddenByQueue = 'true';
+        el.style.display = 'none';
+      });
+
+      const panel = document.createElement('section');
+      panel.dataset.motoboyQueuePanel = 'true';
+      panel.style.cssText = 'overflow:hidden;border:1px solid #e2e8f0;background:#fff;border-radius:16px;box-shadow:0 1px 2px rgba(15,23,42,.06);';
+
+      const queueIndex = position ? position - 1 : -1;
+      const ahead = queueIndex > 0 ? queueIndex : 0;
+      const rows = queue.length
+        ? queue.map((motoboy, index) => {
+            const isMe = motoboy.id === driver.id;
+            const isNext = index === 0;
+            return `
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 14px;${index ? 'border-top:1px solid #f1f5f9;' : ''}${isMe ? 'background:#faf5ff;' : ''}">
+                <div style="width:36px;height:36px;flex:0 0 36px;border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:900;${isNext ? 'background:#7c3aed;color:#fff;' : 'background:#f1f5f9;color:#475569;'}">${index + 1}</div>
+                <div style="min-width:0;flex:1;">
+                  <div style="display:flex;align-items:center;gap:7px;min-width:0;">
+                    <div style="font-size:13px;font-weight:900;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(motoboy.name)}</div>
+                    ${isMe ? '<span style="border-radius:999px;background:#ede9fe;color:#6d28d9;padding:3px 6px;font-size:8px;font-weight:900;">VOCÊ</span>' : ''}
+                  </div>
+                  <div style="margin-top:2px;font-size:10px;color:#94a3b8;">${isNext ? 'Próximo a receber pedido' : `Aguardando · ${index} ${index === 1 ? 'motoboy antes' : 'motoboys antes'}`}</div>
+                </div>
+                ${isNext ? '<span style="border-radius:999px;background:#ecfdf5;color:#047857;padding:5px 8px;font-size:9px;font-weight:900;">PRÓXIMO</span>' : ''}
+              </div>`;
+          }).join('')
+        : '<div style="padding:42px 20px;text-align:center;color:#94a3b8;font-size:12px;font-weight:700;">Nenhum motoboy na fila agora.</div>';
+
+      panel.innerHTML = `
+        <div style="padding:16px;border-bottom:1px solid #f1f5f9;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <div>
+              <div style="font-size:17px;font-weight:900;color:#0f172a;">Fila de motoboys</div>
+              <div style="margin-top:3px;font-size:10px;color:#64748b;">Ordem atual para receber o próximo despacho</div>
+            </div>
+            <span style="border-radius:999px;background:#f1f5f9;color:#64748b;padding:5px 8px;font-size:9px;font-weight:900;">${queue.length} NA FILA</span>
+          </div>
+          ${driver.status === 'available' && position ? `
+            <div style="margin-top:13px;border:1px solid #ddd6fe;background:#faf5ff;border-radius:12px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+              <div><div style="font-size:9px;font-weight:800;color:#7c3aed;text-transform:uppercase;">Sua posição</div><div style="margin-top:2px;font-size:18px;font-weight:900;color:#4c1d95;">${position}º da fila</div></div>
+              <div style="font-size:10px;font-weight:700;color:#7c3aed;text-align:right;">${ahead === 0 ? 'Você é o próximo' : `${ahead} ${ahead === 1 ? 'motoboy na sua frente' : 'motoboys na sua frente'}`}</div>
+            </div>` : `
+            <div style="margin-top:13px;border-radius:12px;background:#f8fafc;padding:11px 12px;font-size:10px;font-weight:700;color:#64748b;">Você não está na fila agora.</div>`}
+        </div>
+        <div>${rows}</div>`;
+
+      main.appendChild(panel);
+    };
+
     const decorateMotoboy = () => {
       if (!isMotoboySession()) {
         removeMotoboyEnhancements();
@@ -75,7 +145,6 @@ export function LiveOperationGuard() {
       const header = appTitle?.closest('header') as HTMLElement | null;
       if (!header || !appTitle) return;
 
-      // Cabeçalho mais compacto no celular.
       header.style.paddingBottom = '10px';
       header.style.paddingLeft = '18px';
       header.style.paddingRight = '18px';
@@ -111,20 +180,65 @@ export function LiveOperationGuard() {
         queueInfo?.remove();
       }
 
-      // O pedido manual nasce sem motoboy. O primeiro da fila deve enxergar que
-      // existe uma entrega aguardando o despacho da loja, sem fingir que já foi atribuída.
+      const appRoot = header.parentElement as HTMLElement | null;
+      const main = appRoot?.querySelector('main') as HTMLElement | null;
+      const nav = appRoot?.querySelector('nav') as HTMLElement | null;
+      if (nav && main) {
+        nav.style.gridTemplateColumns = 'repeat(4,minmax(0,1fr))';
+        let queueButton = nav.querySelector<HTMLButtonElement>('[data-motoboy-queue-tab="true"]');
+        if (!queueButton) {
+          queueButton = document.createElement('button');
+          queueButton.type = 'button';
+          queueButton.dataset.motoboyQueueTab = 'true';
+          queueButton.style.cssText = 'height:64px;min-width:0;border-radius:12px;border:1px solid #f1f5f9;background:#fff;color:#475569;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;font-weight:900;';
+          queueButton.innerHTML = `<span style="font-size:17px;line-height:1">☷</span><span>Fila${position ? ` (${position}º)` : ''}</span>`;
+          queueButton.addEventListener('click', () => {
+            buildQueuePanel(main, driver, queue, position);
+            nav.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
+              if (button === queueButton) {
+                button.style.background = '#081A2F';
+                button.style.color = '#fff';
+                button.style.borderColor = '#081A2F';
+              } else {
+                button.style.background = '#fff';
+                button.style.color = '#475569';
+              }
+            });
+          });
+          nav.appendChild(queueButton);
+        } else {
+          const labels = queueButton.querySelectorAll('span');
+          if (labels[1]) labels[1].textContent = `Fila${position ? ` (${position}º)` : ''}`;
+        }
+
+        Array.from(nav.querySelectorAll<HTMLButtonElement>('button:not([data-motoboy-queue-tab="true"])')).forEach((button) => {
+          if (button.dataset.queueRestoreBound === 'true') return;
+          button.dataset.queueRestoreBound = 'true';
+          button.addEventListener('click', () => {
+            if (!queueTabActive) return;
+            restoreMain();
+            const q = nav.querySelector<HTMLButtonElement>('[data-motoboy-queue-tab="true"]');
+            if (q) {
+              q.style.background = '#fff';
+              q.style.color = '#475569';
+              q.style.borderColor = '#f1f5f9';
+            }
+          });
+        });
+
+        if (queueTabActive) buildQueuePanel(main, driver, queue, position);
+      }
+
       const pendingUnassigned = latestOrders
         .filter((o) => isOpenOrder(o) && !o.assignedMotoboyId && ['pending', 'preparing'].includes(String(o.status)))
         .sort((a, b) => Number(a.createdTimestamp || 0) - Number(b.createdTimestamp || 0));
       const visiblePending = driver.status === 'available' && position === 1 ? pendingUnassigned : [];
 
-      const appRoot = header.parentElement as HTMLElement | null;
-      const main = appRoot?.querySelector('main') as HTMLElement | null;
       const preparingHeading = main ? Array.from(main.querySelectorAll('h2')).find((el) => el.textContent?.trim() === 'Preparando') : undefined;
       const preparingSection = preparingHeading?.closest('section') as HTMLElement | null;
       let preview = main?.querySelector<HTMLElement>('[data-motoboy-pending-preview="true"]') || null;
 
-      if (visiblePending.length && main && preparingSection) {
+      if (!queueTabActive && visiblePending.length && main && preparingSection) {
         if (!preview) {
           preview = document.createElement('section');
           preview.dataset.motoboyPendingPreview = 'true';
@@ -146,17 +260,15 @@ export function LiveOperationGuard() {
             <div style="font-size:13px;font-weight:900;color:#5b21b6;">Próximo despacho da fila</div>
             <div style="margin-top:2px;font-size:10px;color:#7c3aed;">A loja ainda precisa confirmar o despacho para você.</div>
           </div>${cards}`;
-      } else {
+      } else if (!queueTabActive) {
         preview?.remove();
       }
 
-      // Atualiza o contador visual da aba Pedidos incluindo a prévia pendente.
       const ordersButton = Array.from(appRoot?.querySelectorAll('nav button') || []).find((button) => button.textContent?.trim().startsWith('Pedidos'));
-      const ordersLabel = ordersButton?.querySelector('span');
+      const ordersLabel = ordersButton?.querySelector('span:last-child');
       if (ordersLabel) {
         const assignedWaiting = latestOrders.filter((o) => o.assignedMotoboyId === driver.id && isOpenOrder(o) && ['pending', 'preparing', 'ready_at_counter'].includes(String(o.status))).length;
-        const previewCount = visiblePending.length;
-        ordersLabel.textContent = `Pedidos (${assignedWaiting + previewCount})`;
+        ordersLabel.textContent = `Pedidos (${assignedWaiting + visiblePending.length})`;
       }
     };
 
