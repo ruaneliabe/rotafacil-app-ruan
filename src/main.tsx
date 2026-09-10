@@ -10,11 +10,13 @@ import {DispatchBoardProductionPatch} from './components/DispatchBoardProduction
 import {ClaudeLayoutPilotFix} from './components/ClaudeLayoutPilotFix';
 import {MotoboyCounterCallListener} from './components/MotoboyCounterCallListener';
 import {FinanceVisualPolish} from './components/FinanceVisualPolish';
+import {EmergencyPilotRepair} from './components/EmergencyPilotRepair';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <StoreBootstrapGuard />
+    <EmergencyPilotRepair />
     <RuntimeCorrections />
     <ClaudeLayoutPilotFix />
     <CardapioWebShadowSyncBridge />
