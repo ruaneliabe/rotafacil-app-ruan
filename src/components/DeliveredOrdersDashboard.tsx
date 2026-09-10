@@ -12,11 +12,41 @@ const money = (value = 0) =>
 
 const orderCode = (order: Order) => order.displayCode || `#${order.codeNumber}`;
 
-const deliveredTime = (order: Order) => {
-  if (order.deliveredAt) return order.deliveredAt;
+const deliveredDateKey = (order: Order) => {
+  if (order.deliveredDate && /^\d{4}-\d{2}-\d{2}$/.test(order.deliveredDate)) return order.deliveredDate;
+
   if (order.deliveredTimestamp) {
-    return new Date(order.deliveredTimestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const date = new Date(Number(order.deliveredTimestamp));
+    if (!Number.isNaN(date.getTime())) return getBrazilDateKey(date);
   }
+
+  // deliveredAt em pedidos antigos pode ser apenas "HH:mm". Só usamos quando
+  // houver uma data completa para não puxar pedidos de outros dias para "hoje".
+  if (order.deliveredAt && /\d{4}-\d{2}-\d{2}/.test(String(order.deliveredAt))) {
+    const date = new Date(String(order.deliveredAt));
+    if (!Number.isNaN(date.getTime())) return getBrazilDateKey(date);
+  }
+
+  return '';
+};
+
+const deliveredTime = (order: Order) => {
+  if (order.deliveredTimestamp) {
+    const date = new Date(Number(order.deliveredTimestamp));
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+  }
+
+  if (order.deliveredAt && /^\d{1,2}:\d{2}/.test(String(order.deliveredAt))) return String(order.deliveredAt).slice(0, 5);
+
+  if (order.deliveredAt) {
+    const date = new Date(String(order.deliveredAt));
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+  }
+
   return '--:--';
 };
 
@@ -26,8 +56,8 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
 
   const deliveredToday = useMemo(
     () => orders
-      .filter((order) => order.status === 'delivered' && (order.deliveredDate === today || order.createdDate === today || order.shiftDate === today))
-      .sort((a, b) => Number(b.deliveredTimestamp || b.createdTimestamp || 0) - Number(a.deliveredTimestamp || a.createdTimestamp || 0)),
+      .filter((order) => order.status === 'delivered' && deliveredDateKey(order) === today)
+      .sort((a, b) => Number(b.deliveredTimestamp || 0) - Number(a.deliveredTimestamp || 0)),
     [orders, today]
   );
 
@@ -42,15 +72,13 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
   const uniqueDrivers = new Set(deliveredToday.map((order) => order.assignedMotoboyId).filter(Boolean)).size;
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><PackageCheck className="h-4 w-4" /></span>
-            <div>
-              <h3 className="text-[15px] font-black text-slate-950">Pedidos entregues hoje</h3>
-              <p className="mt-0.5 text-[10px] text-slate-400">Resumo das entregas concluídas na operação de hoje.</p>
-            </div>
+        <div className="flex items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><PackageCheck className="h-4 w-4" /></span>
+          <div>
+            <h3 className="text-[15px] font-black text-slate-950">Pedidos entregues hoje</h3>
+            <p className="mt-0.5 text-[10px] text-slate-400">Somente entregas realmente concluídas em {today.split('-').reverse().slice(0, 2).join('/')}.</p>
           </div>
         </div>
         <div className="relative w-full lg:w-[310px]">
@@ -67,15 +95,15 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
       </div>
 
       {visible.length ? (
-        <div className="overflow-x-auto">
+        <div className="max-h-[360px] overflow-auto">
           <table className="w-full min-w-[760px] text-left">
-            <thead className="bg-white text-[9px] font-black uppercase tracking-wide text-slate-400">
+            <thead className="sticky top-0 z-10 bg-white text-[9px] font-black uppercase tracking-wide text-slate-400 shadow-[0_1px_0_#f1f5f9]">
               <tr><th className="px-4 py-2.5">Pedido</th><th className="px-4 py-2.5">Cliente</th><th className="px-4 py-2.5">Motoboy</th><th className="px-4 py-2.5">Horário</th><th className="px-4 py-2.5">Taxa</th><th className="px-4 py-2.5 text-right">Total</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {visible.slice(0, 8).map((order) => (
+              {visible.map((order) => (
                 <tr key={order.id} className="hover:bg-slate-50/70">
-                  <td className="px-4 py-3"><span className="font-black text-[12px] text-slate-950">{orderCode(order)}</span></td>
+                  <td className="px-4 py-3"><span className="text-[12px] font-black text-slate-950">{orderCode(order)}</span></td>
                   <td className="px-4 py-3"><p className="text-[11px] font-bold text-slate-700">{order.clientName}</p><p className="mt-0.5 max-w-[260px] truncate text-[9px] text-slate-400">{order.neighborhood || order.address}</p></td>
                   <td className="px-4 py-3 text-[11px] font-semibold text-slate-600">{order.assignedMotoboyName || '—'}</td>
                   <td className="px-4 py-3"><span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600"><Clock3 className="h-3 w-3 text-slate-400" />{deliveredTime(order)}</span></td>
@@ -85,13 +113,12 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
               ))}
             </tbody>
           </table>
-          {visible.length > 8 && <div className="border-t border-slate-100 px-4 py-2.5 text-center text-[10px] font-semibold text-slate-400">Mostrando 8 de {visible.length} entregas de hoje</div>}
         </div>
       ) : (
         <div className="flex min-h-[150px] flex-col items-center justify-center px-5 text-center">
           <span className="grid h-11 w-11 place-items-center rounded-full bg-slate-50 text-slate-300"><PackageCheck className="h-5 w-5" /></span>
           <p className="mt-3 text-[12px] font-black text-slate-600">Nenhum pedido entregue hoje</p>
-          <p className="mt-1 text-[10px] text-slate-400">Quando uma entrega for concluída ela aparecerá aqui automaticamente.</p>
+          <p className="mt-1 text-[10px] text-slate-400">Quando uma entrega for concluída hoje, ela aparecerá aqui automaticamente.</p>
         </div>
       )}
     </section>
