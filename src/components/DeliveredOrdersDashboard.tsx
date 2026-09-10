@@ -19,6 +19,13 @@ const deliveryDateKey = (order: Order) => {
   return Number.isNaN(date.getTime()) ? '' : getBrazilDateKey(date);
 };
 
+const originalOrderDateKey = (order: Order) => {
+  if (order.originChannel === 'cardapio_web') {
+    return String((order as any).sourceCreatedDate || '');
+  }
+  return String(order.createdDate || '');
+};
+
 const deliveredTime = (order: Order) => {
   const timestamp = Number(order.deliveredTimestamp || 0);
   if (timestamp > 0) {
@@ -34,34 +41,24 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
   const [query, setQuery] = useState('');
   const today = getBrazilDateKey();
 
-  const currentShiftId = useMemo(() => {
-    const withShift = orders
-      .filter((order) => order.shiftId && order.createdDate === today)
-      .sort((a, b) => Number(b.createdTimestamp || 0) - Number(a.createdTimestamp || 0));
-    return withShift[0]?.shiftId || '';
-  }, [orders, today]);
-
   const deliveredToday = useMemo(() => {
     return orders
       .filter((order) => {
         if (order.status !== 'delivered') return false;
 
-        // Regra principal: o pedido precisa ter sido CRIADO hoje.
-        // Isso evita que pedidos antigos encerrados/sincronizados hoje pelo Cardápio Web
-        // apareçam no dashboard do dia atual.
-        if (order.createdDate !== today) return false;
+        // Cardápio Web: NÃO confiar em createdDate legado. Durante a primeira
+        // sincronização alguns pedidos históricos receberam a data da importação.
+        // sourceCreatedDate vem da data ORIGINAL retornada pela API do Cardápio Web.
+        if (originalOrderDateKey(order) !== today) return false;
 
-        // E a conclusão também precisa ter ocorrido hoje quando existe timestamp real.
+        // Se temos timestamp real de entrega, ele também deve ser de hoje.
         const deliveredDate = deliveryDateKey(order);
         if (deliveredDate && deliveredDate !== today) return false;
-
-        // Quando temos turno atual, exige pertencer ao turno atual também.
-        if (currentShiftId && order.shiftId) return order.shiftId === currentShiftId;
 
         return true;
       })
       .sort((a, b) => Number(b.deliveredTimestamp || 0) - Number(a.deliveredTimestamp || 0));
-  }, [orders, today, currentShiftId]);
+  }, [orders, today]);
 
   const visible = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -84,7 +81,7 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><PackageCheck className="h-4 w-4" /></span>
           <div>
             <h3 className="text-[15px] font-black text-slate-950">Pedidos entregues hoje</h3>
-            <p className="mt-0.5 text-[10px] text-slate-400">Somente pedidos criados e entregues hoje.</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">Somente pedidos cuja data original do pedido é hoje.</p>
           </div>
         </div>
         <div className="relative w-full lg:w-[310px]">
