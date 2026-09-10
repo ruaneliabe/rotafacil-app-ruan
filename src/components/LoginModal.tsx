@@ -19,7 +19,8 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { geocodeAddress } from '../utils/geoUtils';
-import { saveStoreAccountToCloud, getStoreAccountFromCloud } from '../lib/firebase';
+import { saveStoreAccountToCloud, getStoreAccountFromCloud, upgradeStoreCredentialsToHash } from '../lib/firebase';
+import { verifyCredential } from '../lib/passwordSecurity';
 
 interface LoginModalProps {
   isOpen?: boolean;
@@ -89,28 +90,49 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
 
     const shiftStoreUser = (shift?.storeUsername || '').trim().toLowerCase();
-    const shiftAdminPass = shift?.adminPassword || '';
 
-    if (shiftStoreUser && shiftStoreUser === inputUser && shiftAdminPass === inputPass) {
-      onLoginSuccess({
-        role: 'store_admin',
-        storeName: shift?.storeName || 'Minha Loja',
-        username: inputUser,
+    if (shiftStoreUser && shiftStoreUser === inputUser) {
+      const shiftCheck = await verifyCredential(inputPass, {
+        passwordHash: shift?.adminPasswordHash,
+        passwordSalt: shift?.adminPasswordSalt,
+        legacyPlainPassword: shift?.adminPassword,
       });
-      if (onClose) onClose();
-      return;
+      if (shiftCheck.valid) {
+        if (shiftCheck.needsUpgrade) {
+          // Conta antiga (senha em texto puro): migra para hash em segundo
+          // plano, sem atrasar nem afetar o login que já foi liberado.
+          upgradeStoreCredentialsToHash(inputUser, inputPass);
+        }
+        onLoginSuccess({
+          role: 'store_admin',
+          storeName: shift?.storeName || 'Minha Loja',
+          username: inputUser,
+        });
+        if (onClose) onClose();
+        return;
+      }
     }
 
     try {
       const cloudAccount = await getStoreAccountFromCloud(inputUser);
-      if (cloudAccount && cloudAccount.password === inputPass) {
-        onLoginSuccess({
-          role: 'store_admin',
-          storeName: cloudAccount.storeName,
-          username: cloudAccount.username,
+      if (cloudAccount) {
+        const cloudCheck = await verifyCredential(inputPass, {
+          passwordHash: cloudAccount.passwordHash,
+          passwordSalt: cloudAccount.passwordSalt,
+          legacyPlainPassword: cloudAccount.password,
         });
-        if (onClose) onClose();
-        return;
+        if (cloudCheck.valid) {
+          if (cloudCheck.needsUpgrade) {
+            upgradeStoreCredentialsToHash(cloudAccount.username, inputPass);
+          }
+          onLoginSuccess({
+            role: 'store_admin',
+            storeName: cloudAccount.storeName,
+            username: cloudAccount.username,
+          });
+          if (onClose) onClose();
+          return;
+        }
       }
     } catch (err) {
       console.warn('Erro ao autenticar loja no Firestore:', err);

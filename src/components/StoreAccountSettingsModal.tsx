@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { StoreShift } from '../types';
 import { geocodeAddress } from '../utils/geoUtils';
+import { hashPassword } from '../lib/passwordSecurity';
 import {
   Building2,
   Phone,
@@ -248,6 +249,15 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       }
     }
 
+    // Só mexe na senha se o usuário digitou uma nova. Se o campo ficou em
+    // branco, o hash (ou a senha legada) que já está salvo é preservado —
+    // por isso NÃO reincluímos `adminPassword` aqui nunca mais em texto puro.
+    let passwordUpdate: Partial<StoreShift> = {};
+    if (adminPassword.trim()) {
+      const { hash, salt } = await hashPassword(adminPassword.trim());
+      passwordUpdate = { adminPasswordHash: hash, adminPasswordSalt: salt, adminPassword: undefined };
+    }
+
     const updated: StoreShift = {
       ...shift,
       storeName: storeName.trim(),
@@ -256,8 +266,8 @@ export const StoreAccountSettingsModal: React.FC<StoreAccountSettingsModalProps>
       storeLat: finalLat,
       storeLng: finalLng,
       storeUsername: storeUsername.trim().toLowerCase().replace(/\s+/g, '') || shift.storeUsername || '',
-      adminPassword: adminPassword.trim() || shift.adminPassword || '',
       setupRequired: false,
+      ...passwordUpdate,
     };
 
     onSaveSettings(updated);
