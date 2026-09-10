@@ -1,10 +1,8 @@
 import { useEffect } from 'react';
 
-/**
- * Ajustes de compatibilidade para o layout claro criado no redesign.
- * Atua apenas na apresentação/rotulagem dos controles do StoreDashboard.
- * Não altera estado, pedidos, fila, Firestore ou Cardápio Web.
- */
+const TAB_STORAGE_KEY = 'rota_facil_store_active_tab';
+const TAB_LABELS = ['Pedidos e despacho', 'Kanban', 'Entregadores', 'Financeiro'] as const;
+
 export function ClaudeLayoutPilotFix() {
   useEffect(() => {
     const style = document.createElement('style');
@@ -21,17 +19,35 @@ export function ClaudeLayoutPilotFix() {
     `;
     document.head.appendChild(style);
 
+    let restored = false;
+
+    const getSidebar = () => Array.from(document.querySelectorAll('aside')).find((el) =>
+      (el.textContent || '').includes('Pedidos e despacho') && (el.textContent || '').includes('Entregadores')
+    );
+
+    const restoreSavedTab = (sidebar: Element) => {
+      if (restored) return;
+      const saved = localStorage.getItem(TAB_STORAGE_KEY);
+      if (!saved || !TAB_LABELS.includes(saved as any)) {
+        restored = true;
+        return;
+      }
+      const button = Array.from(sidebar.querySelectorAll('button')).find((b) => (b.textContent || '').trim() === saved) as HTMLButtonElement | undefined;
+      if (!button) return;
+      const active = button.className.includes('bg-violet-50') || button.getAttribute('aria-current') === 'page';
+      restored = true;
+      if (!active) window.setTimeout(() => button.click(), 0);
+    };
+
     const apply = () => {
-      const sidebar = Array.from(document.querySelectorAll('aside')).find((el) =>
-        (el.textContent || '').includes('Pedidos e despacho') && (el.textContent || '').includes('Entregadores')
-      );
+      const sidebar = getSidebar();
       if (!sidebar) return false;
+
+      restoreSavedTab(sidebar);
 
       Array.from(sidebar.querySelectorAll('button')).forEach((button) => {
         const text = (button.textContent || '').trim();
-        if (text === 'Gestão e fechamento') {
-          button.classList.add('pilot-hidden-control');
-        }
+        if (text === 'Gestão e fechamento') button.classList.add('pilot-hidden-control');
         if (text === 'Financeiro') {
           button.classList.add('pilot-finance-item');
           button.dataset.active = button.className.includes('bg-violet-50') ? 'true' : 'false';
@@ -49,12 +65,10 @@ export function ClaudeLayoutPilotFix() {
           if (text === 'Novo pedido') {
             button.classList.add('pilot-secondary-order');
             const span = button.querySelector('span');
-            if (span) span.textContent = 'Pedido de teste';
-            else button.textContent = 'Pedido de teste';
+            if (span) span.textContent = 'Pedido de teste'; else button.textContent = 'Pedido de teste';
             button.title = 'Pedido manual disponível apenas para testes da operação';
           }
         });
-
         Array.from(dashboard.querySelectorAll('span')).forEach((span) => {
           const text = (span.textContent || '').trim();
           if (/^CW:\s*(Aberto|Fechado)$/i.test(text)) {
@@ -67,14 +81,26 @@ export function ClaudeLayoutPilotFix() {
       return true;
     };
 
+    const handleClick = (event: MouseEvent) => {
+      const button = (event.target as HTMLElement | null)?.closest('button');
+      if (!button) return;
+      const sidebar = getSidebar();
+      if (!sidebar || !sidebar.contains(button)) return;
+      const label = (button.textContent || '').trim();
+      const cleanLabel = label.replace(/^●\s*/, '').split(' · ')[0];
+      if (TAB_LABELS.includes(cleanLabel as any)) localStorage.setItem(TAB_STORAGE_KEY, cleanLabel);
+    };
+
+    document.addEventListener('click', handleClick);
     let attempts = 0;
     const timer = window.setInterval(() => {
       attempts += 1;
-      if (apply() || attempts >= 20) window.clearInterval(timer);
-    }, 250);
+      if (apply() || attempts >= 24) window.clearInterval(timer);
+    }, 200);
     apply();
 
     return () => {
+      document.removeEventListener('click', handleClick);
       window.clearInterval(timer);
       style.remove();
     };
