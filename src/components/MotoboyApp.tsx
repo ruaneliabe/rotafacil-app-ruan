@@ -465,10 +465,10 @@ export const MotoboyApp: React.FC<Props> = ({
 
   return (
     <div className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col overflow-hidden bg-[#F4F6F9] text-slate-950 sm:min-h-[780px] sm:rounded-[28px] sm:border sm:border-slate-200 sm:shadow-2xl">
-      <header className="bg-gradient-to-br from-[#071426] via-[#0A1C31] to-[#0D2744] px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] text-white">
+      <header className="bg-[#071A2E] px-4 pb-3 pt-[max(10px,env(safe-area-inset-top))] text-white">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-[20px] font-black leading-tight tracking-tight">Rota Fácil</h1>
+            <h1 className="text-[22px] font-black leading-tight tracking-tight">Rota Fácil</h1>
             <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10.5px] font-medium text-slate-300">
               <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(74,222,128,.45)]" />
               <span>Online</span>
@@ -487,7 +487,7 @@ export const MotoboyApp: React.FC<Props> = ({
         </div>
       </header>
 
-      <section className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white px-2 py-3">
+      <section className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-white px-2 py-2.5">
         <div className="text-center">
           <ShoppingBag className="mx-auto h-4.5 w-4.5 text-[#0A1C31]" />
           <div className="mt-1 text-[20px] font-black leading-none">{route.length}</div>
@@ -512,7 +512,7 @@ export const MotoboyApp: React.FC<Props> = ({
             onClick={() => setTab(id)}
             className={`relative flex h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-black transition ${
               tab === id
-                ? 'bg-[#081A2F] text-white shadow-sm'
+                ? 'bg-[#071A2E] text-white shadow-sm'
                 : 'border border-slate-100 bg-white text-slate-600'
             }`}
           >
@@ -598,7 +598,7 @@ export const MotoboyApp: React.FC<Props> = ({
                   <div className="space-y-2 p-3">
                     {preparing.length ? (
                       preparing.map((order) => (
-                        <article key={order.id} className="rounded-xl border border-amber-200 bg-amber-50/55 p-4">
+                        <article key={order.id} className="rounded-xl border border-amber-200 bg-[#FFF9E8] p-4">
                           <div className="flex items-center justify-between gap-3">
                             <strong className="min-w-0 truncate text-[13px]">#{order.codeNumber} • {order.clientName}</strong>
                             <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[9px] font-black text-amber-700">EM PREPARO</span>
@@ -636,7 +636,7 @@ export const MotoboyApp: React.FC<Props> = ({
                   <div className="space-y-2 p-3">
                     {ready.length ? (
                       ready.map((order) => (
-                        <article key={order.id} className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+                        <article key={order.id} className="rounded-xl border border-emerald-200 bg-[#ECFDF7] p-4">
                           <strong className="text-[13px]">#{order.codeNumber} • {order.clientName}</strong>
                           <p className="mt-1 text-[11px] text-slate-500">{order.address}</p>
                         </article>
@@ -666,8 +666,8 @@ export const MotoboyApp: React.FC<Props> = ({
               <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-4">
                   <div>
-                    <h2 className="text-[17px] font-black">{activeRun ? 'Rota em andamento' : 'Próxima rota'}</h2>
-                    <p className="mt-1 text-[11px] text-slate-500">{activeRun ? 'Siga a ordem abaixo até finalizar as entregas.' : 'Ajuste a ordem antes de iniciar.'}</p>
+                    <h2 className="text-[17px] font-black">{activeRun ? 'Rota em andamento' : 'Sua rota'}</h2>
+                    <p className="mt-1 text-[11px] text-slate-500">{activeRun ? 'Siga a ordem abaixo até finalizar as entregas.' : 'Confira a ordem antes de iniciar.'}</p>
                   </div>
                   <Route className="h-5 w-5 text-violet-600" />
                 </div>
@@ -697,7 +697,7 @@ export const MotoboyApp: React.FC<Props> = ({
                           <button onClick={() => setNavRequest({ from: order.id, fullRoute: false })} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800"><Navigation className="h-4 w-4" /> Navegar</button>
                           {activeRun && isCurrent && !arrived[order.id] && <button onClick={() => arrive(order)} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg bg-violet-600 px-3 text-[11px] font-black text-white shadow-sm">Cheguei</button>}
                           {activeRun && isCurrent && arrived[order.id] && <button onClick={() => finish(order)} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg bg-emerald-600 px-3 text-[11px] font-black text-white">Concluir entrega</button>}
-                          {activeRun && !isCurrent && order.status === 'picked_up' && <button onClick={() => startNext(order)} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-3 text-[11px] font-black text-violet-700">Iniciar esta entrega</button>}
+                          {activeRun && !isCurrent && order.status === 'picked_up' && <button onClick={() => startNext(order)} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-3 text-[11px] font-black text-violet-700">Próxima parada</button>}
                         </div>
                       </article>
                     );

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rotafacil-v4-reset';
+const CACHE_NAME = 'rotafacil-v5-ui-refresh';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
