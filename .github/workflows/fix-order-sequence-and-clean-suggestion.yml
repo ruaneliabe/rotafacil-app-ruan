@@ -1,0 +1,95 @@
+name: Fix order sequence and clean suggestion
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-order-sequence-and-clean-suggestion.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply UI fixes
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          # 1) Central de pedidos: ordem real de entrada, de forma estável.
+          p = Path('src/components/OperationDispatchView.tsx')
+          text = p.read_text(encoding='utf-8')
+
+          old = "const stamp = (o: Order) => Number(o.createdTimestamp) || Date.now();"
+          new = """const stamp = (o: Order) => {
+  const anyOrder = o as any;
+  const direct = Number(anyOrder.sourceCreatedTimestamp || o.createdTimestamp || 0);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+
+  const date = anyOrder.sourceCreatedDate || o.createdDate;
+  const time = typeof o.createdAt === 'string' ? o.createdAt : '';
+  if (date && /^\\d{4}-\\d{2}-\\d{2}$/.test(String(date))) {
+    const parsed = Date.parse(`${date}T${/^\\d{1,2}:\\d{2}/.test(time) ? time.slice(0, 5) : '00:00'}:00`);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return Number.MAX_SAFE_INTEGER;
+};
+const orderSequence = (o: Order) => Number(o.codeNumber || 0);
+const oldestFirst = (a: Order, b: Order) => stamp(a) - stamp(b) || orderSequence(a) - orderSequence(b) || a.id.localeCompare(b.id);"""
+          if old not in text:
+              raise SystemExit('stamp helper not found')
+          text = text.replace(old, new, 1)
+
+          old_group = """  const grouped = useMemo(() => ({
+    waiting: filtered.filter((o) => stage(o) === 'waiting').sort((a, b) => stamp(a) - stamp(b)),
+    preparing: filtered.filter((o) => stage(o) === 'preparing'),
+    ready: filtered.filter((o) => stage(o) === 'ready').sort((a, b) => readyStamp(a) - readyStamp(b)),
+    route: filtered.filter((o) => stage(o) === 'route'),
+  }), [filtered]);"""
+          new_group = """  const grouped = useMemo(() => ({
+    waiting: filtered.filter((o) => stage(o) === 'waiting').sort(oldestFirst),
+    preparing: filtered.filter((o) => stage(o) === 'preparing').sort(oldestFirst),
+    ready: filtered.filter((o) => stage(o) === 'ready').sort((a, b) => readyStamp(a) - readyStamp(b) || oldestFirst(a, b)),
+    route: filtered.filter((o) => stage(o) === 'route').sort((a, b) => Number(a.routeSequence || Number.MAX_SAFE_INTEGER) - Number(b.routeSequence || Number.MAX_SAFE_INTEGER) || oldestFirst(a, b)),
+  }), [filtered]);"""
+          if old_group not in text:
+              raise SystemExit('grouped block not found')
+          text = text.replace(old_group, new_group, 1)
+          p.write_text(text, encoding='utf-8')
+
+          # 2) Tela principal: remover somente a faixa verde "Rota sugerida".
+          p = Path('src/components/StoreDashboardLegacy.tsx')
+          text = p.read_text(encoding='utf-8')
+
+          pattern = re.compile(
+              r"\n\s*\{\/\* Rota sugerida direta \*\/\}\n\s*\{brainAnalysis\.recommendations\[0\] && \(.*?\n\s*\)\}\n",
+              re.S,
+          )
+          text, count = pattern.subn('\n', text, count=1)
+          if count != 1:
+              raise SystemExit('green route suggestion block not found')
+
+          # O wrapper de avisos não deve abrir só por existir recomendação removida.
+          text = text.replace(
+              "{(brainAnalysis.recommendations[0] || (motoboysAvailable.length === 0 && unassignedOrders.length > 0) || delayedOrders.length > 0) && (",
+              "{((motoboysAvailable.length === 0 && unassignedOrders.length > 0) || delayedOrders.length > 0) && (",
+              1,
+          )
+          p.write_text(text, encoding='utf-8')
+
+      - name: Commit real source changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-order-sequence-and-clean-suggestion.yml
+          git add src/components/OperationDispatchView.tsx src/components/StoreDashboardLegacy.tsx
+          git commit -m "fix: order incoming orders and remove direct route banner"
+          git push origin main
