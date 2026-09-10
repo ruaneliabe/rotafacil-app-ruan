@@ -9,6 +9,7 @@ import {LiveOperationGuard} from './components/LiveOperationGuard';
 import {DispatchBoardProductionPatch} from './components/DispatchBoardProductionPatch';
 import {ClaudeLayoutPilotFix} from './components/ClaudeLayoutPilotFix';
 import {MotoboyCounterCallListener} from './components/MotoboyCounterCallListener';
+import {FinanceVisualPolish} from './components/FinanceVisualPolish';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -21,6 +22,7 @@ createRoot(document.getElementById('root')!).render(
     <LiveOperationGuard />
     <DispatchBoardProductionPatch />
     <MotoboyCounterCallListener />
+    <FinanceVisualPolish />
     <App />
   </StrictMode>,
 );
