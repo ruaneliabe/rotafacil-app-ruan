@@ -598,7 +598,7 @@ export const MotoboyApp: React.FC<Props> = ({
                   <div className="space-y-2 p-3">
                     {preparing.length ? (
                       preparing.map((order) => (
-                        <article key={order.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <article key={order.id} className="rounded-xl border border-amber-200 bg-amber-50/55 p-4">
                           <div className="flex items-center justify-between gap-3">
                             <strong className="min-w-0 truncate text-[13px]">#{order.codeNumber} • {order.clientName}</strong>
                             <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[9px] font-black text-amber-700">EM PREPARO</span>
@@ -617,6 +617,12 @@ export const MotoboyApp: React.FC<Props> = ({
                       </div>
                     )}
                   </div>
+                  {preparing.length > 0 && (
+                    <div className="mx-3 mb-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-3 text-[10px] leading-relaxed text-slate-500">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                      <span>Assim que a loja finalizar, os pedidos aparecerão em <b>Prontos para retirada</b>.</span>
+                    </div>
+                  )}
                 </section>
 
                 <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -630,7 +636,7 @@ export const MotoboyApp: React.FC<Props> = ({
                   <div className="space-y-2 p-3">
                     {ready.length ? (
                       ready.map((order) => (
-                        <article key={order.id} className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                        <article key={order.id} className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
                           <strong className="text-[13px]">#{order.codeNumber} • {order.clientName}</strong>
                           <p className="mt-1 text-[11px] text-slate-500">{order.address}</p>
                         </article>
@@ -643,7 +649,7 @@ export const MotoboyApp: React.FC<Props> = ({
                       </div>
                     )}
                     {ready.length > 0 && (
-                      <button onClick={pickupAll} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-3.5 text-[13px] font-black text-white">
+                      <button onClick={pickupAll} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3.5 text-[13px] font-black text-white shadow-sm active:bg-violet-700">
                         <CheckCircle2 className="h-4 w-4" /> Confirmar retirada dos {ready.length} pedidos
                       </button>
                     )}
@@ -669,13 +675,13 @@ export const MotoboyApp: React.FC<Props> = ({
                   {route.map((order, index) => {
                     const isCurrent = current?.id === order.id;
                     return (
-                      <article key={order.id} className={`rounded-xl border p-3.5 ${isCurrent ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white'}`}>
+                      <article key={order.id} className={`rounded-xl border p-3.5 ${isCurrent ? 'border-violet-300 bg-violet-50/70 shadow-sm' : 'border-slate-200 bg-white'}`}>
                         <div className="flex items-start gap-3">
                           <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-black ${isCurrent ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{index + 1}</span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
                               <strong className="truncate text-[13px]">#{order.codeNumber} • {order.clientName}</strong>
-                              {isCurrent && <span className="text-[9px] font-black text-violet-700">AGORA</span>}
+                              {isCurrent && <span className="rounded-full bg-violet-100 px-2 py-1 text-[8px] font-black text-violet-700">AGORA</span>}
                             </div>
                             <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{order.address}</p>
                             <p className="mt-1 text-[10px] text-slate-400">{order.neighborhood}</p>
@@ -688,8 +694,8 @@ export const MotoboyApp: React.FC<Props> = ({
                               <button disabled={index === route.length - 1} onClick={() => move(index, 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 bg-white disabled:opacity-30"><ArrowDown className="h-4 w-4" /></button>
                             </>
                           )}
-                          <button onClick={() => setNavRequest({ from: order.id, fullRoute: false })} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#081A2F] px-3 text-[11px] font-black text-white"><Navigation className="h-4 w-4" /> Navegar</button>
-                          {activeRun && isCurrent && !arrived[order.id] && <button onClick={() => arrive(order)} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg bg-amber-400 px-3 text-[11px] font-black text-slate-950">Cheguei</button>}
+                          <button onClick={() => setNavRequest({ from: order.id, fullRoute: false })} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800"><Navigation className="h-4 w-4" /> Navegar</button>
+                          {activeRun && isCurrent && !arrived[order.id] && <button onClick={() => arrive(order)} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg bg-violet-600 px-3 text-[11px] font-black text-white shadow-sm">Cheguei</button>}
                           {activeRun && isCurrent && arrived[order.id] && <button onClick={() => finish(order)} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg bg-emerald-600 px-3 text-[11px] font-black text-white">Concluir entrega</button>}
                           {activeRun && !isCurrent && order.status === 'picked_up' && <button onClick={() => startNext(order)} className="inline-flex h-9 flex-1 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-3 text-[11px] font-black text-violet-700">Iniciar esta entrega</button>}
                         </div>
@@ -701,9 +707,9 @@ export const MotoboyApp: React.FC<Props> = ({
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => setShowMap(true)} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-[12px] font-black text-slate-700"><MapPin className="h-4 w-4" /> Ver mapa</button>
                 {!activeRun ? (
-                  <button onClick={startRoute} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-[12px] font-black text-white"><Navigation className="h-4 w-4" /> Iniciar rota</button>
+                  <button onClick={startRoute} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-violet-600 text-[12px] font-black text-white shadow-sm"><Navigation className="h-4 w-4" /> Iniciar rota</button>
                 ) : (
-                  <button onClick={() => setNavRequest({ fullRoute: true })} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-[12px] font-black text-white"><Route className="h-4 w-4" /> Abrir rota</button>
+                  <button onClick={() => setNavRequest({ fullRoute: true })} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-violet-600 text-[12px] font-black text-white shadow-sm"><Route className="h-4 w-4" /> Abrir rota</button>
                 )}
               </div>
             </>
