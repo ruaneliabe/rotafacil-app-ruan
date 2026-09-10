@@ -3,7 +3,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/fi
 import { db } from '../lib/firebase';
 import type { Order, StoreAccount, StoreShift } from '../types';
 
-const RESET_VERSION = 'manual_orders_reset_2026_09_10_v2';
+const RESET_VERSION = 'manual_orders_reset_2026_09_10_v3';
 
 function getSessionUsername() {
   try {
@@ -30,7 +30,12 @@ export function EmergencyPilotRepair() {
           const ordersSnap = await getDocs(collection(db, 'orders'));
           const manualDocs = ordersSnap.docs.filter((orderDoc) => {
             const order = orderDoc.data() as Partial<Order>;
-            return order.originChannel === 'manual';
+            const origin = String(order.originChannel || '').trim().toLowerCase();
+
+            // Pedidos manuais antigos nem sempre tinham originChannel gravado.
+            // Mantemos explicitamente as integrações e removemos manual + legado sem origem.
+            if (origin === 'cardapio_web' || origin === 'ifood' || origin === 'whatsapp' || origin === 'pdv') return false;
+            return origin === '' || origin === 'manual';
           });
 
           if (manualDocs.length > 0) {
