@@ -13,7 +13,6 @@ import {
   MapPin,
   CheckCircle2,
   Search,
-  ArrowRight,
   ShieldCheck,
   Eye,
   EyeOff,
@@ -320,28 +319,43 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   return (
     <div className="w-full min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-      {/* Container Central Clean */}
-      <div className="w-full max-w-[420px]">
-        {/* Card Principal */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-7 shadow-xl space-y-6">
-          
-          {/* Cabeçalho */}
-          <div className="text-center space-y-1.5">
-            <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 mx-auto flex items-center justify-center text-xl shadow-inner mb-3">
-              🛵
-            </div>
-            <h1 className="text-xl font-bold text-white tracking-tight">
-              Rota Fácil Delivery
+      <div className="w-full max-w-[860px] bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden grid md:grid-cols-2">
+
+        {/* Painel de identidade — compacto no celular, completo no desktop */}
+        <div className="px-5 py-4 sm:px-6 md:p-8 md:border-r border-b md:border-b-0 border-slate-800 flex items-center justify-between md:flex-col md:items-stretch gap-4 md:gap-6">
+          <div className="flex items-center gap-2 md:block">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+            <span className="hidden md:inline text-[11px] text-slate-400">Painel operacional</span>
+            <h1 className="text-base md:text-2xl font-extrabold text-white tracking-tight md:mt-2.5">
+              Rota Fácil
             </h1>
-            <p className="text-xs text-slate-400 font-medium">
-              {shift?.storeName && shift.storeName !== 'Configure sua loja'
-                ? shift.storeName
-                : 'Gestão de Entregas e Balcão'}
-            </p>
           </div>
 
-          {/* Seletor de Abas (Minimalista) */}
-          <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex text-xs font-semibold">
+          <svg viewBox="0 0 260 140" className="hidden md:block w-full h-auto" aria-hidden="true">
+            <circle cx="20" cy="118" r="6" fill="#F5B942" />
+            <path
+              d="M20,118 Q70,108 100,78 T180,38 T230,14"
+              fill="none"
+              stroke="#334155"
+              strokeWidth="2"
+              strokeDasharray="5 6"
+            />
+            <circle cx="100" cy="78" r="3.5" fill="#64748B" />
+            <circle cx="180" cy="38" r="3.5" fill="#64748B" />
+            <circle cx="230" cy="14" r="5" fill="#10B981" />
+          </svg>
+
+          <div className="hidden md:flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="text-[11px] text-slate-500">Rotas, entregadores e pedidos em um só lugar</span>
+          </div>
+        </div>
+
+        {/* Painel de acesso */}
+        <div className="p-6 sm:p-8 space-y-5">
+
+          {/* Seletor de Abas (sublinhado) */}
+          <div className="flex gap-5 border-b border-slate-800 text-xs font-semibold">
             <button
               type="button"
               onClick={() => {
@@ -349,16 +363,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 setErrorMsg(null);
                 setSuccessMsg(null);
               }}
-              className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`pb-2.5 -mb-px flex items-center gap-1.5 cursor-pointer border-b-2 transition-colors ${
                 activeTab === 'store_login'
-                  ? 'bg-slate-800 text-white font-bold shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'border-emerald-500 text-white'
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
               <Store className="w-3.5 h-3.5" />
               <span>Entrar</span>
             </button>
-            
+
             <button
               type="button"
               onClick={() => {
@@ -366,10 +380,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 setErrorMsg(null);
                 setSuccessMsg(null);
               }}
-              className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`pb-2.5 -mb-px flex items-center gap-1.5 cursor-pointer border-b-2 transition-colors ${
                 activeTab === 'store_signup'
-                  ? 'bg-slate-800 text-white font-bold shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'border-emerald-500 text-white'
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
               <span>Cadastrar</span>
@@ -382,10 +396,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 setErrorMsg(null);
                 setSuccessMsg(null);
               }}
-              className={`flex-1 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`pb-2.5 -mb-px flex items-center gap-1.5 cursor-pointer border-b-2 transition-colors ${
                 activeTab === 'motoboy'
-                  ? 'bg-slate-800 text-white font-bold shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'border-emerald-500 text-white'
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
               }`}
             >
               <Bike className="w-3.5 h-3.5" />
@@ -424,7 +438,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={storeUser}
                     onChange={(e) => setStoreUser(e.target.value)}
                     placeholder="ex: hopeburger"
-                    className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                    className="w-full pl-10 pr-3 py-2.5 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal transition-colors text-xs"
                   />
                 </div>
               </div>
@@ -441,7 +455,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={storePass}
                     onChange={(e) => setStorePass(e.target.value)}
                     placeholder="Sua senha de acesso"
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                    className="w-full pl-10 pr-10 py-2.5 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal transition-colors text-xs"
                   />
                   <button
                     type="button"
@@ -455,7 +469,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer shadow-sm mt-2"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer shadow-sm mt-2"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Entrar no Painel</span>
@@ -471,7 +485,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   className="text-xs text-slate-400 hover:text-slate-200 transition-colors inline-flex items-center gap-1 cursor-pointer"
                 >
                   <span>Não possui conta? Cadastre sua loja</span>
-                  <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
             </form>
@@ -490,7 +503,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={signupStoreName}
                     onChange={(e) => setSignupStoreName(e.target.value)}
                     placeholder="Ex: Hope Burger"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
+                    className="w-full pl-9 pr-3 py-2 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal text-xs"
                   />
                 </div>
               </div>
@@ -505,7 +518,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={signupPhone}
                     onChange={(e) => setSignupPhone(e.target.value)}
                     placeholder="(00) 00000-0000"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
+                    className="w-full pl-9 pr-3 py-2 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal text-xs"
                   />
                 </div>
               </div>
@@ -531,7 +544,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={signupAddress}
                     onChange={(e) => setSignupAddress(e.target.value)}
                     placeholder="Rua, Número, Bairro, Cidade"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
+                    className="w-full pl-9 pr-3 py-2 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal text-xs"
                   />
                 </div>
               </div>
@@ -549,7 +562,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                       value={signupUser}
                       onChange={(e) => setSignupUser(e.target.value.toLowerCase().replace(/\s+/g, ''))}
                       placeholder="usuario"
-                      className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
+                      className="w-full pl-9 pr-3 py-2 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal text-xs"
                     />
                   </div>
                 </div>
@@ -564,7 +577,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                       value={signupPass}
                       onChange={(e) => setSignupPass(e.target.value)}
                       placeholder="Mín. 4 dígitos"
-                      className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
+                      className="w-full pl-9 pr-3 py-2 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal text-xs"
                     />
                   </div>
                 </div>
@@ -580,7 +593,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={signupPassConfirm}
                     onChange={(e) => setSignupPassConfirm(e.target.value)}
                     placeholder="Repita sua senha"
-                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal text-xs"
+                    className="w-full pl-9 pr-3 py-2 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal text-xs"
                   />
                 </div>
               </div>
@@ -588,7 +601,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmittingSignup}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50 mt-2"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50 mt-2"
               >
                 <span>{isSubmittingSignup ? 'Cadastrando...' : 'Concluir Cadastro'}</span>
               </button>
@@ -612,7 +625,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={motoboyUser}
                     onChange={(e) => setMotoboyUser(e.target.value)}
                     placeholder="Nome de usuário cadastrado"
-                    className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                    className="w-full pl-10 pr-3 py-2.5 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal transition-colors text-xs"
                   />
                 </div>
               </div>
@@ -629,7 +642,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={motoboyPass}
                     onChange={(e) => setMotoboyPass(e.target.value)}
                     placeholder="Senha do entregador"
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                    className="w-full pl-10 pr-10 py-2.5 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal transition-colors text-xs"
                   />
                   <button
                     type="button"
@@ -643,7 +656,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer mt-2"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer mt-2"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Acessar Entregador</span>
@@ -666,7 +679,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={masterUser}
                     onChange={(e) => setMasterUser(e.target.value)}
                     placeholder="ruan"
-                    className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                    className="w-full pl-10 pr-3 py-2.5 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal transition-colors text-xs"
                   />
                 </div>
               </div>
@@ -681,7 +694,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     value={masterPass}
                     onChange={(e) => setMasterPass(e.target.value)}
                     placeholder="••••••"
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 font-normal transition-colors text-xs"
+                    className="w-full pl-10 pr-10 py-2.5 bg-transparent border-0 border-b border-slate-700 rounded-none text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-normal transition-colors text-xs"
                   />
                   <button
                     type="button"
