@@ -41,46 +41,45 @@ replaceOnce(
   'allow reordering assigned orders before pickup'
 );
 
-// Abre app nativo sempre que possivel; evita a folha/webview branca ao voltar ao PWA.
+// Usa universal links. No iPhone, o sistema abre o app nativo quando instalado;
+// se nao estiver instalado, o mesmo link abre no navegador externo padrao.
+// Evita custom schemes (waze:// / comgooglemaps://), que geram "endereco invalido" no Safari/PWA.
 replaceOnce(
 `  const launchExternalNavigation = (url: string) => {
     const popup = window.open(url, '_blank', 'noopener,noreferrer');
     if (!popup) window.location.assign(url);
   };`,
-`  const launchExternalNavigation = (nativeUrl: string, webFallback: string) => {
-    let appOpened = false;
-    const onVisibility = () => {
-      if (document.hidden) appOpened = true;
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    window.location.href = nativeUrl;
-    window.setTimeout(() => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      if (!appOpened) window.location.href = webFallback;
-    }, 1400);
+`  const launchExternalNavigation = (url: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer external';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };`,
-  'launch native navigation app with browser fallback'
+  'launch universal link outside PWA with native-app/browser fallback'
 );
 
+// Mantem Google Maps como HTTPS universal link: abre o app se instalado ou o navegador externo se nao.
 replaceOnce(
 `    const url = \`https://www.google.com/maps/dir/?api=1\${origin}&destination=\${destination}\${waypoints ? \`&waypoints=\${encodeURIComponent(waypoints)}\` : ''}&travelmode=driving\`;
     setNavRequest(null);
     launchExternalNavigation(url);`,
 `    const url = \`https://www.google.com/maps/dir/?api=1\${origin}&destination=\${destination}\${waypoints ? \`&waypoints=\${encodeURIComponent(waypoints)}\` : ''}&travelmode=driving\`;
-    const nativeUrl = 'comgooglemapsurl://' + url.replace(/^https?:\\/\\//, '');
     setNavRequest(null);
-    launchExternalNavigation(nativeUrl, url);`,
-  'open Google Maps app with multi-stop route'
+    launchExternalNavigation(url);`,
+  'Google Maps uses universal HTTPS link'
 );
 
+// Mantem Waze como HTTPS universal link: abre o app se instalado ou o navegador externo se nao.
 replaceOnce(
 `    setNavRequest(null);
     launchExternalNavigation(\`https://waze.com/ul?\${destination}&navigate=yes\`);`,
 `    const webUrl = \`https://waze.com/ul?\${destination}&navigate=yes\`;
-    const nativeUrl = \`waze://?\${destination}&navigate=yes\`;
     setNavRequest(null);
-    launchExternalNavigation(nativeUrl, webUrl);`,
-  'open Waze app directly'
+    launchExternalNavigation(webUrl);`,
+  'Waze uses universal HTTPS link'
 );
 
 // O mapa interno tambem funciona antes da retirada usando a carga reservada.
