@@ -1,0 +1,77 @@
+name: Fix shift toggle persistence
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-shift-toggle-persistence.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch App
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/App.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          text = text.replace('  const handleToggleShift = () => {', '  const handleToggleShift = async () => {', 1)
+
+          text = text.replace(
+'''      setShift(updatedShift);
+      saveShiftToCloud(updatedShift);
+
+      // Contadores do motoboy são DIÁRIOS.''',
+'''      // Atualiza a UI imediatamente, persiste e confirma o estado após o write.
+      // Assim o botão lateral não volta para "fechada" por causa de snapshot antigo.
+      setShift(updatedShift);
+      try {
+        await saveShiftToCloud(updatedShift);
+        setShift(updatedShift);
+      } catch (error) {
+        console.error('Falha ao abrir/retomar operação:', error);
+        setShift(shift);
+        showToast('Não foi possível abrir a operação. Tente novamente.');
+        return;
+      }
+
+      // Contadores do motoboy são DIÁRIOS.''', 1)
+
+          text = text.replace(
+'''      setShift(updatedShift);
+      saveShiftToCloud(updatedShift);
+
+      showToast(`Turno fechado! Resumo:''',
+'''      setShift(updatedShift);
+      try {
+        await saveShiftToCloud(updatedShift);
+        setShift(updatedShift);
+      } catch (error) {
+        console.error('Falha ao fechar operação:', error);
+        setShift(shift);
+        showToast('Não foi possível fechar a operação. Tente novamente.');
+        return;
+      }
+
+      showToast(`Turno fechado! Resumo:''', 1)
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit and cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-shift-toggle-persistence.yml
+          git add src/App.tsx
+          git commit -m "fix: keep shift toggle UI synced with persisted state"
+          git push origin main
