@@ -290,20 +290,20 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     const channel = order.originChannel;
     if (channel === 'cardapio_web') {
       return (
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-300 bg-blue-500/15 px-1.5 py-0.5 rounded border border-blue-500/25 shrink-0">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-500/15 px-1.5 py-0.5 rounded border border-blue-200 shrink-0">
           🌐 CW
         </span>
       );
     }
     if (channel === 'ifood') {
       return (
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-300 bg-rose-500/15 px-1.5 py-0.5 rounded border border-rose-500/25 shrink-0">
+        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-500/15 px-1.5 py-0.5 rounded border border-rose-200 shrink-0">
           🔴 iFood
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 shrink-0">
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
         Balcão
       </span>
     );
@@ -323,14 +323,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     return (
       <div
         key={order.id}
-        className={`group p-2 rounded-xl border text-slate-100 transition-all text-xs flex flex-col gap-1.5 shadow-2xs ${
+        className={`group p-2 rounded-xl border text-slate-800 transition-all text-xs flex flex-col gap-1.5 shadow-2xs ${
           isSelected
-            ? 'border-emerald-500 bg-emerald-950/40 ring-1 ring-emerald-500/50'
+            ? 'border-emerald-200 bg-emerald-50 ring-1 ring-emerald-200'
             : isOverdue || isReadyCooling
-            ? 'border-rose-500/60 bg-rose-950/20 hover:border-rose-400'
+            ? 'border-rose-200 bg-rose-50 hover:border-rose-200'
             : isWarning
-            ? 'border-amber-500/40 bg-amber-950/15 hover:border-amber-400'
-            : 'border-slate-800/90 bg-slate-900/90 hover:border-slate-700'
+            ? 'border-amber-200 bg-amber-50 hover:border-amber-200'
+            : 'border-slate-200/90 bg-white/90 hover:border-slate-200'
         }`}
       >
         {/* Linha 1: Checkbox (se pronto) + Código + Espera + Canal + Ações de Impressão */}
@@ -344,27 +344,27 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                     prev.includes(order.id) ? prev.filter((id) => id !== order.id) : [...prev, order.id]
                   );
                 }}
-                className="text-slate-400 hover:text-emerald-400 cursor-pointer shrink-0"
+                className="text-slate-500 hover:text-emerald-600 cursor-pointer shrink-0"
                 title={isSelected ? 'Desmarcar' : 'Selecionar para lote'}
               >
-                {isSelected ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4" />}
+                {isSelected ? <CheckSquare className="w-4 h-4 text-emerald-600" /> : <Square className="w-4 h-4" />}
               </button>
             )}
 
             <span className={`text-[11px] font-black px-1.5 py-0.5 rounded shrink-0 ${
-              isPizza ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-              isBurger ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-              'bg-slate-800 text-white border border-slate-700'
+              isPizza ? 'bg-rose-500/20 text-rose-700 border border-rose-200' :
+              isBurger ? 'bg-amber-500/20 text-amber-700 border border-amber-200' :
+              'bg-slate-100 text-slate-900 border border-slate-200'
             }`}>
               {getOrderDisplayCode(order)}
             </span>
 
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 flex items-center gap-0.5 ${
               isOverdue || isReadyCooling
-                ? 'bg-rose-500/20 text-rose-300'
+                ? 'bg-rose-500/20 text-rose-700'
                 : isWarning
-                ? 'bg-amber-500/20 text-amber-300'
-                : 'bg-slate-800 text-slate-400'
+                ? 'bg-amber-500/20 text-amber-700'
+                : 'bg-slate-100 text-slate-500'
             }`}>
               <Clock className="w-2.5 h-2.5" />
               <span>{waitMinutes}m</span>
@@ -378,7 +378,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenThermalTicket(order)}
-                className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white cursor-pointer"
+                className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 cursor-pointer"
                 title="Imprimir comanda"
               >
                 <Printer className="w-3 h-3" />
@@ -388,7 +388,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectOrderForTracking(order)}
-                className="p-1 rounded bg-slate-800 hover:bg-blue-900 text-blue-400 cursor-pointer"
+                className="p-1 rounded bg-slate-100 hover:bg-blue-50 text-blue-600 cursor-pointer"
                 title="Ver no mapa"
               >
                 <MapPin className="w-3 h-3" />
@@ -399,16 +399,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
         {/* Linha 2: Cliente & Bairro & Smart Route Pill */}
         <div className="flex items-baseline justify-between gap-1 text-[11px] min-w-0 flex-wrap">
-          <span className="font-bold text-slate-200 truncate flex-1">{order.clientName}</span>
+          <span className="font-bold text-slate-700 truncate flex-1">{order.clientName}</span>
           <div className="flex items-center gap-1 shrink-0">
-            <span className="text-emerald-400 font-semibold truncate max-w-[110px]">{order.neighborhood || 'Centro'}</span>
+            <span className="text-emerald-600 font-semibold truncate max-w-[110px]">{order.neighborhood || 'Centro'}</span>
             {pairingInfo && (
               <span
                 title={pairingInfo.desc}
                 className={`text-[9px] font-black px-1 py-0.5 rounded shrink-0 border ${
                   pairingInfo.type === 'urgent'
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    ? 'bg-rose-500/20 text-rose-700 border-rose-200'
+                    : 'bg-emerald-500/20 text-emerald-700 border-emerald-200'
                 }`}
               >
                 {pairingInfo.badge}
@@ -419,15 +419,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
         {/* Linha 3: Resumo rápido de itens */}
         {order.itemsSummary && (
-          <p className="text-[10px] text-slate-400 truncate bg-slate-950/50 px-1.5 py-0.5 rounded">
+          <p className="text-[10px] text-slate-500 truncate bg-slate-50/50 px-1.5 py-0.5 rounded">
             {order.itemsSummary}
           </p>
         )}
 
         {/* Linha 4: Financeiro e Ação de Avanço */}
-        <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-800/60 flex-wrap">
+        <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-200/60 flex-wrap">
           <div className="flex items-center gap-1.5">
-            <span className="font-extrabold text-white text-[11px]">
+            <span className="font-extrabold text-slate-900 text-[11px]">
               R$ {(order.total || 0).toFixed(2).replace('.', ',')}
             </span>
             <PaymentBadge method={order.paymentMethod} changeFor={order.changeFor} total={order.total} size="xs" />
@@ -469,7 +469,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               </button>
             ) : (
               <span
-                className="text-[9px] text-amber-300 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded font-semibold cursor-help"
+                className="text-[9px] text-amber-700 bg-amber-500/15 border border-amber-200 px-1.5 py-0.5 rounded font-semibold cursor-help"
                 title="Aguardando retorno de entregador ao pátio da loja. Pedido em fila prioritária."
               >
                 ⏳ Aguardando Motoboy
@@ -479,13 +479,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
           {currentColumn === 'dispatched' && (
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-indigo-300 font-semibold truncate max-w-[80px]">
+              <span className="text-[10px] text-indigo-700 font-semibold truncate max-w-[80px]">
                 {order.assignedMotoboyName?.split(' ')[0] || 'Em rota'}
               </span>
               <button
                 type="button"
                 onClick={() => onUpdateOrderStatus(order.id, 'delivered')}
-                className="px-1.5 py-0.5 bg-slate-800 hover:bg-emerald-600 text-emerald-400 hover:text-white font-bold text-[10px] rounded transition-all cursor-pointer"
+                className="px-1.5 py-0.5 bg-slate-100 hover:bg-emerald-600 text-emerald-600 hover:text-white font-bold text-[10px] rounded transition-all cursor-pointer"
                 title="Confirmar entrega"
               >
                 ✓ Entregue
@@ -494,7 +494,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           )}
 
           {currentColumn === 'delivered' && (
-            <span className="text-[10px] text-slate-500 font-medium">Concluído</span>
+            <span className="text-[10px] text-slate-400 font-medium">Concluído</span>
           )}
         </div>
       </div>
@@ -515,14 +515,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     return (
       <div
         key={order.id}
-        className={`bg-slate-900 rounded-xl p-3.5 border transition-all text-slate-100 space-y-2.5 shadow-sm ${
+        className={`bg-white rounded-xl p-3.5 border transition-all text-slate-800 space-y-2.5 shadow-sm ${
           isSelected
-            ? 'border-emerald-500 bg-emerald-950/30 ring-1 ring-emerald-500/50'
+            ? 'border-emerald-200 bg-emerald-50 ring-1 ring-emerald-200'
             : isOverdue || isReadyCooling
-            ? 'border-rose-500/60 bg-rose-950/20'
+            ? 'border-rose-200 bg-rose-50'
             : isWarning
-            ? 'border-amber-500/50 bg-amber-950/15'
-            : 'border-slate-800 hover:border-slate-700'
+            ? 'border-amber-200 bg-amber-50'
+            : 'border-slate-200 hover:border-slate-200'
         }`}
       >
         {/* Top Header: Code, Channel & Time */}
@@ -536,16 +536,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                     prev.includes(order.id) ? prev.filter((id) => id !== order.id) : [...prev, order.id]
                   );
                 }}
-                className="text-slate-400 hover:text-emerald-400 cursor-pointer shrink-0"
+                className="text-slate-500 hover:text-emerald-600 cursor-pointer shrink-0"
               >
-                {isSelected ? <CheckSquare className="w-4 h-4 text-emerald-400" /> : <Square className="w-4 h-4" />}
+                {isSelected ? <CheckSquare className="w-4 h-4 text-emerald-600" /> : <Square className="w-4 h-4" />}
               </button>
             )}
 
             <span className={`text-base font-black tracking-tight px-1.5 py-0.5 rounded ${
-              isPizza ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-              isBurger ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-              'bg-slate-800 text-white'
+              isPizza ? 'bg-rose-500/20 text-rose-700 border border-rose-200' :
+              isBurger ? 'bg-amber-500/20 text-amber-700 border border-amber-200' :
+              'bg-slate-100 text-slate-900'
             }`}>
               {getOrderDisplayCode(order)}
             </span>
@@ -553,8 +553,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           </div>
 
           <div className="flex items-center gap-1 text-xs">
-            <Clock className={`w-3.5 h-3.5 ${isOverdue || isReadyCooling ? 'text-rose-400' : isWarning ? 'text-amber-400' : 'text-slate-400'}`} />
-            <span className={`font-semibold ${isOverdue || isReadyCooling ? 'text-rose-400 font-bold' : isWarning ? 'text-amber-300 font-bold' : 'text-slate-400'}`}>
+            <Clock className={`w-3.5 h-3.5 ${isOverdue || isReadyCooling ? 'text-rose-600' : isWarning ? 'text-amber-600' : 'text-slate-500'}`} />
+            <span className={`font-semibold ${isOverdue || isReadyCooling ? 'text-rose-600 font-bold' : isWarning ? 'text-amber-700 font-bold' : 'text-slate-500'}`}>
               {order.createdAt || '--:--'} ({waitMinutes}m)
             </span>
           </div>
@@ -562,14 +562,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
         {/* Client & Neighborhood */}
         <div>
-          <div className="text-sm font-bold text-slate-100 truncate">
+          <div className="text-sm font-bold text-slate-800 truncate">
             {order.clientName || 'Cliente não identificado'}
           </div>
-          <div className="flex items-center gap-1 text-xs text-slate-300 mt-0.5 truncate">
-            <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-            <span className="font-semibold text-slate-200">{order.neighborhood || 'Bairro não informado'}</span>
-            <span className="text-slate-500">•</span>
-            <span className="text-slate-400 truncate text-[11px]">{order.address}</span>
+          <div className="flex items-center gap-1 text-xs text-slate-600 mt-0.5 truncate">
+            <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            <span className="font-semibold text-slate-700">{order.neighborhood || 'Bairro não informado'}</span>
+            <span className="text-slate-400">•</span>
+            <span className="text-slate-500 truncate text-[11px]">{order.address}</span>
           </div>
         </div>
 
@@ -577,25 +577,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         {pairingInfo && currentColumn !== 'delivered' && (
           <div className={`p-1.5 px-2 rounded-lg text-[11px] flex items-center gap-1.5 border ${
             pairingInfo.type === 'urgent'
-              ? 'bg-rose-500/15 border-rose-500/30 text-rose-300'
-              : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+              ? 'bg-rose-500/15 border-rose-200 text-rose-700'
+              : 'bg-emerald-500/15 border-emerald-200 text-emerald-700'
           }`}>
             <span className="font-black text-xs shrink-0">{pairingInfo.badge}</span>
-            <span className="text-[10px] text-slate-300 truncate">{pairingInfo.desc}</span>
+            <span className="text-[10px] text-slate-600 truncate">{pairingInfo.desc}</span>
           </div>
         )}
 
         {/* Items Summary */}
         {order.itemsSummary && (
-          <div className="text-xs text-slate-300 bg-slate-950/60 p-2 rounded-lg border border-slate-800/80 line-clamp-2">
+          <div className="text-xs text-slate-600 bg-slate-50/60 p-2 rounded-lg border border-slate-200/80 line-clamp-2">
             {order.itemsSummary}
           </div>
         )}
 
         {/* Financial & Payment Badge */}
-        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/70 text-xs flex-wrap">
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/70 text-xs flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="font-black text-white">
+            <span className="font-black text-slate-900">
               {order.total?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </span>
             <PaymentBadge method={order.paymentMethod} changeFor={order.changeFor} total={order.total} size="xs" />
@@ -606,7 +606,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenThermalTicket(order)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
                 title="Imprimir comanda térmica"
               >
                 <Printer className="w-3.5 h-3.5" />
@@ -616,7 +616,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               <button
                 type="button"
                 onClick={() => onSelectOrderForTracking(order)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-blue-900 text-blue-300 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-blue-700 transition-colors cursor-pointer"
                 title="Ver no mapa"
               >
                 <MapPin className="w-3.5 h-3.5" />
@@ -627,8 +627,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
         {/* Motoboy assigned in Transit / Route */}
         {order.assignedMotoboyName && currentColumn === 'dispatched' && (
-          <div className="flex items-center gap-1.5 text-xs text-indigo-300 bg-indigo-500/10 p-1.5 rounded-lg border border-indigo-500/20 font-medium">
-            <Bike className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          <div className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-500/10 p-1.5 rounded-lg border border-indigo-200 font-medium">
+            <Bike className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
             <span className="truncate">Na rua com: <strong>{order.assignedMotoboyName}</strong></span>
           </div>
         )}
@@ -648,7 +648,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               <button
                 type="button"
                 onClick={() => onUpdateOrderStatus(order.id, 'ready_at_counter')}
-                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition-all cursor-pointer"
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-lg transition-all cursor-pointer"
                 title="Pular direto para pronto na bancada"
               >
                 Pronto ➔
@@ -683,10 +683,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 </button>
               ) : (
                 <div
-                  className="text-[11px] text-amber-300 bg-amber-500/10 p-1.5 rounded-lg border border-amber-500/30 flex items-center justify-center gap-1.5 font-semibold cursor-help"
+                  className="text-[11px] text-amber-700 bg-amber-500/10 p-1.5 rounded-lg border border-amber-200 flex items-center justify-center gap-1.5 font-semibold cursor-help"
                   title="Pedido na fila prioritária. Nenhum motoboy livre no pátio da loja no momento. Será o primeiro a sair quando um entregador chegar."
                 >
-                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   <span>Aguardando motoboy no pátio (Fila 1)</span>
                 </div>
               )}
@@ -697,15 +697,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             <button
               type="button"
               onClick={() => onUpdateOrderStatus(order.id, 'delivered')}
-              className="w-full py-1.5 bg-slate-800 hover:bg-emerald-700 text-slate-200 hover:text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-700"
+              className="w-full py-1.5 bg-slate-100 hover:bg-emerald-700 text-slate-700 hover:text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-200"
             >
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               <span>Confirmar Entrega</span>
             </button>
           )}
 
           {currentColumn === 'delivered' && (
-            <div className="w-full text-center text-[11px] text-slate-400 py-1">
+            <div className="w-full text-center text-[11px] text-slate-500 py-1">
               Entregue com sucesso
             </div>
           )}
@@ -717,17 +717,17 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   return (
     <div className="space-y-4">
       {/* KANBAN TOOLBAR */}
-      <div className="bg-slate-900 rounded-xl p-3 border border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="bg-white rounded-xl p-3 border border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Left: Store Selector Tabs & View Mode Toggle */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs font-bold text-slate-400 mr-1 hidden sm:inline">Filtrar:</span>
+          <span className="text-xs font-bold text-slate-500 mr-1 hidden sm:inline">Filtrar:</span>
           <button
             type="button"
             onClick={() => onSetStoreFilter('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               storeFilter === 'all'
                 ? 'bg-slate-100 text-slate-950 shadow-xs'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             Todas ({orders.filter((o) => o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'failed' && !isTakeoutOrder(o)).length})
@@ -738,7 +738,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
               storeFilter === 'hope_pizza'
                 ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-800 text-rose-300 hover:bg-slate-700 border border-rose-500/30'
+                : 'bg-slate-100 text-rose-700 hover:bg-slate-200 border border-rose-200'
             }`}
           >
             <span>🍕</span>
@@ -750,7 +750,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
               storeFilter === 'hope_burger'
                 ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-slate-800 text-amber-300 hover:bg-slate-700 border border-amber-500/30'
+                : 'bg-slate-100 text-amber-700 hover:bg-slate-200 border border-amber-200'
             }`}
           >
             <span>🍔</span>
@@ -758,15 +758,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           </button>
 
           {/* Toggle de Densidade: Modo Alta Demanda (200 pedidos) vs Cards */}
-          <div className="h-4 w-px bg-slate-700 mx-1 hidden sm:block" />
-          <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+          <div className="h-4 w-px bg-slate-200 mx-1 hidden sm:block" />
+          <div className="flex items-center bg-slate-50 p-0.5 rounded-lg border border-slate-200">
             <button
               type="button"
               onClick={() => setViewDensity('compact')}
               className={`px-2 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                 viewDensity === 'compact'
                   ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-500 hover:text-slate-700'
               }`}
               title="Visão compacta em linhas de alta densidade (ideal para mais de 100 pedidos)"
             >
@@ -779,7 +779,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               className={`px-2 py-1 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                 viewDensity === 'detailed'
                   ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-500 hover:text-slate-700'
               }`}
               title="Visão clássica em cards detalhados"
             >
@@ -792,14 +792,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         {/* Right: Search, Sync & Actions */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1 sm:w-60">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar cliente, nº ou bairro (tecle /)..."
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500"
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-200"
             />
           </div>
 
@@ -807,10 +807,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             type="button"
             onClick={handleManualSync}
             disabled={isSyncing}
-            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border border-slate-700"
+            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border border-slate-200"
             title="Sincronizar com Cardápio Web (status da loja e pedidos)"
           >
-            <RotateCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-400' : 'text-slate-400'}`} />
+            <RotateCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-600' : 'text-slate-500'}`} />
             <span className="hidden md:inline">{isSyncing ? 'Sincronizando...' : 'Sincronizar CW'}</span>
           </button>
 
@@ -829,15 +829,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
       {/* NOTIFICAÇÃO TOAST DE PROTEÇÃO DE DESPACHO */}
       {dispatchBlockedToast && (
-        <div className="bg-rose-950/90 border-2 border-rose-500 rounded-xl p-3 flex items-center justify-between gap-3 text-white text-xs font-bold shadow-lg animate-bounce">
+        <div className="bg-rose-50 border-2 border-rose-200 rounded-xl p-3 flex items-center justify-between gap-3 text-slate-900 text-xs font-bold shadow-lg animate-bounce">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-rose-300 shrink-0" />
+            <AlertTriangle className="w-5 h-5 text-rose-700 shrink-0" />
             <span>{dispatchBlockedToast}</span>
           </div>
           <button
             type="button"
             onClick={() => setDispatchBlockedToast(null)}
-            className="text-rose-200 hover:text-white px-2 py-0.5 rounded bg-rose-900 cursor-pointer"
+            className="text-rose-700 hover:text-slate-900 px-2 py-0.5 rounded bg-rose-50 cursor-pointer"
           >
             ✕
           </button>
@@ -858,11 +858,11 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
       {/* BARRA ANTI-GARGALO E FILA OPERACIONAL (Alta Eficiência para 200 Pedidos) */}
       {shift.isOpen && (
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
+        <div className="bg-white/90 border border-slate-200 rounded-xl p-3 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
           {/* Filtros rápidos de gargalo */}
           <div className="flex items-center gap-2 flex-wrap text-xs">
-            <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mr-1 flex items-center gap-1">
-              <Flame className="w-3.5 h-3.5 text-amber-400" /> Gargalos:
+            <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px] mr-1 flex items-center gap-1">
+              <Flame className="w-3.5 h-3.5 text-amber-600" /> Gargalos:
             </span>
 
             <button
@@ -870,8 +870,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               onClick={() => setBottleneckFilter('all')}
               className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-xs ${
                 bottleneckFilter === 'all'
-                  ? 'bg-slate-700 text-white'
-                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-slate-200 text-slate-900'
+                  : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
               }`}
             >
               Todos ({baseShiftOrders.length})
@@ -884,7 +884,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-xs flex items-center gap-1.5 ${
                   bottleneckFilter === 'delayed_prep'
                     ? 'bg-rose-600 text-white shadow-xs'
-                    : 'bg-rose-950/40 text-rose-300 border border-rose-500/40 hover:bg-rose-900/50'
+                    : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-50'
                 }`}
                 title="Filtrar pedidos com mais de 25 min em preparo ou novos"
               >
@@ -900,7 +900,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-xs flex items-center gap-1.5 ${
                   bottleneckFilter === 'cooling_counter'
                     ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
-                    : 'bg-amber-950/40 text-amber-300 border border-amber-500/40 hover:bg-amber-900/50'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-50'
                 }`}
                 title="Filtrar pedidos prontos há mais de 8 min sem motoboy"
               >
@@ -915,7 +915,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer text-xs flex items-center gap-1.5 ${
                   bottleneckFilter === 'batches'
                     ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-emerald-950/40 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900/50'
+                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
                 }`}
                 title="Filtrar pedidos prontos que seguem o mesmo caminho/corredor com tempo compatível"
               >
@@ -927,19 +927,19 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
           {/* Fila de motoboys no balcão (FIFO) */}
           <div className="flex items-center gap-1.5 text-xs overflow-x-auto py-0.5">
-            <span className="text-[10px] uppercase font-bold text-slate-400 shrink-0 flex items-center gap-1">
-              <Users className="w-3.5 h-3.5 text-emerald-400" /> Fila Balcão:
+            <span className="text-[10px] uppercase font-bold text-slate-500 shrink-0 flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-emerald-600" /> Fila Balcão:
             </span>
             {availableMotoboys.length === 0 ? (
-              <span className="text-slate-500 text-[11px] italic">Nenhum motoboy livre no pátio</span>
+              <span className="text-slate-400 text-[11px] italic">Nenhum motoboy livre no pátio</span>
             ) : (
               availableMotoboys.map((m, idx) => (
                 <span
                   key={m.id}
                   className={`px-2 py-0.5 rounded-lg text-[11px] font-bold shrink-0 border ${
                     idx === 0
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                      ? 'bg-emerald-500/20 text-emerald-700 border-emerald-200'
+                      : 'bg-slate-100 text-slate-600 border-slate-200'
                   }`}
                   title={`Posição ${idx + 1} na fila`}
                 >
@@ -956,8 +956,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         <div
           className={`border rounded-xl p-3 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-xs ${
             availableMotoboys.length > 0
-              ? 'bg-emerald-950/30 border-emerald-500/40'
-              : 'bg-amber-950/25 border-amber-500/40'
+              ? 'bg-emerald-50 border-emerald-200'
+              : 'bg-amber-50 border-amber-200'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -971,19 +971,19 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             <div>
               <span
                 className={`font-black uppercase tracking-wide flex items-center gap-1.5 ${
-                  availableMotoboys.length > 0 ? 'text-emerald-300' : 'text-amber-300'
+                  availableMotoboys.length > 0 ? 'text-emerald-700' : 'text-amber-700'
                 }`}
               >
-                <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                <Zap className="w-3.5 h-3.5 text-amber-700 fill-amber-300" />
                 Despacho Inteligente no Mesmo Trajeto ({smartReadyBatches.length}{' '}
                 {smartReadyBatches.length === 1 ? 'lote compatível' : 'lotes compatíveis'})
                 {availableMotoboys.length === 0 && (
-                  <span className="text-[10px] lowercase font-normal bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded-full border border-amber-500/30">
+                  <span className="text-[10px] lowercase font-normal bg-amber-500/20 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
                     aguardando retorno ao pátio
                   </span>
                 )}
               </span>
-              <p className="text-[11px] text-slate-300 mt-0.5">
+              <p className="text-[11px] text-slate-600 mt-0.5">
                 {availableMotoboys.length > 0
                   ? 'Pedidos no mesmo caminho com horários alinhados (diferença máx. 8m). Jamais junta pedido novo com pedido antigo.'
                   : 'Lotes pré-organizados por corredor viário. Despacho protegido até que o próximo motoboy chegue à loja.'}
@@ -999,8 +999,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 onClick={() => handleDispatchBatchOrders(batch.orders.map((o) => o.id))}
                 className={`px-3 py-1.5 active:scale-95 text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer flex flex-col items-start gap-0.5 border ${
                   availableMotoboys.length > 0
-                    ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400/30'
-                    : 'bg-slate-800 hover:bg-slate-750 border-amber-500/30 text-amber-200'
+                    ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-200'
+                    : 'bg-slate-100 hover:bg-slate-750 border-amber-200 text-amber-700'
                 }`}
                 title={
                   availableMotoboys.length > 0
@@ -1009,7 +1009,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 }
               >
                 <div className="flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                  <Zap className="w-3.5 h-3.5 text-amber-700 fill-amber-300" />
                   <span>
                     {batch.corridorName} ({batch.orders.length}){' '}
                     {availableMotoboys.length > 0
@@ -1017,7 +1017,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       : '➔ (Aguardando Motoboy)'}
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-300 font-medium">
+                <span className="text-[10px] text-slate-600 font-medium">
                   {batch.interOrderDistanceKm}km entre entregas · Δt {batch.timeSpreadMinutes}m
                 </span>
               </button>
@@ -1028,24 +1028,24 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
       {/* STATUS BANNER QUANDO A LOJA ESTÁ FECHADA */}
       {!shift.isOpen && (
-        <div className="bg-slate-900/90 border border-amber-500/30 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+        <div className="bg-white/90 border border-amber-200 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
           <div className="flex items-center gap-3">
             <span className="w-3 h-3 rounded-full bg-rose-500 shrink-0 animate-pulse" />
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black text-rose-300 uppercase tracking-wider">
+                <span className="text-xs font-black text-rose-700 uppercase tracking-wider">
                   Loja Fechada no Cardápio Web
                 </span>
-                <span className="text-[11px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                   Abertura Automática às 18:00
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
+              <p className="text-[11px] text-slate-500 mt-0.5">
                 {shift.cardapioWebStatus?.pizza?.reason || shift.cardapioWebStatus?.burger?.reason || 'Fora do horário de expediente (18:00 às 23:00)'}. Assim que a loja abrir no Cardápio Web, o Rota Fácil iniciará a esteira em tempo real.
               </p>
             </div>
           </div>
-          <div className="text-[11px] text-slate-400 flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+          <div className="text-[11px] text-slate-500 flex items-center gap-1.5 shrink-0 self-end sm:self-center">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
             <span>Monitoramento em 2º plano ativo</span>
           </div>
@@ -1055,25 +1055,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       {/* KANBAN BOARD COLUMNS (5 Classic Delivery Columns) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3.5 items-start">
         {/* COLUNA 1: NOVOS / AGUARDANDO */}
-        <div className="bg-slate-950/60 rounded-2xl border border-slate-800 flex flex-col max-h-[82vh]">
-          <div className="p-3 border-b border-slate-800/80 bg-slate-900/80 rounded-t-2xl flex items-center justify-between border-t-4 border-t-amber-500">
+        <div className="bg-slate-50/60 rounded-2xl border border-slate-200 flex flex-col max-h-[82vh]">
+          <div className="p-3 border-b border-slate-200/80 bg-white/80 rounded-t-2xl flex items-center justify-between border-t-4 border-t-amber-500">
             <div>
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-200">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
                   1. Novos / Aguardando
                 </h3>
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">Entraram no sistema</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Entraram no sistema</p>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-amber-500/20 text-amber-700 border border-amber-200">
               {pendingOrders.length}
             </span>
           </div>
 
           <div className="p-2.5 space-y-2 overflow-y-auto flex-1">
             {pendingOrders.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-500 font-medium">
+              <div className="text-center py-8 text-xs text-slate-400 font-medium">
                 Nenhum pedido aguardando
               </div>
             ) : (
@@ -1085,25 +1085,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
 
         {/* COLUNA 2: EM PREPARO / COZINHA */}
-        <div className="bg-slate-950/60 rounded-2xl border border-slate-800 flex flex-col max-h-[82vh]">
-          <div className="p-3 border-b border-slate-800/80 bg-slate-900/80 rounded-t-2xl flex items-center justify-between border-t-4 border-t-blue-500">
+        <div className="bg-slate-50/60 rounded-2xl border border-slate-200 flex flex-col max-h-[82vh]">
+          <div className="p-3 border-b border-slate-200/80 bg-white/80 rounded-t-2xl flex items-center justify-between border-t-4 border-t-blue-500">
             <div>
               <div className="flex items-center gap-2">
-                <ChefHat className="w-3.5 h-3.5 text-blue-400" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-200">
+                <ChefHat className="w-3.5 h-3.5 text-blue-600" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
                   2. Na Cozinha
                 </h3>
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">Em forno ou chapa</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Em forno ou chapa</p>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-blue-500/20 text-blue-300 border border-blue-500/30">
+            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-blue-500/20 text-blue-700 border border-blue-200">
               {preparingOrders.length}
             </span>
           </div>
 
           <div className="p-2.5 space-y-2 overflow-y-auto flex-1">
             {preparingOrders.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-500 font-medium">
+              <div className="text-center py-8 text-xs text-slate-400 font-medium">
                 Cozinha livre
               </div>
             ) : (
@@ -1115,25 +1115,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
 
         {/* COLUNA 3: PRONTOS P/ ENTREGA */}
-        <div className="bg-slate-950/60 rounded-2xl border border-slate-800 flex flex-col max-h-[82vh]">
-          <div className="p-3 border-b border-slate-800/80 bg-slate-900/80 rounded-t-2xl flex items-center justify-between border-t-4 border-t-emerald-500">
+        <div className="bg-slate-50/60 rounded-2xl border border-slate-200 flex flex-col max-h-[82vh]">
+          <div className="p-3 border-b border-slate-200/80 bg-white/80 rounded-t-2xl flex items-center justify-between border-t-4 border-t-emerald-500">
             <div>
               <div className="flex items-center gap-2">
-                <Package className="w-3.5 h-3.5 text-emerald-400" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-200">
+                <Package className="w-3.5 h-3.5 text-emerald-600" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
                   3. Prontos p/ Entrega
                 </h3>
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">Aguardando motoboy</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Aguardando motoboy</p>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-700 border border-emerald-200">
               {readyOrders.length}
             </span>
           </div>
 
           <div className="p-2.5 space-y-2 overflow-y-auto flex-1">
             {readyOrders.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-500 font-medium">
+              <div className="text-center py-8 text-xs text-slate-400 font-medium">
                 Nenhum pedido na bancada
               </div>
             ) : (
@@ -1145,25 +1145,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
 
         {/* COLUNA 4: EM ROTA */}
-        <div className="bg-slate-950/60 rounded-2xl border border-slate-800 flex flex-col max-h-[82vh]">
-          <div className="p-3 border-b border-slate-800/80 bg-slate-900/80 rounded-t-2xl flex items-center justify-between border-t-4 border-t-indigo-500">
+        <div className="bg-slate-50/60 rounded-2xl border border-slate-200 flex flex-col max-h-[82vh]">
+          <div className="p-3 border-b border-slate-200/80 bg-white/80 rounded-t-2xl flex items-center justify-between border-t-4 border-t-indigo-500">
             <div>
               <div className="flex items-center gap-2">
-                <Bike className="w-3.5 h-3.5 text-indigo-400" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-200">
+                <Bike className="w-3.5 h-3.5 text-indigo-600" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
                   4. Em Rota
                 </h3>
               </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">Na rua com motoboy</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Na rua com motoboy</p>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-indigo-500/20 text-indigo-700 border border-indigo-200">
               {dispatchedOrders.length}
             </span>
           </div>
 
           <div className="p-2.5 space-y-2 overflow-y-auto flex-1">
             {dispatchedOrders.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-500 font-medium">
+              <div className="text-center py-8 text-xs text-slate-400 font-medium">
                 Nenhum motoboy na rua
               </div>
             ) : (
@@ -1175,25 +1175,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         </div>
 
         {/* COLUNA 5: ENTREGUES HOJE */}
-        <div className="bg-slate-950/60 rounded-2xl border border-slate-800 flex flex-col max-h-[82vh]">
-          <div className="p-3 border-b border-slate-800/80 bg-slate-900/80 rounded-t-2xl flex items-center justify-between border-t-4 border-t-slate-600">
+        <div className="bg-slate-50/60 rounded-2xl border border-slate-200 flex flex-col max-h-[82vh]">
+          <div className="p-3 border-b border-slate-200/80 bg-white/80 rounded-t-2xl flex items-center justify-between border-t-4 border-t-slate-600">
             <div>
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-slate-400" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-300">
+                <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-600">
                   5. Concluídos Hoje
                 </h3>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">Entregues com sucesso</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Entregues com sucesso</p>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-slate-800 text-slate-300 border border-slate-700">
+            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-slate-100 text-slate-600 border border-slate-200">
               {deliveredOrders.length}
             </span>
           </div>
 
           <div className="p-2.5 space-y-2 overflow-y-auto flex-1">
             {deliveredOrders.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-500 font-medium">
+              <div className="text-center py-8 text-xs text-slate-400 font-medium">
                 Nenhuma entrega finalizada hoje
               </div>
             ) : (
@@ -1207,10 +1207,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
       {/* BARRA FLUTUANTE DE DESPACHO EM MASSA (Quando o operador marca checkboxes na coluna Prontos) */}
       {selectedReadyIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-950/95 border-2 border-emerald-500/80 p-3 px-5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 text-white w-[92%] max-w-xl animate-slideUp">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-50/95 border-2 border-emerald-200 p-3 px-5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center justify-between gap-3 text-slate-900 w-[92%] max-w-xl animate-slideUp">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-            <span className="font-black text-xs sm:text-sm text-emerald-300 uppercase tracking-wide">
+            <span className="font-black text-xs sm:text-sm text-emerald-700 uppercase tracking-wide">
               🎒 {selectedReadyIds.length} {selectedReadyIds.length === 1 ? 'pedido selecionado' : 'pedidos selecionados'}
             </span>
           </div>
@@ -1222,7 +1222,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   value={selectedTargetMotoboyId || availableMotoboys[0]?.id || ''}
                   onChange={(e) => setSelectedTargetMotoboyId(e.target.value)}
                   aria-label="Selecionar motoboy para despacho em lote"
-                  className="bg-slate-900 border border-slate-700 text-xs text-white rounded-xl px-2.5 py-2 font-bold focus:outline-hidden focus:border-emerald-500"
+                  className="bg-white border border-slate-200 text-xs text-slate-900 rounded-xl px-2.5 py-2 font-bold focus:outline-hidden focus:border-emerald-200"
                 >
                   {availableMotoboys.map((m, i) => (
                     <option key={m.id} value={m.id}>
@@ -1239,14 +1239,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       handleDispatchBatchOrders(selectedReadyIds, targetId);
                     }
                   }}
-                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5 uppercase tracking-wide border border-emerald-400/40"
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1.5 uppercase tracking-wide border border-emerald-200"
                 >
-                  <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300 shrink-0" />
+                  <Zap className="w-3.5 h-3.5 text-amber-700 fill-amber-300 shrink-0" />
                   <span>Despachar</span>
                 </button>
               </div>
             ) : (
-              <span className="text-xs text-amber-300 bg-amber-500/20 px-2.5 py-1.5 rounded-xl border border-amber-500/30">
+              <span className="text-xs text-amber-700 bg-amber-500/20 px-2.5 py-1.5 rounded-xl border border-amber-200">
                 Sem motoboy livre no pátio
               </span>
             )}
@@ -1254,7 +1254,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             <button
               type="button"
               onClick={() => setSelectedReadyIds([])}
-              className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+              className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer"
             >
               Cancelar
             </button>

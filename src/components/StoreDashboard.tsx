@@ -1025,11 +1025,11 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
       {/* TEAM TAB */}
       {activeTab === 'equipe' && (
-        <div className="bg-slate-800 rounded-2xl border border-slate-700/80 p-5 space-y-4">
+        <div className="bg-slate-100 rounded-2xl border border-slate-200/80 p-5 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-bold text-lg text-white">Gestão da Equipe de Motoboys</h3>
-              <p className="text-xs text-slate-400">Cadastre, edite e controle os entregadores da loja.</p>
+              <h3 className="font-bold text-lg text-slate-900">Gestão da Equipe de Motoboys</h3>
+              <p className="text-xs text-slate-500">Cadastre, edite e controle os entregadores da loja.</p>
             </div>
             <div className="flex items-center gap-2">
               {motoboys.length > 0 && onDeleteAllMotoboys && (
@@ -1040,10 +1040,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       onDeleteAllMotoboys();
                     }
                   }}
-                  className="px-3 py-2 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 font-bold text-xs rounded-xl border border-rose-800/60 flex items-center gap-1.5 transition-all cursor-pointer"
+                  className="px-3 py-2 bg-rose-50 hover:bg-rose-50 text-rose-700 font-bold text-xs rounded-xl border border-rose-800/60 flex items-center gap-1.5 transition-all cursor-pointer"
                   title="Remover todos os motoboys para cadastrar do zero"
                 >
-                  <Trash2 className="w-4 h-4 text-rose-400" />
+                  <Trash2 className="w-4 h-4 text-rose-600" />
                   <span>Remover Todos ({motoboys.length})</span>
                 </button>
               )}
@@ -1059,12 +1059,12 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
           </div>
 
           {motoboys.length === 0 ? (
-            <div className="bg-slate-900/60 border border-dashed border-slate-600 rounded-2xl p-8 text-center space-y-3">
-              <div className="w-12 h-12 bg-slate-800 border border-slate-700 text-slate-300 rounded-full flex items-center justify-center mx-auto text-xl">
+            <div className="bg-white/60 border border-dashed border-slate-300 rounded-2xl p-8 text-center space-y-3">
+              <div className="w-12 h-12 bg-slate-100 border border-slate-200 text-slate-600 rounded-full flex items-center justify-center mx-auto text-xl">
                 🛵
               </div>
-              <h4 className="font-bold text-white text-sm">Nenhum motoboy cadastrado</h4>
-              <p className="text-xs text-slate-300 max-w-sm mx-auto">
+              <h4 className="font-bold text-slate-900 text-sm">Nenhum motoboy cadastrado</h4>
+              <p className="text-xs text-slate-600 max-w-sm mx-auto">
                 Cadastre a equipe antes de abrir a operação para conseguir vincular e despachar pedidos.
               </p>
               <button type="button" onClick={onOpenMotoboyModal} className="mx-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black cursor-pointer flex items-center gap-1.5">
@@ -1076,15 +1076,15 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
               {motoboys.map((m) => {
                 const statusPresentation = getMotoboyStatusPresentation(m.status);
                 return (
-                <div key={m.id} className="p-4 rounded-2xl border border-slate-700 bg-slate-900/70 space-y-3 relative group">
+                <div key={m.id} className="p-4 rounded-2xl border border-slate-200 bg-white/70 space-y-3 relative group">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-white flex items-center justify-center font-bold text-base shrink-0">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 flex items-center justify-center font-bold text-base shrink-0">
                         🛵
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h4 className="font-bold text-sm text-white">{m.name}</h4>
+                          <h4 className="font-bold text-sm text-slate-900">{m.name}</h4>
                           {/* Queue & Operational Status Tag */}
                           {(() => {
                             if (m.status === 'available') {
@@ -1123,7 +1123,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             );
                           })()}
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">{m.vehicleModel} • {m.plate}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{m.vehicleModel} • {m.plate}</p>
                       </div>
                     </div>
 
@@ -1135,7 +1135,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                             onDeleteMotoboy(m.id);
                           }
                         }}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition-all cursor-pointer"
+                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
                         title={`Remover ${m.name}`}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1143,48 +1143,48 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-800 grid grid-cols-2 gap-2 text-xs">
+                  <div className="pt-2 border-t border-slate-200 grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-slate-400 block text-[10px]">Arranque</span>
-                      <span className="font-bold text-slate-200">{formattedCurrency(m.fixedFee)}</span>
+                      <span className="text-slate-500 block text-[10px]">Arranque</span>
+                      <span className="font-bold text-slate-700">{formattedCurrency(m.fixedFee)}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[10px]">Taxa por corrida</span>
-                      <span className="font-bold text-slate-200">{formattedCurrency(m.perDeliveryFee)}</span>
+                      <span className="text-slate-500 block text-[10px]">Taxa por corrida</span>
+                      <span className="font-bold text-slate-700">{formattedCurrency(m.perDeliveryFee)}</span>
                     </div>
                   </div>
 
                   {/* Login credentials box created by store for motoboy */}
-                  <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-1.5 text-xs">
-                    <span className="text-[10px] font-extrabold text-amber-300 uppercase block">
+                  <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                    <span className="text-[10px] font-extrabold text-amber-700 uppercase block">
                       🔐 Credenciais do App (Motoboy)
                     </span>
-                    <div className="flex items-center justify-between font-mono text-[11px] text-slate-200 font-semibold">
-                      <span>Usuário: <strong className="text-white">{m.username || m.name.toLowerCase().split(' ')[0]}</strong></span>
+                    <div className="flex items-center justify-between font-mono text-[11px] text-slate-700 font-semibold">
+                      <span>Usuário: <strong className="text-slate-900">{m.username || m.name.toLowerCase().split(' ')[0]}</strong></span>
                       {m.password ? (
-                        <span>Senha: <strong className="text-white">{m.password}</strong></span>
+                        <span>Senha: <strong className="text-slate-900">{m.password}</strong></span>
                       ) : (
-                        <span className="text-slate-400">🔒 Senha protegida</span>
+                        <span className="text-slate-500">🔒 Senha protegida</span>
                       )}
                     </div>
                     {onResetMotoboyPassword && (
                       <button
                         type="button"
                         onClick={() => onResetMotoboyPassword(m.id)}
-                        className="w-full mt-0.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-lg text-[10px] uppercase tracking-wide cursor-pointer"
+                        className="w-full mt-0.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-[10px] uppercase tracking-wide cursor-pointer"
                       >
                         Gerar nova senha
                       </button>
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Ganho acumulado hoje:</span>
-                    <span className="font-black text-emerald-400">{formattedCurrency(m.totalEarnedToday)}</span>
+                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                    <span className="text-slate-500">Ganho acumulado hoje:</span>
+                    <span className="font-black text-emerald-600">{formattedCurrency(m.totalEarnedToday)}</span>
                   </div>
 
                   {/* ⚡ Quick Actions per Motoboy Card */}
-                  <div className="pt-2 border-t border-slate-800 flex flex-col gap-2">
+                  <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
                     {/* Action Row 1: Quick Assign Order button or + Lançar Pedido */}
                     {unassignedOrders.length > 0 ? (
                       <button
@@ -1202,9 +1202,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           setSelectedOrderIds([]);
                           triggerActionToast(`📦 ${ordersToAssign.length} pedido(s) atribuído(s) para ${m.name.split(' ')[0]}!`);
                         }}
-                        className="w-full py-1.5 px-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md border border-blue-400/40"
+                        className="w-full py-1.5 px-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md border border-blue-200"
                       >
-                        <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                        <Zap className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                         <span>
                           {selectedOrderIds.length > 0
                             ? `Atribuir ${selectedOrderIds.length} selecionado(s)`
@@ -1215,9 +1215,9 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       <button
                         type="button"
                         onClick={onOpenNewOrderModal}
-                        className="w-full py-1.5 px-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-emerald-400 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-slate-700 hover:border-slate-600"
+                        className="w-full py-1.5 px-2 bg-slate-100 hover:bg-slate-200 active:scale-95 text-emerald-600 font-extrabold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 border border-slate-200 hover:border-slate-300"
                       >
-                        <Plus className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <Plus className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span>+ Lançar Pedido para {m.name.split(' ')[0]}</span>
                       </button>
                     )}
@@ -1240,7 +1240,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                           className="flex-1 py-1.5 px-2 bg-emerald-600/90 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
                           title="Chamar para retirar no balcão"
                         >
-                          <Zap className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                          <Zap className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                           <span>Chamar Balcão</span>
                         </button>
                       ) : m.status === 'returning_to_store' && onConfirmArrivalAtStore ? (
@@ -1259,10 +1259,10 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       {m.phone && (
                         <a
                           href={`tel:${m.phone.replace(/\D/g, '')}`}
-                          className="p-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-white font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                          className="p-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-blue-700 hover:text-slate-900 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer flex items-center gap-1 shrink-0"
                           title={`Ligar para ${m.phone}`}
                         >
-                          <Phone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                          <Phone className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                           <span className="text-[10px]">Ligar</span>
                         </a>
                       )}
@@ -1270,7 +1270,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                       <button
                         type="button"
                         onClick={() => handleSendWhatsAppToMotoboy(m)}
-                        className="p-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer shrink-0 flex items-center gap-1"
+                        className="p-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-emerald-600 font-bold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer shrink-0 flex items-center gap-1"
                         title="Enviar WhatsApp"
                       >
                         📱
