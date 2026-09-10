@@ -71,6 +71,7 @@ interface StoreDashboardProps {
   onOpenStoreSettings: () => void;
   onSelectOrderForTracking: (order: Order) => void;
   onDeleteMotoboy?: (motoboyId: string) => void;
+  onResetMotoboyPassword?: (motoboyId: string) => void;
   onDeleteAllMotoboys?: () => void;
   onAddOrder?: (newOrder: Omit<Order, 'id' | 'codeNumber' | 'status' | 'createdAt' | 'trackingCode'>) => void;
   onSaveIntegrations?: (integrations: StoreIntegrations, branches?: StoreBranch[]) => void;
@@ -92,6 +93,7 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
   onOpenStoreSettings,
   onSelectOrderForTracking,
   onDeleteMotoboy,
+  onResetMotoboyPassword,
   onDeleteAllMotoboys,
   onAddOrder,
   onSaveIntegrations,
@@ -1199,14 +1201,27 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
                   </div>
 
                   {/* Login credentials box created by store for motoboy */}
-                  <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-1 text-xs">
+                  <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700 space-y-1.5 text-xs">
                     <span className="text-[10px] font-extrabold text-amber-300 uppercase block">
                       🔐 Credenciais do App (Motoboy)
                     </span>
                     <div className="flex items-center justify-between font-mono text-[11px] text-slate-200 font-semibold">
                       <span>Usuário: <strong className="text-white">{m.username || m.name.toLowerCase().split(' ')[0]}</strong></span>
-                      <span>Senha: <strong className="text-white">{m.password || 'Não definida'}</strong></span>
+                      {m.password ? (
+                        <span>Senha: <strong className="text-white">{m.password}</strong></span>
+                      ) : (
+                        <span className="text-slate-400">🔒 Senha protegida</span>
+                      )}
                     </div>
+                    {onResetMotoboyPassword && (
+                      <button
+                        type="button"
+                        onClick={() => onResetMotoboyPassword(m.id)}
+                        className="w-full mt-0.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-lg text-[10px] uppercase tracking-wide cursor-pointer"
+                      >
+                        Gerar nova senha
+                      </button>
+                    )}
                   </div>
 
                   <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">

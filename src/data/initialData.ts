@@ -1,4 +1,5 @@
 import { Order, Motoboy, StoreShift } from '../types';
+import { DEFAULT_MASTER_USERNAME, DEFAULT_MASTER_PASSWORD } from '../lib/masterCredentials';
 
 export const INITIAL_STORE_SHIFT: StoreShift = {
   id: 'current_shift',
@@ -15,8 +16,8 @@ export const INITIAL_STORE_SHIFT: StoreShift = {
   storeLng: -49.0661,
   storeUsername: '',
   adminPassword: '',
-  masterUsername: 'ruan',
-  masterPassword: 'ruan123',
+  masterUsername: DEFAULT_MASTER_USERNAME,
+  masterPassword: DEFAULT_MASTER_PASSWORD,
   setupRequired: true,
   pilotMode: true,
   demoDataDisabled: true,

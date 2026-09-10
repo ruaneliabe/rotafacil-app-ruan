@@ -14,6 +14,7 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import { Order, Motoboy, StoreShift, StoreAccount } from '../types';
 import { INITIAL_STORE_SHIFT } from '../data/initialData';
 import { hashPassword } from './passwordSecurity';
+import { DEFAULT_MASTER_USERNAME, DEFAULT_MASTER_PASSWORD } from './masterCredentials';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -239,8 +240,62 @@ export async function saveMotoboyToCloud(motoboy: Motoboy) {
       const isFreshArrivalConfirmation = payload.status === 'available' && payload.activeOrdersCount === 0 && queueTimestamp > 0 && Math.abs(Date.now() - queueTimestamp) <= 15000;
       if (!isFreshArrivalConfirmation) payload = { ...payload, status: 'returning_to_store', activeOrdersCount: 0, joinedQueueAt: undefined, callingToCounterAt: undefined };
     }
+
+    // Se uma senha em texto puro chegou junto (cadastro novo / troca manual),
+    // ela é convertida em hash+salt e NUNCA gravada em texto puro no Firestore
+    // (a coleção 'motoboys' é publicamente legível).
+    if (payload.password) {
+      const { hash, salt } = await hashPassword(payload.password);
+      payload = { ...payload, passwordHash: hash, passwordSalt: salt, password: undefined };
+    }
+
     await setDoc(ref, cleanForFirestore(payload), { merge: true });
   } catch (err) { console.error('Error saving motoboy to cloud:', err); }
+}
+
+/** Motoboy troca a própria senha (ele já se autenticou antes de chamar isso). */
+export async function changeMotoboyPassword(motoboyId: string, newPlainPassword: string) {
+  const { hash, salt } = await hashPassword(newPlainPassword);
+  await setDoc(
+    doc(db, 'motoboys', motoboyId),
+    cleanForFirestore({ passwordHash: hash, passwordSalt: salt, password: undefined }),
+    { merge: true }
+  );
+}
+
+const RESET_PASSWORD_CHARSET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // sem 0/O/1/I pra evitar confusão
+
+/**
+ * Gera uma nova senha aleatória para o motoboy, salva só o hash no Firestore
+ * e retorna a senha em texto puro (uma única vez) para o admin repassar ao
+ * entregador. Depois desse retorno, a senha em texto puro não fica salva
+ * em lugar nenhum.
+ */
+export async function resetMotoboyPassword(motoboyId: string): Promise<string> {
+  const bytes = new Uint8Array(6);
+  (globalThis.crypto || (globalThis as any).msCrypto).getRandomValues(bytes);
+  const newPassword = Array.from(bytes).map((b) => RESET_PASSWORD_CHARSET[b % RESET_PASSWORD_CHARSET.length]).join('');
+  const { hash, salt } = await hashPassword(newPassword);
+  await setDoc(
+    doc(db, 'motoboys', motoboyId),
+    cleanForFirestore({ passwordHash: hash, passwordSalt: salt, password: undefined }),
+    { merge: true }
+  );
+  return newPassword;
+}
+
+/** Migração silenciosa após um login com senha legada validado com sucesso. */
+export async function upgradeMotoboyPasswordToHash(motoboyId: string, plainPassword: string) {
+  try {
+    const { hash, salt } = await hashPassword(plainPassword);
+    await setDoc(
+      doc(db, 'motoboys', motoboyId),
+      cleanForFirestore({ passwordHash: hash, passwordSalt: salt, password: undefined }),
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('Falha ao migrar senha do motoboy para hash (não bloqueia o login):', err);
+  }
 }
 
 export async function saveMotoboyLocationToCloud(
@@ -405,8 +460,8 @@ export async function seedInitialDataIfEmpty() {
       storeLng: current?.storeLng || INITIAL_STORE_SHIFT.storeLng,
       storeUsername: current?.storeUsername || '',
       adminPassword: current?.adminPassword || '',
-      masterUsername: current?.masterUsername || 'ruan',
-      masterPassword: current?.masterPassword || 'ruan123',
+      masterUsername: current?.masterUsername || DEFAULT_MASTER_USERNAME,
+      masterPassword: current?.masterPassword || DEFAULT_MASTER_PASSWORD,
       setupRequired: current?.setupRequired ?? (current?.storeUsername ? false : true),
       installationVersion: FRESH_INSTALL_VERSION,
       operationalResetVersion: STORE_PILOT_RESET_VERSION,
