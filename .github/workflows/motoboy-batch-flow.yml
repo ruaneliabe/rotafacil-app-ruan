@@ -1,3 +1,4 @@
+# trigger-2026-09-10
 name: Motoboy batch flow
 
 on:
@@ -66,10 +67,8 @@ jobs:
               raise SystemExit('enterQueue block not found')
           text = text.replace(old, new, 1)
 
-          # Use preparingBatch for visible preparation count/list.
           text = text.replace('const orderCount = preparing.length + ready.length + unassignedPending.length;', 'const orderCount = preparingBatch.length + ready.length + unassignedPending.length;')
 
-          # Replace the whole inQueue orders content block with the requested operational states.
           start_marker = """            {inQueue && (
               <>"""
           end_marker = """              </>
@@ -102,12 +101,7 @@ jobs:
                         {queuePosition === 1 ? 'Você é o próximo da fila' : `${queuePosition}º na fila · ${queueAhead} na frente`}
                       </div>
                     )}
-                    <button
-                      onClick={leaveQueue}
-                      className=\"mt-5 h-11 w-full rounded-xl border border-slate-200 bg-white text-[12px] font-black text-slate-600 active:bg-slate-50\"
-                    >
-                      Sair da fila
-                    </button>
+                    <button onClick={leaveQueue} className=\"mt-5 h-11 w-full rounded-xl border border-slate-200 bg-white text-[12px] font-black text-slate-600 active:bg-slate-50\">Sair da fila</button>
                   </section>
                 )}
 
@@ -115,89 +109,26 @@ jobs:
                   <section className=\"overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm\">
                     <div className=\"border-b border-violet-100 bg-violet-50 px-4 py-3\">
                       <div className=\"flex items-center justify-between gap-3\">
-                        <div>
-                          <h2 className=\"text-[14px] font-black text-violet-950\">Próximo despacho da fila</h2>
-                          <p className=\"mt-0.5 text-[10px] text-violet-700\">Você é o próximo; aguardando a loja confirmar.</p>
-                        </div>
+                        <div><h2 className=\"text-[14px] font-black text-violet-950\">Próximo despacho da fila</h2><p className=\"mt-0.5 text-[10px] text-violet-700\">Você é o próximo; aguardando a loja confirmar.</p></div>
                         <span className=\"rounded-full bg-white px-2 py-1 text-[9px] font-black text-violet-700\">{unassignedPending.length}</span>
                       </div>
                     </div>
-                    <div className=\"divide-y divide-slate-100\">
-                      {unassignedPending.slice(0, 3).map((order) => (
-                        <div key={order.id} className=\"px-4 py-3\">
-                          <div className=\"flex items-start justify-between gap-3\">
-                            <div className=\"min-w-0\">
-                              <p className=\"truncate text-[12px] font-black text-slate-900\">#{order.codeNumber} · {order.clientName}</p>
-                              <p className=\"mt-1 truncate text-[10px] text-slate-500\">{order.neighborhood || order.address}</p>
-                            </div>
-                            <span className=\"shrink-0 rounded-full bg-violet-50 px-2 py-1 text-[8px] font-black text-violet-700\">AGUARDANDO</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <div className=\"divide-y divide-slate-100\">{unassignedPending.slice(0, 3).map((order) => <div key={order.id} className=\"px-4 py-3\"><div className=\"flex items-start justify-between gap-3\"><div className=\"min-w-0\"><p className=\"truncate text-[12px] font-black text-slate-900\">#{order.codeNumber} · {order.clientName}</p><p className=\"mt-1 truncate text-[10px] text-slate-500\">{order.neighborhood || order.address}</p></div><span className=\"shrink-0 rounded-full bg-violet-50 px-2 py-1 text-[8px] font-black text-violet-700\">AGUARDANDO</span></div></div>)}</div>
                   </section>
                 )}
 
                 {reservedBatch.length > 0 && !allReservedReady && (
                   <section className=\"overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm\">
-                    <div className=\"flex items-center gap-3 border-b border-slate-100 px-4 py-3.5\">
-                      <Package className=\"h-5 w-5 text-[#081A2F]\" />
-                      <div className=\"min-w-0 flex-1\">
-                        <h2 className=\"text-[17px] font-black\">Preparando</h2>
-                        <p className=\"text-[11px] text-slate-500\">Aguarde todos os pedidos ficarem prontos</p>
-                      </div>
-                      <span className=\"rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black text-slate-600\">{individuallyReady.length}/{reservedBatch.length} prontos</span>
-                    </div>
-                    <div className=\"space-y-2 p-3\">
-                      {preparingBatch.map((order) => {
-                        const itemReady = order.status === 'ready_at_counter';
-                        return (
-                          <article key={order.id} className={`rounded-xl border p-3.5 ${itemReady ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-[#FFF9E8]'}`}>
-                            <div className=\"flex items-center justify-between gap-3\">
-                              <strong className=\"min-w-0 truncate text-[13px]\">#{order.codeNumber} • {order.clientName}</strong>
-                              <span className={`shrink-0 rounded-full bg-white px-2 py-1 text-[8px] font-black ${itemReady ? 'text-emerald-700' : 'text-amber-700'}`}>
-                                {itemReady ? 'PRONTO' : 'EM PREPARO'}
-                              </span>
-                            </div>
-                            <p className=\"mt-1 text-[11px] text-slate-500\">{order.neighborhood || order.address}</p>
-                            <p className={`mt-3 flex items-center gap-1 text-[10px] font-bold ${itemReady ? 'text-emerald-700' : 'text-amber-700'}`}>
-                              {itemReady ? <CheckCircle2 className=\"h-3.5 w-3.5\" /> : <Clock3 className=\"h-3.5 w-3.5\" />}
-                              {itemReady ? 'Pronto · aguardando os demais pedidos' : 'Aguardando a loja marcar como pronto'}
-                            </p>
-                          </article>
-                        );
-                      })}
-                    </div>
-                    <div className=\"mx-3 mb-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-relaxed text-slate-500\">
-                      <Info className=\"mt-0.5 h-4 w-4 shrink-0 text-slate-400\" />
-                      <span>A retirada será liberada quando <b>todos os {reservedBatch.length} pedidos</b> estiverem prontos.</span>
-                    </div>
+                    <div className=\"flex items-center gap-3 border-b border-slate-100 px-4 py-3.5\"><Package className=\"h-5 w-5 text-[#081A2F]\" /><div className=\"min-w-0 flex-1\"><h2 className=\"text-[17px] font-black\">Preparando</h2><p className=\"text-[11px] text-slate-500\">Aguarde todos os pedidos ficarem prontos</p></div><span className=\"rounded-full bg-slate-100 px-2 py-1 text-[9px] font-black text-slate-600\">{individuallyReady.length}/{reservedBatch.length} prontos</span></div>
+                    <div className=\"space-y-2 p-3\">{preparingBatch.map((order) => { const itemReady = order.status === 'ready_at_counter'; return <article key={order.id} className={`rounded-xl border p-3.5 ${itemReady ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-[#FFF9E8]'}`}><div className=\"flex items-center justify-between gap-3\"><strong className=\"min-w-0 truncate text-[13px]\">#{order.codeNumber} • {order.clientName}</strong><span className={`shrink-0 rounded-full bg-white px-2 py-1 text-[8px] font-black ${itemReady ? 'text-emerald-700' : 'text-amber-700'}`}>{itemReady ? 'PRONTO' : 'EM PREPARO'}</span></div><p className=\"mt-1 text-[11px] text-slate-500\">{order.neighborhood || order.address}</p><p className={`mt-3 flex items-center gap-1 text-[10px] font-bold ${itemReady ? 'text-emerald-700' : 'text-amber-700'}`}>{itemReady ? <CheckCircle2 className=\"h-3.5 w-3.5\" /> : <Clock3 className=\"h-3.5 w-3.5\" />}{itemReady ? 'Pronto · aguardando os demais pedidos' : 'Aguardando a loja marcar como pronto'}</p></article>; })}</div>
+                    <div className=\"mx-3 mb-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-[10px] leading-relaxed text-slate-500\"><Info className=\"mt-0.5 h-4 w-4 shrink-0 text-slate-400\" /><span>A retirada será liberada quando <b>todos os {reservedBatch.length} pedidos</b> estiverem prontos.</span></div>
                   </section>
                 )}
 
                 {allReservedReady && (
                   <section className=\"overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm\">
-                    <div className=\"flex items-center gap-3 border-b border-slate-100 px-4 py-3.5\">
-                      <ShoppingBag className=\"h-5 w-5 text-[#081A2F]\" />
-                      <div>
-                        <h2 className=\"text-[17px] font-black\">Prontos para retirada ({ready.length})</h2>
-                        <p className=\"text-[11px] text-slate-500\">Toda a sua carga está pronta</p>
-                      </div>
-                    </div>
-                    <div className=\"space-y-2 p-3\">
-                      {ready.map((order) => (
-                        <article key={order.id} className=\"rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5\">
-                          <div className=\"flex items-center justify-between gap-2\">
-                            <strong className=\"text-[13px]\">#{order.codeNumber} • {order.clientName}</strong>
-                            <span className=\"rounded-full bg-white px-2 py-1 text-[8px] font-black text-emerald-700\">PRONTO</span>
-                          </div>
-                          <p className=\"mt-1 text-[11px] text-slate-500\">{order.address}</p>
-                        </article>
-                      ))}
-                      <button onClick={pickupAll} className=\"mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3.5 text-[13px] font-black text-white shadow-sm active:bg-violet-700\">
-                        <CheckCircle2 className=\"h-4 w-4\" /> Confirmar retirada dos {ready.length} pedidos
-                      </button>
-                    </div>
+                    <div className=\"flex items-center gap-3 border-b border-slate-100 px-4 py-3.5\"><ShoppingBag className=\"h-5 w-5 text-[#081A2F]\" /><div><h2 className=\"text-[17px] font-black\">Prontos para retirada ({ready.length})</h2><p className=\"text-[11px] text-slate-500\">Toda a sua carga está pronta</p></div></div>
+                    <div className=\"space-y-2 p-3\">{ready.map((order) => <article key={order.id} className=\"rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5\"><div className=\"flex items-center justify-between gap-2\"><strong className=\"text-[13px]\">#{order.codeNumber} • {order.clientName}</strong><span className=\"rounded-full bg-white px-2 py-1 text-[8px] font-black text-emerald-700\">PRONTO</span></div><p className=\"mt-1 text-[11px] text-slate-500\">{order.address}</p></article>)}<button onClick={pickupAll} className=\"mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3.5 text-[13px] font-black text-white shadow-sm active:bg-violet-700\"><CheckCircle2 className=\"h-4 w-4\" /> Confirmar retirada dos {ready.length} pedidos</button></div>
                   </section>
                 )}
               </>
@@ -205,7 +136,6 @@ jobs:
 
           text = text[:start] + replacement + text[end:]
 
-          # Paused/out-of-queue state: offer re-entry instead of blank screen.
           marker = """            {!inQueue && !returning && driver.status === 'delivering' && route.length === 0 && (
               <section"""
           insert = """            {!inQueue && !returning && driver.status === 'paused' && assigned.length === 0 && route.length === 0 && (
