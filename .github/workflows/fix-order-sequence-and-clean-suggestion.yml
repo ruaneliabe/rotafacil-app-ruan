@@ -77,7 +77,6 @@ const oldestFirst = (a: Order, b: Order) => stamp(a) - stamp(b) || orderSequence
           if count != 1:
               raise SystemExit('green route suggestion block not found')
 
-          # O wrapper de avisos não deve abrir só por existir recomendação removida.
           text = text.replace(
               "{(brainAnalysis.recommendations[0] || (motoboysAvailable.length === 0 && unassignedOrders.length > 0) || delayedOrders.length > 0) && (",
               "{((motoboysAvailable.length === 0 && unassignedOrders.length > 0) || delayedOrders.length > 0) && (",
