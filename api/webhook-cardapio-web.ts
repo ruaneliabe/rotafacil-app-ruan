@@ -95,6 +95,32 @@ function courierName(order: any): string | null {
   return null;
 }
 
+function parseSourceDate(...values: any[]) {
+  for (const raw of values) {
+    if (raw == null || raw === '') continue;
+    let date: Date | null = null;
+    if (typeof raw === 'number') {
+      const ms = raw < 100000000000 ? raw * 1000 : raw;
+      date = new Date(ms);
+    } else {
+      const text = String(raw).trim();
+      if (/^\d+$/.test(text)) {
+        const n = Number(text);
+        date = new Date(n < 100000000000 ? n * 1000 : n);
+      } else {
+        date = new Date(text.includes(' ') && !text.includes('T') ? text.replace(' ', 'T') : text);
+      }
+    }
+    if (!date || Number.isNaN(date.getTime())) continue;
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(date);
+    const obj = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+    return { date: `${obj.year}-${obj.month}-${obj.day}`, timestamp: date.getTime() };
+  }
+  return null;
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -133,6 +159,12 @@ export default async function handler(req: any, res: any) {
       } catch (error) { console.error('Falha ao consultar API Cardápio Web:', error); }
     }
 
+    const sourceCreated = parseSourceDate(
+      orderData.created_at, orderData.createdAt, orderData.created, orderData.order_date, orderData.orderDate,
+      orderData.date, orderData.datetime, orderData.created_datetime,
+      payload.created_at, payload.createdAt, payload.created, payload.order_date, payload.orderDate, payload.date
+    );
+
     const rawStatus = orderData.status || payload.status || payload.data?.status || payload.event_status || '';
     const mappedStatus = mapStatus(rawStatus);
     const orderId = `cw_${cwOrderId || Date.now()}`;
@@ -141,7 +173,6 @@ export default async function handler(req: any, res: any) {
     const existing = existingSnap?.exists() ? existingSnap.data() as any : null;
     const driver = courierName(orderData) || courierName(payload);
 
-    // Eventos de status podem chegar sem cliente/endereço. Atualiza o pedido já existente sem descartá-lo.
     if (cwOrderId && existing && rawStatus) {
       const statusPatch: any = {
         status: mappedStatus,
@@ -149,6 +180,10 @@ export default async function handler(req: any, res: any) {
         lastCardapioWebSyncAt: Date.now(),
         closedInCardapioWeb: mappedStatus === 'delivered',
       };
+      if (sourceCreated) {
+        statusPatch.sourceCreatedDate = sourceCreated.date;
+        statusPatch.sourceCreatedTimestamp = sourceCreated.timestamp;
+      }
       if (mappedStatus === 'dispatched') {
         statusPatch.dispatchedAt = existing.dispatchedAt || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         statusPatch.closedAt = null;
@@ -170,7 +205,6 @@ export default async function handler(req: any, res: any) {
     const deliveryFee = Number(orderData.delivery_fee ?? payload.delivery_fee ?? payload.taxa_entrega ?? existing?.deliveryFee ?? 0);
     const total = Number(orderData.total ?? payload.total ?? payload.valor_total ?? existing?.total ?? 0);
 
-    // Se era só atualização de status, o trabalho já foi feito acima.
     if (total <= 0 && (!clientName || clientName.trim() === '')) {
       if (existing && rawStatus) return res.status(200).json({ status: 'status_updated', success: true, orderId, mappedStatus });
       return res.status(200).json({ status: 'ignored_empty', message: 'Payload sem dados suficientes' });
@@ -215,7 +249,11 @@ export default async function handler(req: any, res: any) {
       items, itemsSummary, subtotal: subtotal || total, deliveryFee, total, paymentMethod,
       changeFor: rawPayment.change_for || rawPayment.troco_para || existing?.changeFor || null,
       status: mappedStatus, createdAt: existing?.createdAt || new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
-      createdDate: existing?.createdDate || localDateKey, originChannel: 'cardapio_web', storeBranch: branch, storeName,
+      createdDate: sourceCreated?.date || existing?.createdDate || localDateKey,
+      createdTimestamp: sourceCreated?.timestamp || existing?.createdTimestamp || Date.now(),
+      sourceCreatedDate: sourceCreated?.date || existing?.sourceCreatedDate || null,
+      sourceCreatedTimestamp: sourceCreated?.timestamp || existing?.sourceCreatedTimestamp || null,
+      originChannel: 'cardapio_web', storeBranch: branch, storeName,
       operationalEpoch: STORE_PILOT_RESET_VERSION, trackingCode, externalOrderId: String(cwOrderId || ''),
       cardapioWebStatus: normalize(rawStatus), lastCardapioWebSyncAt: Date.now(), closedInCardapioWeb: mappedStatus === 'delivered',
     };
@@ -224,7 +262,7 @@ export default async function handler(req: any, res: any) {
     if (driver) { completeOrder.externalMotoboyName = driver; completeOrder.assignedMotoboyName = driver; }
 
     await setDoc(existingRef, completeOrder, { merge: true });
-    return res.status(200).json({ status: 'received', success: true, orderId, codeNumber, displayCode, mappedStatus, driver: driver || null });
+    return res.status(200).json({ status: 'received', success: true, orderId, codeNumber, displayCode, mappedStatus, driver: driver || null, sourceCreatedDate: completeOrder.sourceCreatedDate });
   } catch (err: any) {
     console.error('Erro no webhook Vercel:', err);
     return res.status(500).json({ error: 'Erro ao processar pedido', details: err?.message });
