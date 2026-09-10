@@ -7,14 +7,12 @@ import {CardapioWebTerminalCleanup} from './components/CardapioWebTerminalCleanu
 import {StoreBootstrapGuard} from './components/StoreBootstrapGuard';
 import {LiveOperationGuard} from './components/LiveOperationGuard';
 import {DispatchBoardProductionPatch} from './components/DispatchBoardProductionPatch';
-import {PilotVisualPolish} from './components/PilotVisualPolish';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <StoreBootstrapGuard />
     <RuntimeCorrections />
-    <PilotVisualPolish />
     <CardapioWebShadowSyncBridge />
     <CardapioWebTerminalCleanup />
     <LiveOperationGuard />
