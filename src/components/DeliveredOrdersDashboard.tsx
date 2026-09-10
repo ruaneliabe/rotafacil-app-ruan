@@ -12,41 +12,21 @@ const money = (value = 0) =>
 
 const orderCode = (order: Order) => order.displayCode || `#${order.codeNumber}`;
 
-const deliveredDateKey = (order: Order) => {
-  if (order.deliveredDate && /^\d{4}-\d{2}-\d{2}$/.test(order.deliveredDate)) return order.deliveredDate;
-
-  if (order.deliveredTimestamp) {
-    const date = new Date(Number(order.deliveredTimestamp));
-    if (!Number.isNaN(date.getTime())) return getBrazilDateKey(date);
-  }
-
-  // deliveredAt em pedidos antigos pode ser apenas "HH:mm". Só usamos quando
-  // houver uma data completa para não puxar pedidos de outros dias para "hoje".
-  if (order.deliveredAt && /\d{4}-\d{2}-\d{2}/.test(String(order.deliveredAt))) {
-    const date = new Date(String(order.deliveredAt));
-    if (!Number.isNaN(date.getTime())) return getBrazilDateKey(date);
-  }
-
-  return '';
+const deliveryDateKey = (order: Order) => {
+  const timestamp = Number(order.deliveredTimestamp || 0);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return '';
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? '' : getBrazilDateKey(date);
 };
 
 const deliveredTime = (order: Order) => {
-  if (order.deliveredTimestamp) {
-    const date = new Date(Number(order.deliveredTimestamp));
+  const timestamp = Number(order.deliveredTimestamp || 0);
+  if (timestamp > 0) {
+    const date = new Date(timestamp);
     if (!Number.isNaN(date.getTime())) {
-      return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
     }
   }
-
-  if (order.deliveredAt && /^\d{1,2}:\d{2}/.test(String(order.deliveredAt))) return String(order.deliveredAt).slice(0, 5);
-
-  if (order.deliveredAt) {
-    const date = new Date(String(order.deliveredAt));
-    if (!Number.isNaN(date.getTime())) {
-      return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    }
-  }
-
   return '--:--';
 };
 
@@ -54,17 +34,38 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
   const [query, setQuery] = useState('');
   const today = getBrazilDateKey();
 
-  const deliveredToday = useMemo(
-    () => orders
-      .filter((order) => order.status === 'delivered' && deliveredDateKey(order) === today)
-      .sort((a, b) => Number(b.deliveredTimestamp || 0) - Number(a.deliveredTimestamp || 0)),
-    [orders, today]
-  );
+  // Descobre o turno operacional mais recente a partir dos próprios pedidos.
+  // Isso impede pedidos históricos que tiveram deliveredTimestamp corrigido/migrado de entrarem no quadro atual.
+  const currentShiftId = useMemo(() => {
+    const withShift = orders
+      .filter((order) => order.shiftId && order.createdDate === today)
+      .sort((a, b) => Number(b.createdTimestamp || 0) - Number(a.createdTimestamp || 0));
+    return withShift[0]?.shiftId || '';
+  }, [orders, today]);
+
+  const deliveredToday = useMemo(() => {
+    return orders
+      .filter((order) => {
+        if (order.status !== 'delivered') return false;
+        if (deliveryDateKey(order) !== today) return false;
+
+        // Se existe turno atual identificado, o pedido TEM que pertencer a ele.
+        if (currentShiftId) return order.shiftId === currentShiftId;
+
+        // Fallback seguro para registros sem shiftId: só aceita pedido criado hoje.
+        return order.createdDate === today;
+      })
+      .sort((a, b) => Number(b.deliveredTimestamp || 0) - Number(a.deliveredTimestamp || 0));
+  }, [orders, today, currentShiftId]);
 
   const visible = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return deliveredToday;
-    return deliveredToday.filter((order) => `${orderCode(order)} ${order.clientName} ${order.assignedMotoboyName || ''} ${order.address || ''}`.toLowerCase().includes(normalized));
+    return deliveredToday.filter((order) =>
+      `${orderCode(order)} ${order.clientName} ${order.assignedMotoboyName || ''} ${order.address || ''}`
+        .toLowerCase()
+        .includes(normalized)
+    );
   }, [deliveredToday, query]);
 
   const revenue = deliveredToday.reduce((sum, order) => sum + Number(order.total || 0), 0);
@@ -78,7 +79,7 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600"><PackageCheck className="h-4 w-4" /></span>
           <div>
             <h3 className="text-[15px] font-black text-slate-950">Pedidos entregues hoje</h3>
-            <p className="mt-0.5 text-[10px] text-slate-400">Somente entregas realmente concluídas em {today.split('-').reverse().slice(0, 2).join('/')}.</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">Somente entregas concluídas no turno atual.</p>
           </div>
         </div>
         <div className="relative w-full lg:w-[310px]">
@@ -117,8 +118,8 @@ export const DeliveredOrdersDashboard: React.FC<DeliveredOrdersDashboardProps> =
       ) : (
         <div className="flex min-h-[150px] flex-col items-center justify-center px-5 text-center">
           <span className="grid h-11 w-11 place-items-center rounded-full bg-slate-50 text-slate-300"><PackageCheck className="h-5 w-5" /></span>
-          <p className="mt-3 text-[12px] font-black text-slate-600">Nenhum pedido entregue hoje</p>
-          <p className="mt-1 text-[10px] text-slate-400">Quando uma entrega for concluída hoje, ela aparecerá aqui automaticamente.</p>
+          <p className="mt-3 text-[12px] font-black text-slate-600">Nenhum pedido entregue neste turno</p>
+          <p className="mt-1 text-[10px] text-slate-400">Quando uma entrega do turno atual for concluída, ela aparecerá aqui.</p>
         </div>
       )}
     </section>
