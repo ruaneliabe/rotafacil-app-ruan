@@ -25,6 +25,42 @@ const isTeamTabActive = () => {
   );
 };
 
+const getLegacyManagementOverlay = () => {
+  return Array.from(document.querySelectorAll<HTMLElement>('.fixed.inset-0')).find((overlay) => {
+    if (overlay.matches('[data-operation-enhanced-modal="true"]')) return false;
+    const heading = Array.from(overlay.querySelectorAll('h2, h3')).find((el) => el.textContent?.trim() === 'Gestão de entrega');
+    return Boolean(heading);
+  }) || null;
+};
+
+const findLegacyCloseButton = (overlay: HTMLElement | null) => {
+  if (!overlay) return null;
+  const buttons = Array.from(overlay.querySelectorAll<HTMLButtonElement>('button'));
+
+  return (
+    buttons.find((button) => {
+      const title = `${button.title || ''} ${button.getAttribute('aria-label') || ''}`.toLowerCase();
+      return title.includes('fechar') || title.includes('close');
+    }) ||
+    buttons.find((button) => Boolean(button.querySelector('svg.lucide-x, svg[data-lucide="x"]'))) ||
+    buttons.find((button) => button.textContent?.trim() === '×') ||
+    null
+  );
+};
+
+const closeLegacyManagementState = () => {
+  const overlay = getLegacyManagementOverlay();
+  if (!overlay) return false;
+
+  const closeButton = findLegacyCloseButton(overlay);
+  if (closeButton) {
+    closeButton.click();
+    return true;
+  }
+
+  return false;
+};
+
 const hideUselessAssignButtons = () => {
   const modal = document.querySelector<HTMLElement>('[data-operation-enhanced-modal="true"]');
   if (!modal) return;
@@ -48,6 +84,8 @@ const openGlobalOrderModal = () => {
 
 export const DashboardUiBehaviorFixes: React.FC = () => {
   useEffect(() => {
+    let reopeningManagement = false;
+
     const sync = () => {
       const teamHost = document.querySelector<HTMLElement>('[data-team-panel-host="true"]');
       if (teamHost) {
@@ -65,18 +103,37 @@ export const DashboardUiBehaviorFixes: React.FC = () => {
       hideUselessAssignButtons();
     };
 
+    const reopenAfterLegacyCloses = (button: HTMLButtonElement, attempt = 0) => {
+      const staleLegacy = getLegacyManagementOverlay();
+      if (!staleLegacy) {
+        reopeningManagement = false;
+        button.click();
+        return;
+      }
+
+      if (attempt === 0) closeLegacyManagementState();
+
+      if (attempt >= 12) {
+        reopeningManagement = false;
+        staleLegacy.style.display = 'none';
+        return;
+      }
+
+      window.setTimeout(() => reopenAfterLegacyCloses(button, attempt + 1), 50);
+    };
+
     const onClick = (event: MouseEvent) => {
       const button = (event.target as HTMLElement | null)?.closest('button');
       if (!button) return;
 
       const label = button.textContent?.trim() || '';
+      const enhancedModal = button.closest('[data-operation-enhanced-modal="true"]');
 
-      if (label === 'Novo despacho' && button.closest('[data-operation-enhanced-modal="true"]')) {
+      if (label === 'Novo despacho' && enhancedModal) {
         event.preventDefault();
         event.stopPropagation();
 
-        const modal = button.closest('[data-operation-enhanced-modal="true"]');
-        const closeButton = Array.from(modal?.querySelectorAll<HTMLButtonElement>('button') || []).find((candidate) =>
+        const closeButton = Array.from(enhancedModal.querySelectorAll<HTMLButtonElement>('button')).find((candidate) =>
           candidate.title === 'Fechar gestão de entrega'
         );
 
@@ -85,10 +142,28 @@ export const DashboardUiBehaviorFixes: React.FC = () => {
         return;
       }
 
-      if (label === 'Atribuir' && button.closest('[data-operation-enhanced-modal="true"]')) {
+      if (label === 'Atribuir' && enhancedModal) {
         event.preventDefault();
         event.stopPropagation();
         return;
+      }
+
+      // If the previous hidden legacy modal was left mounted, React still thinks
+      // management is open. Reset that state first, then replay the user's click.
+      if (label === 'Gestão de entrega' && !enhancedModal && getLegacyManagementOverlay() && !reopeningManagement) {
+        event.preventDefault();
+        event.stopPropagation();
+        (event as any).stopImmediatePropagation?.();
+        reopeningManagement = true;
+        reopenAfterLegacyCloses(button);
+        return;
+      }
+
+      if (button.title === 'Fechar gestão de entrega' && enhancedModal) {
+        // Let the enhanced modal close itself, then guarantee the hidden legacy
+        // React modal is also closed so the next open always works.
+        window.setTimeout(closeLegacyManagementState, 0);
+        window.setTimeout(closeLegacyManagementState, 100);
       }
 
       if (label.startsWith('Entregadores')) {
@@ -108,13 +183,22 @@ export const DashboardUiBehaviorFixes: React.FC = () => {
       }
     };
 
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (!document.querySelector('[data-operation-enhanced-modal="true"]')) return;
+      window.setTimeout(closeLegacyManagementState, 0);
+      window.setTimeout(closeLegacyManagementState, 100);
+    };
+
     sync();
     document.addEventListener('click', onClick, true);
+    window.addEventListener('keydown', onKeyDown, true);
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
 
     return () => {
       document.removeEventListener('click', onClick, true);
+      window.removeEventListener('keydown', onKeyDown, true);
       observer.disconnect();
     };
   }, []);
