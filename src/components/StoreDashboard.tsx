@@ -882,15 +882,15 @@ export const StoreDashboard: React.FC<StoreDashboardProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('mapa')}
+            onClick={() => setActiveTab('gestao')}
             className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'mapa'
+              activeTab === 'gestao' || activeTab === 'financeiro'
                 ? 'bg-slate-800 text-white shadow-xs border border-slate-700'
                 : 'hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
-            <Map className="w-3.5 h-3.5 text-blue-400" />
-            <span>Mapa ao Vivo</span>
+            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Financeiro</span>
           </button>
         </div>
 
