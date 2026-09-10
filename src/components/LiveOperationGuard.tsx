@@ -1,12 +1,33 @@
 import { useEffect } from 'react';
 
+const isMotoboySession = () => {
+  try {
+    const raw = localStorage.getItem('rota_facil_session');
+    if (!raw) return false;
+    const session = JSON.parse(raw) as { role?: string };
+    return session.role === 'motoboy';
+  } catch {
+    return false;
+  }
+};
+
 export function LiveOperationGuard() {
   useEffect(() => {
     let badge: HTMLDivElement | null = null;
     let state = 'syncing';
     let lastOkAt = 0;
 
+    const removeBadge = () => {
+      badge?.remove();
+      badge = null;
+      document.getElementById('rota-live-health')?.remove();
+    };
+
     const ensureBadge = () => {
+      if (isMotoboySession()) {
+        removeBadge();
+        return null;
+      }
       if (badge) return badge;
       badge = document.createElement('div');
       badge.id = 'rota-live-health';
@@ -22,7 +43,12 @@ export function LiveOperationGuard() {
     };
 
     const render = () => {
+      if (isMotoboySession()) {
+        removeBadge();
+        return;
+      }
       const el = ensureBadge();
+      if (!el) return;
       const stale = lastOkAt > 0 && Date.now() - lastOkAt > 20000;
       if (state === 'error' || stale) {
         el.textContent = 'Sincronização instável';
@@ -54,7 +80,7 @@ export function LiveOperationGuard() {
     return () => {
       window.removeEventListener('rota:cardapio-web-health', onHealth);
       window.clearInterval(timer);
-      badge?.remove();
+      removeBadge();
     };
   }, []);
   return null;
