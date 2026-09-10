@@ -34,29 +34,13 @@ export function RuntimeCorrections() {
     style.id = 'rota-facil-fleet-visual-polish';
     style.textContent = `
       .runtime-operation-toggle{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;min-height:54px!important;padding:9px 11px!important;border:1px solid #e2e8f0!important;border-radius:11px!important;background:#fff!important;color:#334155!important;box-shadow:0 1px 2px rgba(15,23,42,.04)!important}
-      .runtime-operation-toggle:hover{border-color:#c4b5fd!important;background:#fafaff!important}
-      .runtime-operation-toggle.runtime-operation-open{border-color:#bbf7d0!important;background:#f0fdf4!important;color:#166534!important}
+      .runtime-operation-toggle:hover{border-color:#c4b5fd!important;background:#fafaff!important}.runtime-operation-toggle.runtime-operation-open{border-color:#bbf7d0!important;background:#f0fdf4!important;color:#166534!important}
       .runtime-operation-copy{display:flex;align-items:center;gap:8px;min-width:0}.runtime-operation-dot{width:9px;height:9px;border-radius:999px;background:#94a3b8;flex:0 0 auto}.runtime-operation-open .runtime-operation-dot{background:#22c55e;box-shadow:0 0 0 3px #dcfce7}.runtime-operation-label{display:block;font-size:11px;font-weight:700;line-height:1.15;text-align:left}.runtime-operation-help{display:block;font-size:9px;color:#94a3b8;margin-top:3px;text-align:left}.runtime-operation-action{font-size:10px;font-weight:700;color:#7c3aed;white-space:nowrap}
 
-      .runtime-team-shell{background:#f8fafc!important;border-color:#e2e8f0!important}
-      .runtime-team-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important;align-items:start!important}
-      .runtime-team-card{min-width:0!important;border-radius:12px!important;padding:11px!important;background:#fff!important;box-shadow:0 1px 2px rgba(15,23,42,.04)!important}
-      .runtime-team-card .runtime-credentials{padding:7px 8px!important;background:#f8fafc!important;border-color:#e2e8f0!important;border-radius:8px!important}
-      .runtime-team-card button{min-height:30px!important}
-      @media(min-width:1500px){.runtime-team-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
-      @media(max-width:1200px){.runtime-team-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-      @media(max-width:760px){.runtime-team-grid{grid-template-columns:1fr!important}}
+      .runtime-team-shell{background:#f8fafc!important;border-color:#e2e8f0!important}.runtime-team-grid{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important;align-items:start!important}.runtime-team-card{min-width:0!important;border-radius:12px!important;padding:10px!important;background:#fff!important;box-shadow:0 1px 2px rgba(15,23,42,.04)!important;display:flex!important;flex-direction:column!important;gap:8px!important}.runtime-team-card .runtime-credentials{padding:7px 8px!important;background:#f8fafc!important;border-color:#e2e8f0!important;border-radius:8px!important}.runtime-team-card button,.runtime-team-card a{min-height:29px!important}.runtime-team-card .runtime-credentials button{min-height:26px!important}.runtime-team-card p,.runtime-team-card span{line-height:1.2!important}
+      @media(max-width:1500px){.runtime-team-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}@media(max-width:1100px){.runtime-team-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:760px){.runtime-team-grid{grid-template-columns:1fr!important}}
 
-      .runtime-delivery-modal{background:rgba(2,6,23,.52)!important;backdrop-filter:blur(2px)}
-      .runtime-map-filter-card{top:76px!important;left:28px!important;width:220px!important;padding:10px!important;border-radius:12px!important;box-shadow:0 12px 30px rgba(15,23,42,.18)!important}
-      .runtime-map-filter-card:before{content:'FILTROS DO MAPA';display:block;font-size:9px;font-weight:800;letter-spacing:.1em;color:#94a3b8;margin-bottom:8px}
-      .runtime-driver-panel{background:#f8fafc!important;padding:0!important;overflow:hidden!important}
-      .runtime-driver-panel-head{position:sticky;top:0;z-index:4;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:12px!important;margin:0!important}
-      .runtime-driver-panel-search{position:sticky;top:76px;z-index:3;background:#f8fafc;padding:8px 12px!important;margin:0!important}
-      .runtime-driver-list{padding:4px 8px 10px!important;overflow-y:auto!important;flex:1!important}
-      .runtime-driver-row{min-height:60px!important;margin:0 0 6px!important;padding:9px 10px!important;border-radius:10px!important;box-shadow:none!important;background:#fff!important}
-      .runtime-driver-row.runtime-driver-next{border-color:#c4b5fd!important;background:#faf5ff!important;box-shadow:inset 3px 0 0 #7c3aed!important}
-      .runtime-driver-meta{font-size:10px!important;color:#94a3b8!important}
+      .runtime-delivery-modal{background:rgba(2,6,23,.52)!important;backdrop-filter:blur(2px)}.runtime-map-filter-card{top:82px!important;left:34px!important;width:196px!important;padding:8px!important;border-radius:10px!important;box-shadow:0 10px 24px rgba(15,23,42,.16)!important}.runtime-map-filter-card:before{content:'FILTROS';display:block;font-size:8px;font-weight:800;letter-spacing:.12em;color:#94a3b8;margin:0 0 6px 2px}.runtime-map-filter-card button{font-size:10px!important;min-height:26px!important}.runtime-map-filter-card span{font-size:10px!important}.runtime-map-filter-card input{transform:scale(.88);transform-origin:left center}.runtime-map-filter-card>div{gap:3px!important}.runtime-driver-panel{background:#f8fafc!important;padding:0!important;overflow:hidden!important}.runtime-driver-panel-head{position:sticky;top:0;z-index:4;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:12px!important;margin:0!important}.runtime-driver-panel-search{position:sticky;top:76px;z-index:3;background:#f8fafc;padding:8px 12px!important;margin:0!important}.runtime-driver-list{padding:4px 8px 10px!important;overflow-y:auto!important;flex:1!important}.runtime-driver-row{min-height:58px!important;margin:0 0 6px!important;padding:8px 10px!important;border-radius:10px!important;box-shadow:none!important;background:#fff!important}.runtime-driver-row.runtime-driver-next{border-color:#c4b5fd!important;background:#faf5ff!important;box-shadow:inset 3px 0 0 #7c3aed!important}.runtime-driver-meta{font-size:10px!important;color:#94a3b8!important}
     `;
     document.head.appendChild(style);
 
@@ -79,17 +63,17 @@ export function RuntimeCorrections() {
         const shell = teamTitle.closest('div[class*="rounded-2xl"]') as HTMLElement | null;
         shell?.classList.add('runtime-team-shell');
         if (shell) {
-          const cards = Array.from(shell.querySelectorAll('div')).filter((el) => {
+          const allDivs = Array.from(shell.querySelectorAll('div')) as HTMLElement[];
+          const cardCandidates = allDivs.filter((el) => {
             const text = el.textContent || '';
-            return text.includes('Arranque') && text.includes('Taxa por corrida') && text.includes('Ganho acumulado hoje:') && el.parentElement === el.closest('div[class*="grid"]');
-          }) as HTMLElement[];
+            return text.includes('Arranque') && text.includes('Taxa por corrida') && text.includes('Ganho acumulado hoje:') && text.includes('Credenciais do App');
+          });
+          const cards = cardCandidates.filter((candidate) => !cardCandidates.some((other) => other !== candidate && candidate.contains(other)));
           const firstCard = cards[0];
           const grid = firstCard?.parentElement as HTMLElement | null;
           if (grid) {
             grid.classList.add('runtime-team-grid');
-            Array.from(grid.children).forEach((child) => {
-              const card = child as HTMLElement;
-              if (!(card.textContent || '').includes('Ganho acumulado hoje:')) return;
+            cards.forEach((card) => {
               card.classList.add('runtime-team-card');
               Array.from(card.querySelectorAll('div')).forEach((div) => {
                 if ((div.textContent || '').toUpperCase().includes('CREDENCIAIS DO APP')) div.classList.add('runtime-credentials');
@@ -106,7 +90,6 @@ export function RuntimeCorrections() {
         const allAbsolute = Array.from(overlay.querySelectorAll('div.absolute')) as HTMLElement[];
         const filterCard = allAbsolute.find((el) => (el.textContent || '').includes('Todos os pedidos') && (el.textContent || '').includes('Todos os entregadores'));
         filterCard?.classList.add('runtime-map-filter-card');
-
         const panel = overlay.querySelector('aside') as HTMLElement | null;
         if (panel) {
           panel.classList.add('runtime-driver-panel');
