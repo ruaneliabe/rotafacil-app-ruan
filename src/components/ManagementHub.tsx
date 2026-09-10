@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { BarChart3, CalendarDays, Receipt, RotateCw, Webhook } from 'lucide-react';
+import { AlertTriangle, BarChart3, CalendarDays, Receipt, RotateCw, Webhook } from 'lucide-react';
 import { Motoboy, Order, StoreShift } from '../types';
 
 interface ManagementHubProps {
@@ -28,11 +28,42 @@ const parseDateKey = (key: string) => {
   return new Date(y, (m || 1) - 1, d || 1);
 };
 
-const orderDateKey = (order: Order) => {
-  if (order.deliveredDate) return order.deliveredDate;
-  if (order.createdDate) return order.createdDate;
-  const source = order.deliveredTimestamp ? new Date(order.deliveredTimestamp) : new Date(order.deliveredAt || order.createdAt);
-  return Number.isNaN(source.getTime()) ? '' : localDateKey(source);
+const safeDateKey = (value: unknown): string => {
+  if (!value) return '';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const date = new Date(value as any);
+  return Number.isNaN(date.getTime()) ? '' : localDateKey(date);
+};
+
+/**
+ * Regra importante do financeiro:
+ * pedidos antigos do Cardápio Web foram importados com createdDate igual ao dia da sincronização.
+ * Esse campo NÃO é confiável para histórico. Por isso CW só entra no período quando existe uma
+ * data operacional real (entrega, turno, timestamp de criação ou data original persistida).
+ */
+const orderOperationalDateKey = (order: Order): string => {
+  const anyOrder = order as any;
+  const reliable = [
+    order.deliveredDate,
+    order.deliveredTimestamp,
+    order.shiftDate,
+    order.createdTimestamp,
+    anyOrder.cardapioWebCreatedAt,
+    anyOrder.externalCreatedAt,
+    anyOrder.orderCreatedAt,
+    anyOrder.sourceCreatedAt,
+    anyOrder.originalCreatedAt,
+    anyOrder.created_at,
+  ];
+  for (const candidate of reliable) {
+    const key = safeDateKey(candidate);
+    if (key) return key;
+  }
+
+  if (order.originChannel === 'cardapio_web') return '';
+
+  const fallback = safeDateKey(order.createdDate) || safeDateKey(order.deliveredAt) || safeDateKey(order.createdAt);
+  return fallback;
 };
 
 const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -87,10 +118,15 @@ export const ManagementHub: React.FC<ManagementHubProps> = ({
     return { start, end, label };
   }, [period]);
 
+  const undatedCardapioWebOrders = useMemo(
+    () => orders.filter((order) => order.originChannel === 'cardapio_web' && !orderOperationalDateKey(order)),
+    [orders]
+  );
+
   const selectedOrders = useMemo(
     () =>
       orders.filter((order) => {
-        const key = orderDateKey(order);
+        const key = orderOperationalDateKey(order);
         if (!key) return false;
         const date = parseDateKey(key);
         return date >= periodInfo.start && date < periodInfo.end;
@@ -112,15 +148,15 @@ export const ManagementHub: React.FC<ManagementHubProps> = ({
       if (!order.assignedMotoboyId) return;
       const motoboy = motoboyById.get(order.assignedMotoboyId);
       if (!motoboy) return;
-      perDelivery += Number(motoboy.perDeliveryFee || 0);
-      const day = orderDateKey(order);
+      perDelivery += Number((motoboy as any).perDeliveryFee || 0);
+      const day = orderOperationalDateKey(order);
       if (day) activeDriverDays.add(`${day}:${motoboy.id}`);
     });
 
     let fixed = 0;
     activeDriverDays.forEach((entry) => {
       const id = entry.split(':').slice(1).join(':');
-      fixed += Number(motoboyById.get(id)?.fixedFee || 0);
+      fixed += Number((motoboyById.get(id) as any)?.fixedFee || 0);
     });
 
     return fixed + perDelivery;
@@ -178,11 +214,21 @@ export const ManagementHub: React.FC<ManagementHubProps> = ({
             </div>
           </div>
 
+          {undatedCardapioWebOrders.length > 0 && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-semibold text-amber-900">Histórico antigo sem data original foi excluído dos totais por período.</p>
+                <p className="text-[10px] text-amber-700 mt-0.5">{undatedCardapioWebOrders.length} pedido(s) antigos do Cardápio Web não entram em Hoje/Ontem até terem uma data operacional confiável. Isso evita faturamento falso no dia atual.</p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
               <span className="text-[11px] font-semibold text-slate-500 block">Faturamento</span>
               <span className="text-2xl font-semibold tracking-tight text-emerald-600 mt-1 block">{formattedCurrency(totalRevenue)}</span>
-              <span className="text-[10px] text-slate-400 mt-1 block">{validOrders.length} pedido(s) no período</span>
+              <span className="text-[10px] text-slate-400 mt-1 block">{validOrders.length} pedido(s) com data confiável</span>
             </div>
             <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
               <span className="text-[11px] font-semibold text-slate-500 block">Entregas concluídas</span>
@@ -192,7 +238,7 @@ export const ManagementHub: React.FC<ManagementHubProps> = ({
             <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
               <span className="text-[11px] font-semibold text-slate-500 block">Repasse estimado da frota</span>
               <span className="text-2xl font-semibold tracking-tight text-amber-700 mt-1 block">{formattedCurrency(estimatedFleetPayout)}</span>
-              <span className="text-[10px] text-slate-400 mt-1 block">Arranque + corridas concluídas no período</span>
+              <span className="text-[10px] text-slate-400 mt-1 block">Arranque + corridas concluídas com data confiável</span>
             </div>
           </div>
 
