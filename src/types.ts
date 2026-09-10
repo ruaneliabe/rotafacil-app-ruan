@@ -95,7 +95,10 @@ export interface Motoboy {
 export interface StoreAccount {
   id: string;
   username: string;
+  /** @deprecated legado (texto puro) — mantido só para migração automática de contas antigas. */
   password?: string;
+  passwordHash?: string;
+  passwordSalt?: string;
   storeName: string;
   storePhone?: string;
   storeAddress?: string;
@@ -183,7 +186,10 @@ export interface StoreShift {
   storeAddress: string;
   storeLat: number;
   storeLng: number;
+  /** @deprecated legado (texto puro) — mantido só para migração automática de contas antigas. */
   adminPassword?: string;
+  adminPasswordHash?: string;
+  adminPasswordSalt?: string;
   storeUsername?: string;
   masterUsername?: string;
   masterPassword?: string;

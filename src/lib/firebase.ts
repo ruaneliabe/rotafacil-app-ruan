@@ -13,6 +13,7 @@ import { getAuth } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { Order, Motoboy, StoreShift, StoreAccount } from '../types';
 import { INITIAL_STORE_SHIFT } from '../data/initialData';
+import { hashPassword } from './passwordSecurity';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -110,10 +111,27 @@ export function subscribeToStoreAccounts(callback: (accounts: StoreAccount[]) =>
 export async function saveStoreAccountToCloud(account: StoreAccount) {
   try {
     const normalizedUsername = account.username.trim().toLowerCase();
+
+    // Se uma senha em texto puro foi passada (cadastro novo / troca de senha),
+    // ela é transformada em hash+salt aqui mesmo e NUNCA é persistida em texto
+    // puro no Firestore (essas coleções são publicamente legíveis).
+    let passwordHash: string | undefined;
+    let passwordSalt: string | undefined;
+    if (account.password) {
+      const hashed = await hashPassword(account.password);
+      passwordHash = hashed.hash;
+      passwordSalt = hashed.salt;
+    }
+
+    const { password: _plainPassword, ...accountWithoutPlainPassword } = account;
     const payload = {
-      ...account,
+      ...accountWithoutPlainPassword,
       id: normalizedUsername,
       username: normalizedUsername,
+      // undefined é convertido para null pelo cleanForFirestore, apagando
+      // qualquer resquício de senha em texto puro que já existisse no doc.
+      password: undefined,
+      ...(passwordHash ? { passwordHash, passwordSalt } : {}),
     };
     await setDoc(doc(db, 'stores', normalizedUsername), cleanForFirestore(payload), { merge: true });
     
@@ -128,7 +146,8 @@ export async function saveStoreAccountToCloud(account: StoreAccount) {
         storeLat: account.storeLat || -26.9194,
         storeLng: account.storeLng || -49.0661,
         storeUsername: normalizedUsername,
-        adminPassword: account.password || '',
+        adminPassword: undefined,
+        ...(passwordHash ? { adminPasswordHash: passwordHash, adminPasswordSalt: passwordSalt } : {}),
         setupRequired: false,
         pilotMode: true,
         demoDataDisabled: true,
@@ -138,6 +157,33 @@ export async function saveStoreAccountToCloud(account: StoreAccount) {
   } catch (err) {
     console.error('Error saving store account to cloud:', err);
     throw err;
+  }
+}
+
+/**
+ * Migração silenciosa: chamado depois que um login com senha em texto puro
+ * (formato antigo) foi validado com sucesso. Grava o hash nas duas coleções
+ * (stores + shifts) e apaga a senha em texto puro correspondente.
+ */
+export async function upgradeStoreCredentialsToHash(username: string, plainPassword: string) {
+  try {
+    const { hash, salt } = await hashPassword(plainPassword);
+    const normalizedUsername = username.trim().toLowerCase();
+    await Promise.all([
+      setDoc(
+        doc(db, 'stores', normalizedUsername),
+        cleanForFirestore({ passwordHash: hash, passwordSalt: salt, password: undefined }),
+        { merge: true }
+      ),
+      setDoc(
+        doc(db, 'shifts', 'current_shift'),
+        cleanForFirestore({ adminPasswordHash: hash, adminPasswordSalt: salt, adminPassword: undefined }),
+        { merge: true }
+      ),
+    ]);
+  } catch (err) {
+    // Não é crítico: o login já foi liberado. Só loga pra investigar depois.
+    console.warn('Falha ao migrar senha para hash (não bloqueia o login):', err);
   }
 }
 
@@ -261,7 +307,13 @@ export async function saveShiftToCloud(shift: StoreShift) {
       cleanForFirestore({
         id: normalizedUsername,
         username: normalizedUsername,
-        password: shift.adminPassword || '',
+        // Nunca mais espelhar senha em texto puro aqui — só o hash (quando
+        // já existir um). Se ainda não migrou, o hash da conta em `stores`
+        // é preservado por causa do merge:true (esse setDoc não sobrescreve
+        // o que já está lá, pois nem inclui os campos de senha).
+        ...(shift.adminPasswordHash
+          ? { passwordHash: shift.adminPasswordHash, passwordSalt: shift.adminPasswordSalt }
+          : {}),
         storeName: shift.storeName,
         storePhone: shift.storePhone || '',
         storeAddress: shift.storeAddress,
