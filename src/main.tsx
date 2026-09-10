@@ -8,6 +8,7 @@ import {StoreBootstrapGuard} from './components/StoreBootstrapGuard';
 import {LiveOperationGuard} from './components/LiveOperationGuard';
 import {DispatchBoardProductionPatch} from './components/DispatchBoardProductionPatch';
 import {ClaudeLayoutPilotFix} from './components/ClaudeLayoutPilotFix';
+import {MotoboyCounterCallListener} from './components/MotoboyCounterCallListener';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -19,6 +20,7 @@ createRoot(document.getElementById('root')!).render(
     <CardapioWebTerminalCleanup />
     <LiveOperationGuard />
     <DispatchBoardProductionPatch />
+    <MotoboyCounterCallListener />
     <App />
   </StrictMode>,
 );
