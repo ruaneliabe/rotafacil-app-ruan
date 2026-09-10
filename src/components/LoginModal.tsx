@@ -215,6 +215,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setIsSubmittingSignup(true);
 
     try {
+      const existingAccount = await getStoreAccountFromCloud(username);
+      if (existingAccount) {
+        setErrorMsg('Esse nome de usuário já está em uso. Escolha outro ou faça login na aba "Entrar".');
+        setIsSubmittingSignup(false);
+        return;
+      }
+
       const newAccount: StoreAccount = {
         id: username,
         username,
