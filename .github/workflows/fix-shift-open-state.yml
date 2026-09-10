@@ -1,0 +1,69 @@
+name: Fix shift open state
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-shift-open-state.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Patch App and runtime corrections
+        shell: python
+        run: |
+          from pathlib import Path
+
+          app = Path('src/App.tsx')
+          text = app.read_text(encoding='utf-8')
+
+          # Nunca abrir Configurações automaticamente por setupRequired legado.
+          text = text.replace("      if (shift.setupRequired) setIsAccountSettingsOpen(true);\n", "")
+          text = text.replace(
+              "        isOpen={isAccountSettingsOpen || Boolean(shift.setupRequired && isStoreAdminOrMaster)}\n        onClose={() => { if (!shift.setupRequired) setIsAccountSettingsOpen(false); }}",
+              "        isOpen={isAccountSettingsOpen}\n        onClose={() => setIsAccountSettingsOpen(false)}"
+          )
+
+          # Ao abrir turno, também saneia setupRequired para não reativar onboarding antigo.
+          old_open = """      const updatedShift: StoreShift = {\n        ...shift,\n        isOpen: true,\n        openedAt: nowTime,"""
+          new_open = """      const updatedShift: StoreShift = {\n        ...shift,\n        isOpen: true,\n        setupRequired: false,\n        pilotMode: true,\n        demoDataDisabled: true,\n        openedAt: nowTime,"""
+          if old_open not in text:
+              raise SystemExit('Opening shift block not found')
+          text = text.replace(old_open, new_open, 1)
+          app.write_text(text, encoding='utf-8')
+
+          runtime = Path('src/components/RuntimeCorrections.tsx')
+          r = runtime.read_text(encoding='utf-8')
+
+          # Remove a reescrita manual do botão de operação. Ela mexia no innerHTML
+          # de um botão controlado pelo React e podia deixá-lo visualmente preso em
+          # "Operação fechada" mesmo após shift.isOpen=true.
+          start = """      Array.from(document.querySelectorAll('button')).forEach((button) => {\n        const raw = (button.textContent || '').trim();\n        const text = raw.toLowerCase();\n        if (text.startsWith('operação aberta') || text.startsWith('operação fechada') || text.startsWith('loja aberta') || text.startsWith('loja fechada')) {\n          const open = text.includes('aberta');\n          button.classList.add('runtime-operation-toggle');\n          button.classList.toggle('runtime-operation-open', open);\n          if (!button.querySelector('.runtime-operation-copy')) {\n            button.innerHTML = `<span class=\"runtime-operation-copy\"><span class=\"runtime-operation-dot\"></span><span><span class=\"runtime-operation-label\">${open ? 'Operação aberta' : 'Operação fechada'}</span><span class=\"runtime-operation-help\">${open ? 'Turno recebendo pedidos' : 'Abra para iniciar o turno'}</span></span></span><span class=\"runtime-operation-action\">${open ? 'Encerrar' : 'Abrir'}</span>`;\n          }\n        }\n      });\n\n"""
+          if start in r:
+              r = r.replace(start, "", 1)
+
+          # A lógica de modal de abertura via DOM também não deve interceptar o botão
+          # simples do sidebar. Mantemos somente os demais polimentos visuais.
+          old_click = """    const onClick = (event: MouseEvent) => {\n      const button = (event.target as HTMLElement | null)?.closest('button');\n      const label = (button?.textContent || '').trim().toLowerCase();\n      if (button && (label === 'abrir' || label.includes('operação fechada'))) {\n        const hidden = document.querySelector<HTMLElement>('[data-rota-facil-opening-dismissed=\"true\"]');\n        if (hidden) {\n          hidden.style.display = '';\n          delete hidden.dataset.rotaFacilOpeningDismissed;\n        }\n      }\n      window.setTimeout(decorate, 80);\n      window.setTimeout(decorate, 300);\n    };"""
+          new_click = """    const onClick = () => {\n      window.setTimeout(decorate, 80);\n      window.setTimeout(decorate, 300);\n    };"""
+          if old_click in r:
+              r = r.replace(old_click, new_click, 1)
+
+          runtime.write_text(r, encoding='utf-8')
+
+      - name: Commit patch and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-shift-open-state.yml
+          git add src/App.tsx src/components/RuntimeCorrections.tsx
+          git commit -m "fix: persist and display store open state correctly"
+          git push origin main
