@@ -2,9 +2,13 @@ import React, { useEffect } from 'react';
 
 const normalize = (value?: string | null) => (value || '').replace(/\s+/g, ' ').trim();
 
+const overlaps = (a: DOMRect, b: DOMRect) =>
+  a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+
 const hideDuplicateOperationControls = () => {
   const keep = document.querySelector<HTMLElement>('[data-rota-operation-card="true"]');
   if (!keep) return;
+  const keepRect = keep.getBoundingClientRect();
 
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter((button) => {
     const text = normalize(button.textContent).toUpperCase();
@@ -21,13 +25,12 @@ const hideDuplicateOperationControls = () => {
       const text = normalize(node.textContent);
       const rect = node.getBoundingClientRect();
       const looksLikeOperationCard =
-        text.includes('Operação') &&
-        rect.width > 80 && rect.width <= 260 &&
-        rect.height > 35 && rect.height <= 220;
+        /operaç|turno|andamento|aberta|fechada/i.test(text) &&
+        rect.width > 80 && rect.width <= 280 &&
+        rect.height > 35 && rect.height <= 240;
 
       if (looksLikeOperationCard) bestCandidate = node;
-
-      if (node.tagName === 'ASIDE' || rect.width > 300) break;
+      if (node.tagName === 'ASIDE' || rect.width > 320) break;
       node = node.parentElement;
     }
 
@@ -36,6 +39,23 @@ const hideDuplicateOperationControls = () => {
       target.style.setProperty('display', 'none', 'important');
       target.dataset.hiddenDuplicateOperation = 'true';
     }
+  });
+
+  // Algumas versões antigas do sidebar não usam o texto exato do botão.
+  // Esconde qualquer card operacional antigo que esteja fisicamente por baixo do card oficial.
+  Array.from(document.querySelectorAll<HTMLElement>('div,section')).forEach((element) => {
+    if (element === keep || keep.contains(element) || element.contains(keep)) return;
+    if (element.dataset.hiddenDuplicateOperation === 'true') return;
+
+    const rect = element.getBoundingClientRect();
+    if (rect.left > 220 || rect.width < 90 || rect.width > 280 || rect.height < 40 || rect.height > 240) return;
+    if (!overlaps(rect, keepRect)) return;
+
+    const text = normalize(element.textContent);
+    if (!/operaç|turno|andamento|aberta|fechada/i.test(text)) return;
+
+    element.style.setProperty('display', 'none', 'important');
+    element.dataset.hiddenDuplicateOperation = 'true';
   });
 };
 
@@ -80,8 +100,12 @@ export const DispatchUiFixes: React.FC = () => {
   useEffect(() => {
     sync();
     const observer = new MutationObserver(sync);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    const timer = window.setInterval(sync, 600);
+    return () => {
+      observer.disconnect();
+      window.clearInterval(timer);
+    };
   }, []);
 
   return null;
