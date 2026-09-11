@@ -18,12 +18,13 @@ patch('src/components/StoreDashboardLegacy.tsx', (input) => {
   if (!s.includes('data-header-operation-toggle="true"')) {
     const marker = `          </span>\n\n          <button\n            type="button"\n            onClick={() => handleSyncCardapioWeb(true)}`;
     if (s.includes(marker)) {
-      s = s.replace(marker, `          </span>\n\n          <button\n            data-header-operation-toggle="true"\n            type="button"\n            onClick={onToggleShift}\n            className={\`inline-flex h-10 items-center gap-2 rounded-lg border px-3.5 text-[12px] font-black transition-all cursor-pointer \${shift.isOpen ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-violet-500 bg-violet-600 text-white hover:bg-violet-500'}\`}\n            title={shift.isOpen ? 'Encerrar operação atual' : 'Abrir operação manualmente'}\n          >\n            <span className={\`h-2 w-2 rounded-full \${shift.isOpen ? 'bg-emerald-500' : 'bg-white/80'}\`} />\n            {shift.isOpen ? 'Encerrar turno' : 'Abrir turno'}\n          </button>\n\n          <button\n            type="button"\n            onClick={() => handleSyncCardapioWeb(true)}`);
+      s = s.replace(marker, `          </span>\n\n          <button\n            data-header-operation-toggle="true"\n            type="button"\n            onClick={onToggleShift}\n            className={shift.isOpen\n              ? 'inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3.5 text-[12px] font-black text-emerald-700 transition-all cursor-pointer hover:bg-emerald-100'\n              : 'inline-flex h-10 items-center gap-2 rounded-lg border border-violet-500 bg-violet-600 px-3.5 text-[12px] font-black text-white transition-all cursor-pointer hover:bg-violet-500'}\n            title={shift.isOpen ? 'Encerrar operação atual' : 'Abrir operação manualmente'}\n          >\n            <span className={shift.isOpen ? 'h-2 w-2 rounded-full bg-emerald-500' : 'h-2 w-2 rounded-full bg-white/80'} />\n            {shift.isOpen ? 'Encerrar turno' : 'Abrir turno'}\n          </button>\n\n          <button\n            type="button"\n            onClick={() => handleSyncCardapioWeb(true)}`);
     }
   }
 
-  // Se algum card antigo de operação reaparecer na sidebar, esconde só ele para evitar duplicidade.
-  s = s.replace(/<div data-sidebar-operation-card="true" className=\{`([^`]*)`\}>/, '<div data-sidebar-operation-card="true" className={`hidden ${$1}`}>');
+  // Se algum card antigo de operação reaparecer na sidebar, esconde o card inteiro.
+  // Importante: usar classe estática aqui evita gerar JSX inválido ao envolver um template literal existente.
+  s = s.replace(/<div data-sidebar-operation-card="true" className=\{`[^`]*`\}>/, '<div data-sidebar-operation-card="true" className="hidden">');
 
   return s;
 });
