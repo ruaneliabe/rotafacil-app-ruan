@@ -36,7 +36,7 @@ patch('src/components/OperationDispatchView.tsx', (input) => {
   // Troca sugestões simples pelo quadro operacional completo de pré-despacho.
   s = s.replace(
     /\n\s*\{suggestions\.length > 0 && <section className="rounded-2xl border border-violet-200 bg-violet-50\/70 p-3\.5">[\s\S]*?<\/section>\}\n/,
-    '\n      <PredispatchRoutesPanel suggestions={suggestions} activeOrders={activeOrders} queueDrivers={queueDrivers} onSelectOrders={(ids) => setSelected(ids)} onCallNextDriver={handleCallCounter} onMarkOrderReady={(orderId) => onUpdateOrderStatus(orderId, \'ready_at_counter\')} triggerActionToast={triggerActionToast} />\n'
+    '\n      <PredispatchRoutesPanel suggestions={suggestions} activeOrders={activeOrders} queueDrivers={queueDrivers} onSelectOrders={(ids) => setSelected(ids)} onCallNextDriver={handleCallCounter} onMarkOrderReady={(orderId) => onUpdateOrderStatus(orderId, \'ready_at_counter\')} onAssignRouteToDriver={(orderIds, motoboyId) => { if (onAssignBatchToMotoboy) onAssignBatchToMotoboy(orderIds, motoboyId); else orderIds.forEach((id) => assignOrderRespectingLoad(id, motoboyId)); }} triggerActionToast={triggerActionToast} />\n'
   );
 
   // Remove a faixa isolada de atribuição e esconde o kanban antigo da central.
@@ -57,19 +57,20 @@ patch('src/components/OperationDispatchView.tsx', (input) => {
   return s;
 });
 
-// Rotas montadas são uma decisão do despachante: ele pode liberar todos os pedidos
-// de uma carga de uma vez. A primeira rota 100% pronta vai para "Próximo a sair".
+// Rotas montadas são uma decisão do despachante: ele libera a carga toda de uma vez.
+// Quando a rota está pronta, ela passa para "Próximo a sair" e só pode ser chamada
+// quando existir motoboy realmente disponível na fila.
 patch('src/components/PredispatchRoutesPanel.tsx', (input) => {
   let s = input;
 
   s = s.replace(
     '  onCallNextDriver?: (motoboyId: string, motoboyName: string) => void;\n  triggerActionToast: (message: string) => void;',
-    '  onCallNextDriver?: (motoboyId: string, motoboyName: string) => void;\n  onMarkOrderReady?: (orderId: string) => void;\n  triggerActionToast: (message: string) => void;'
+    '  onCallNextDriver?: (motoboyId: string, motoboyName: string) => void;\n  onMarkOrderReady?: (orderId: string) => void;\n  onAssignRouteToDriver?: (orderIds: string[], motoboyId: string) => void;\n  triggerActionToast: (message: string) => void;'
   );
 
   s = s.replace(
     '  onCallNextDriver,\n  triggerActionToast,',
-    '  onCallNextDriver,\n  onMarkOrderReady,\n  triggerActionToast,'
+    '  onCallNextDriver,\n  onMarkOrderReady,\n  onAssignRouteToDriver,\n  triggerActionToast,'
   );
 
   // A rota que virou a próxima saída deixa de ocupar espaço na coluna de rotas montadas.
@@ -78,10 +79,18 @@ patch('src/components/PredispatchRoutesPanel.tsx', (input) => {
     '{prepared.filter((route) => route.id !== nextRoute?.id).map((route, index) => {'
   );
 
-  // Em vez de esperar cada pedido ser marcado individualmente, o despachante libera a carga toda.
+  // O card da rota tem uma única ação operacional útil: liberar a carga inteira.
   const oldActions = '<div className="mt-3 flex gap-2"><button onClick={() => onSelectOrders(route.orderIds)} className="h-8 flex-1 rounded-lg border border-slate-200 bg-white text-[9px] font-black text-slate-700">Ver pedidos</button>{allReady && <button disabled={!nextDriver} onClick={() => { if (!nextDriver) return; onSelectOrders(route.orderIds); onCallNextDriver?.(nextDriver.id, nextDriver.name); triggerActionToast(`${nextDriver.name.split(\' \')[0]} chamado para a rota ${String(index + 1).padStart(2, \'0\')}.`); }} className="h-8 flex-1 rounded-lg bg-violet-600 px-2 text-[9px] font-black text-white disabled:bg-slate-300"><Play className="mr-1 inline h-3 w-3" />{nextDriver ? `Chamar ${nextDriver.name.split(\' \')[0]}` : \'Aguardando motoboy\'}</button>}</div>';
-  const newActions = '<div className="mt-3 flex gap-2"><button onClick={() => onSelectOrders(route.orderIds)} className="h-8 flex-1 rounded-lg border border-slate-200 bg-white text-[9px] font-black text-slate-700">Ver pedidos</button>{!allReady && <button disabled={!onMarkOrderReady} onClick={() => { if (!onMarkOrderReady) return; route.orders.filter((order) => !isReady(order)).forEach((order) => onMarkOrderReady(order.id)); triggerActionToast(`${route.orders.length} pedido${route.orders.length === 1 ? \'\' : \'s\'} marcado${route.orders.length === 1 ? \'\' : \'s\'} como pronto${route.orders.length === 1 ? \'\' : \'s\'}. Rota liberada para a próxima saída.`); }} className="h-8 flex-1 rounded-lg bg-emerald-600 px-2 text-[9px] font-black text-white disabled:bg-slate-300"><CheckCircle2 className="mr-1 inline h-3 w-3" />Colocar todos como prontos</button>}</div>';
+  const oldBulkActions = '<div className="mt-3 flex gap-2"><button onClick={() => onSelectOrders(route.orderIds)} className="h-8 flex-1 rounded-lg border border-slate-200 bg-white text-[9px] font-black text-slate-700">Ver pedidos</button>{!allReady && <button disabled={!onMarkOrderReady} onClick={() => { if (!onMarkOrderReady) return; route.orders.filter((order) => !isReady(order)).forEach((order) => onMarkOrderReady(order.id)); triggerActionToast(`${route.orders.length} pedido${route.orders.length === 1 ? \'\' : \'s\'} marcado${route.orders.length === 1 ? \'\' : \'s\'} como pronto${route.orders.length === 1 ? \'\' : \'s\'}. Rota liberada para a próxima saída.`); }} className="h-8 flex-1 rounded-lg bg-emerald-600 px-2 text-[9px] font-black text-white disabled:bg-slate-300"><CheckCircle2 className="mr-1 inline h-3 w-3" />Colocar todos como prontos</button>}</div>';
+  const newActions = '<div className="mt-3">{!allReady && <button disabled={!onMarkOrderReady} onClick={() => { if (!onMarkOrderReady) return; route.orders.filter((order) => !isReady(order)).forEach((order) => onMarkOrderReady(order.id)); triggerActionToast(`${route.orders.length} pedido${route.orders.length === 1 ? \'\' : \'s\'} pronto${route.orders.length === 1 ? \'\' : \'s\'}. Rota enviada para Próximo a sair.`); }} className="flex h-9 w-full items-center justify-center whitespace-nowrap rounded-lg bg-emerald-600 px-3 text-[9px] font-black text-white hover:bg-emerald-500 disabled:bg-slate-300"><CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />Colocar todos como prontos</button>}</div>';
   s = s.replace(oldActions, newActions);
+  s = s.replace(oldBulkActions, newActions);
+
+  // Ao chamar o motoboy, primeiro vincula todos os pedidos da rota a ele.
+  // Assim o app do motoboy recebe a carga imediatamente antes da chamada de balcão.
+  const oldNextButton = '<button disabled={!nextDriver} onClick={() => { if (!nextDriver) return; onSelectOrders(nextRoute.orderIds); onCallNextDriver?.(nextDriver.id, nextDriver.name); }} className="mt-3 h-9 w-full rounded-lg bg-emerald-600 text-[10px] font-black text-white disabled:bg-slate-300"><Play className="mr-1 inline h-3 w-3" />{nextDriver ? `Chamar ${nextDriver.name.split(\' \')[0]} no balcão` : \'Aguardando motoboy\'}</button>';
+  const newNextButton = '<button disabled={!nextDriver || !onAssignRouteToDriver} onClick={() => { if (!nextDriver || !onAssignRouteToDriver) return; onAssignRouteToDriver(nextRoute.orderIds, nextDriver.id); onCallNextDriver?.(nextDriver.id, nextDriver.name); triggerActionToast(`${nextDriver.name.split(\' \')[0]} recebeu ${nextRoute.orderIds.length} pedido${nextRoute.orderIds.length === 1 ? \'\' : \'s\'} e foi chamado ao balcão.`); }} className="mt-3 flex h-9 w-full items-center justify-center rounded-lg bg-emerald-600 text-[10px] font-black text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-300"><Play className="mr-1.5 h-3.5 w-3.5" />{nextDriver ? `Chamar ${nextDriver.name.split(\' \')[0]} no balcão` : \'Aguardando motoboy na fila\'}</button>';
+  s = s.replace(oldNextButton, newNextButton);
 
   return s;
 });
