@@ -31,10 +31,13 @@ async function startServer() {
     await syncCardapioWeb(req, res);
   });
 
+  // O dashboard usa este caminho no auto-sync. Mantemos os dois aliases apontando
+  // para o mesmo handler, sem qualquer escrita no Cardápio Web.
+  app.all('/api/cardapio-web/sync', async (req, res) => {
+    await syncCardapioWeb(req, res);
+  });
+
   if (process.env.NODE_ENV === 'production') {
-    // O build gera dist/server.cjs em CommonJS. Usar import.meta.url aqui quebra
-    // no Render porque esbuild não preserva esse valor no bundle CJS.
-    // O processo do Render inicia na raiz do projeto, então o dist público é estável.
     const distPath = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => res.sendFile(path.join(distPath, 'index.html')));
