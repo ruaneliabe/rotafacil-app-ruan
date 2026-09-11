@@ -124,7 +124,7 @@ export const TestOrdersControl: React.FC<Props> = ({ shift, orders }) => {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-[120] hidden items-center gap-2 rounded-2xl border border-violet-200 bg-white/95 p-2 shadow-xl backdrop-blur lg:flex">
+    <div className="fixed bottom-5 right-5 z-[80] hidden items-center gap-2 rounded-2xl border border-violet-200 bg-white/95 p-2 shadow-xl backdrop-blur lg:flex">
       <span className="px-1 text-[9px] font-black uppercase tracking-wide text-violet-600">Teste {testCount ? `(${testCount})` : ''}</span>
       <button
         type="button"
