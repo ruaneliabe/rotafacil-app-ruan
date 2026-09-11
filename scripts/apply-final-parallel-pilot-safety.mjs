@@ -71,7 +71,12 @@ patch('src/components/PredispatchRoutesPanel.tsx', (input) => {
   const gridStart = secondaryStart >= 0 ? s.indexOf('<div className="grid min-w-0', secondaryStart) : -1;
   if (secondaryStart >= 0 && gridStart > secondaryStart) {
     const before = s.slice(0, secondaryStart);
-    const block = s.slice(secondaryStart, gridStart).replaceAll('routeOrders', 'deliveryVisibleOrders');
+    let block = s.slice(secondaryStart, gridStart).replaceAll('routeOrders', 'deliveryVisibleOrders');
+    // No card simples de Em entrega, mostra explicitamente quem está levando e a origem.
+    block = block.replace(
+      '<p className="mt-1 text-[10px] font-semibold text-slate-600">{order.clientName}</p></div><span className="rounded-full bg-sky-50 px-2 py-1 text-[8px] font-black text-sky-700">Em rota</span>',
+      `<p className="mt-1 text-[10px] font-semibold text-slate-600">{order.clientName}</p><p className="mt-1 text-[9px] font-bold text-slate-500">Motoboy: {(order as any).rotaFacilMotoboyName || order.assignedMotoboyName || (order as any).cardapioWebMotoboyName || (order as any).externalMotoboyName || 'Não informado'}</p></div><div className="flex flex-col items-end gap-1"><span className="rounded-full bg-sky-50 px-2 py-1 text-[8px] font-black text-sky-700">Em rota</span><span className={\`rounded-full px-2 py-0.5 text-[7px] font-black \${(order as any).assignmentSource === 'rota_facil' || (order as any).dispatchSource === 'rota_facil' ? 'bg-violet-50 text-violet-700' : 'bg-blue-50 text-blue-700'}\`}>{(order as any).assignmentSource === 'rota_facil' || (order as any).dispatchSource === 'rota_facil' ? 'ROTA FÁCIL' : 'CARDÁPIO WEB'}</span></div>`
+    );
     s = before + block + s.slice(gridStart);
   }
 
@@ -111,4 +116,41 @@ patch('src/App.tsx', (input) => {
   return s;
 });
 
-console.log('[parallel-safety] F5 + Cardápio Web read-only + Em entrega visibility locked');
+// F5: o wrapper só monta o dashboard legado depois de ~420ms. O restore antigo rodava em 120ms,
+// quando os botões ainda nem existiam, então o React permanecia em Financeiro. Agora salvamos a aba
+// real no clique e restauramos depois da hidratação com algumas tentativas seguras.
+patch('src/components/DashboardUiBehaviorFixes.tsx', (input) => {
+  let s = input;
+  if (!s.includes("const RUNTIME_TAB_KEY = 'rotafacil_dashboard_runtime_tab_v1';")) {
+    s = s.replace(
+      "import React, { useEffect } from 'react';",
+      "import React, { useEffect } from 'react';\n\nconst RUNTIME_TAB_KEY = 'rotafacil_dashboard_runtime_tab_v1';"
+    );
+  }
+
+  if (!s.includes('const restoreRuntimeTab = () =>')) {
+    s = s.replace(
+      `const openPedidosTab = () => {\n  const pedidosButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) =>\n    (button.textContent?.trim() || '').includes('Pedidos e despacho')\n  );\n\n  if (pedidosButton) pedidosButton.click();\n};`,
+      `const openPedidosTab = () => {\n  const pedidosButton = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) =>\n    (button.textContent?.trim() || '').includes('Pedidos e despacho')\n  );\n  if (pedidosButton) pedidosButton.click();\n};\n\nconst restoreRuntimeTab = () => {\n  let saved = 'operacao';\n  try { saved = window.localStorage.getItem(RUNTIME_TAB_KEY) || 'operacao'; } catch {}\n  const matches = (label: string) => {\n    if (saved === 'operacao') return label.includes('Pedidos e despacho');\n    if (saved === 'kanban') return label === 'Kanban';\n    if (saved === 'equipe') return label.startsWith('Entregadores');\n    if (saved === 'financeiro') return label === 'Financeiro';\n    if (saved === 'gestao') return label.includes('Gestão e fechamento');\n    return label.includes('Pedidos e despacho');\n  };\n  const button = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((candidate) => matches(candidate.textContent?.trim() || ''));\n  if (!button) return false;\n  button.click();\n  return true;\n};`
+    );
+  }
+
+  s = s.replace(
+    `      const label = button.textContent?.trim() || '';\n      const enhancedModal = button.closest('[data-operation-enhanced-modal="true"]');`,
+    `      const label = button.textContent?.trim() || '';\n      const enhancedModal = button.closest('[data-operation-enhanced-modal="true"]');\n\n      try {\n        if (label.includes('Pedidos e despacho')) window.localStorage.setItem(RUNTIME_TAB_KEY, 'operacao');\n        else if (label === 'Kanban') window.localStorage.setItem(RUNTIME_TAB_KEY, 'kanban');\n        else if (label.startsWith('Entregadores')) window.localStorage.setItem(RUNTIME_TAB_KEY, 'equipe');\n        else if (label === 'Financeiro') window.localStorage.setItem(RUNTIME_TAB_KEY, 'financeiro');\n        else if (label.includes('Gestão e fechamento')) window.localStorage.setItem(RUNTIME_TAB_KEY, 'gestao');\n      } catch {}`
+  );
+
+  s = s.replace(
+    `    // F5/reload deve sempre voltar para a operação principal, nunca para Financeiro.\n    const initialTabTimer = window.setTimeout(() => {\n      openPedidosTab();\n      sync();\n    }, 120);`,
+    `    // Espera o StoreDashboard terminar a hidratação antes de restaurar a aba.\n    const restoreTimers = [560, 900, 1400].map((delay) => window.setTimeout(() => {\n      restoreRuntimeTab();\n      sync();\n    }, delay));`
+  );
+
+  s = s.replace(
+    `      window.clearTimeout(initialTabTimer);`,
+    `      restoreTimers.forEach((timer) => window.clearTimeout(timer));`
+  );
+
+  return s;
+});
+
+console.log('[parallel-safety] F5 tab restore + Cardápio Web read-only + courier visibility locked');
