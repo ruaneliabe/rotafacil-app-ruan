@@ -30,6 +30,20 @@ update('src/components/OperationDispatchView.tsx', (input) => {
   return s;
 });
 
+update('src/components/OperationManagementEnhancer.tsx', (input) => {
+  let s = input;
+
+  // "Sem entregador" must contain only unfinished orders that truly have no motoboy.
+  // Exclude every terminal status we may receive from local data or integrations,
+  // and also any order already carrying a delivered timestamp.
+  s = s.replace(
+    `    () => orders.filter((o) => !['delivered', 'cancelled', 'failed'].includes(String(o.status))),`,
+    `    () => orders.filter((o) => {\n      const status = String(o.status || '').toLowerCase();\n      const terminal = ['delivered', 'cancelled', 'failed', 'completed', 'concluded', 'concluido', 'finished', 'finalized'];\n      return !terminal.includes(status) && !o.deliveredAt && !o.deliveredTimestamp;\n    }),`
+  );
+
+  return s;
+});
+
 update('src/components/RouteMap.tsx', (input) => {
   let s = input;
 
