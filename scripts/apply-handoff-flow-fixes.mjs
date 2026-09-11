@@ -45,8 +45,8 @@ patch('src/App.tsx', (input) => {
 });
 
 // A rota chamada continua em "Próximo a sair" até o motoboy confirmar a retirada.
-// Ela fica bloqueada para nova chamada; enquanto isso a próxima rota pronta pode chamar
-// o novo 1º da fila normalmente.
+// Depois da retirada ela some imediatamente de Rotas montadas/Próximo a sair e passa
+// a existir somente em "Em entrega".
 patch('src/components/PredispatchRoutesPanel.tsx', (input) => {
   let s = input;
 
@@ -55,16 +55,27 @@ patch('src/components/PredispatchRoutesPanel.tsx', (input) => {
     "  createdAt: number;\n  calledMotoboyId?: string;\n  calledMotoboyName?: string;\n  calledAt?: number;\n};"
   );
 
+  // Nunca renderizar como rota montada uma carga cujos pedidos já foram retirados.
+  s = s.replace(
+    ".filter((route) => route.orders.length > 0), [preparedRoutes, activeById]);",
+    ".filter((route) => route.orders.length > 0 && !route.orders.every(isRoute)), [preparedRoutes, activeById]);"
+  );
+
   s = s.replace(
     "  const readyPrepared = prepared.filter((route) => route.orders.length > 0 && route.orders.every(isReady));\n  const nextRoute = readyPrepared[0];",
     "  const readyPrepared = prepared.filter((route) => route.orders.length > 0 && route.orders.every(isReady));\n  const waitingPickupRoutes = readyPrepared.filter((route) => Boolean(route.calledMotoboyId));\n  const nextRoute = readyPrepared.find((route) => !route.calledMotoboyId);"
   );
 
-  if (!s.includes('Remove a rota preparada somente após a retirada')) {
-    s = s.replace(
-      "  useEffect(() => {\n    const valid = new Set(looseOrders.map((order) => order.id));",
-      "  // Remove a rota preparada somente após a retirada confirmar a passagem para a rota do motoboy.\n  useEffect(() => {\n    setPreparedRoutes((current) => current.filter((route) => {\n      if (!route.calledMotoboyId) return true;\n      const routeOrders = route.orderIds.map((id) => activeById.get(id)).filter(Boolean) as Order[];\n      return !(routeOrders.length > 0 && routeOrders.every(isRoute));\n    }));\n  }, [activeOrders]);\n\n  useEffect(() => {\n    const valid = new Set(looseOrders.map((order) => order.id));"
-    );
+  if (!s.includes('Remove qualquer rota preparada assim que todos os pedidos forem retirados')) {
+    const oldCleanup = "  // Remove a rota preparada somente após a retirada confirmar a passagem para a rota do motoboy.\n  useEffect(() => {\n    setPreparedRoutes((current) => current.filter((route) => {\n      if (!route.calledMotoboyId) return true;\n      const routeOrders = route.orderIds.map((id) => activeById.get(id)).filter(Boolean) as Order[];\n      return !(routeOrders.length > 0 && routeOrders.every(isRoute));\n    }));\n  }, [activeOrders]);";
+    const newCleanup = "  // Remove qualquer rota preparada assim que todos os pedidos forem retirados.\n  // Não depende do flag de chamada: isso também limpa rotas antigas/localStorage legado.\n  useEffect(() => {\n    setPreparedRoutes((current) => current.filter((route) => {\n      const routeOrders = route.orderIds.map((id) => activeById.get(id)).filter(Boolean) as Order[];\n      if (!routeOrders.length) return false;\n      return !routeOrders.every(isRoute);\n    }));\n  }, [activeOrders, activeById]);";
+    if (s.includes(oldCleanup)) s = s.replace(oldCleanup, newCleanup);
+    else {
+      s = s.replace(
+        "  useEffect(() => {\n    const valid = new Set(looseOrders.map((order) => order.id));",
+        `${newCleanup}\n\n  useEffect(() => {\n    const valid = new Set(looseOrders.map((order) => order.id));`
+      );
+    }
   }
 
   s = s.replace(
