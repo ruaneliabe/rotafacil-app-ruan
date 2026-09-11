@@ -30,8 +30,35 @@ update('src/components/OperationDispatchView.tsx', (input) => {
   return s;
 });
 
-// IMPORTANT: RouteMap is intentionally not rewritten here. Previous regex-based
-// marker rewriting could remove structural braces and break the production build.
-// Any map marker visual changes must be made directly in RouteMap.tsx.
+update('src/components/RouteMap.tsx', (input) => {
+  let s = input;
+
+  // Safe, exact marker-only replacements: keep all map structure intact.
+  // At-store motoboy: replace the initial avatar with a motorcycle icon.
+  s = s.replace(
+    `                <div class="w-8 h-8 rounded-full bg-slate-950 border-2 \${ringColor} text-emerald-300 flex items-center justify-center font-black text-xs shadow-2xl z-30">\n                  \${initial}\n                </div>`,
+    `                <div class="w-8 h-8 rounded-full bg-slate-950 border-2 \${ringColor} text-white flex items-center justify-center text-sm shadow-2xl z-30">\n                  🛵\n                </div>`
+  );
+
+  // Dense fleet marker: use motorcycle instead of the driver's initial.
+  s = s.replace(
+    `html: \`<div class="w-5 h-5 rounded-full \${isReturning ? 'bg-amber-500' : 'bg-blue-600'} border-2 border-slate-950 shadow-lg cursor-pointer flex items-center justify-center text-[9px] font-black text-white hover:scale-125 transition-transform">\${initial}</div>\``,
+    `html: \`<div class="w-7 h-7 rounded-full \${isReturning ? 'bg-amber-500' : 'bg-blue-600'} border-2 border-white shadow-lg cursor-pointer flex items-center justify-center text-sm text-white hover:scale-110 transition-transform">🛵</div>\``
+  );
+
+  // Focused / low-density road motoboy: replace avatar initial with motorcycle.
+  s = s.replace(
+    `              <div class="w-8 h-8 rounded-full bg-slate-950 border-2 \${ringColor} \${isSelected ? 'ring-4 ring-amber-400/80 scale-110' : ''} flex items-center justify-center font-black text-xs shadow-2xl z-30">\n                \${initial}\n              </div>`,
+    `              <div class="w-9 h-9 rounded-full \${isReturning ? 'bg-amber-500' : 'bg-blue-600'} border-2 border-white \${isSelected ? 'ring-4 ring-violet-400/70 scale-110' : ''} flex items-center justify-center text-base shadow-2xl z-30">\n                🛵\n              </div>`
+  );
+
+  // Single dedicated motoboy marker uses the same motorcycle avatar.
+  s = s.replace(
+    `              <div class="w-8 h-8 rounded-full bg-slate-900 border-2 border-emerald-400 text-emerald-300 flex items-center justify-center font-black text-xs shadow-xl z-30">\n                \${initial}\n              </div>`,
+    `              <div class="w-9 h-9 rounded-full bg-blue-600 border-2 border-white text-white flex items-center justify-center text-base shadow-xl z-30">\n                🛵\n              </div>`
+  );
+
+  return s;
+});
 
 console.log('[delivery-reference] finished');
