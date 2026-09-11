@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { Loader2, PauseCircle, PlayCircle } from 'lucide-react';
 import { StoreDashboard as LegacyStoreDashboard } from './StoreDashboardLegacy';
@@ -13,7 +13,35 @@ export const StoreDashboard: React.FC<any> = (props) => {
   const cloudOpen = Boolean(props.shift?.isOpen);
   const [optimisticOpen, setOptimisticOpen] = useState<boolean | null>(null);
   const [savingOperation, setSavingOperation] = useState(false);
+  const [cloudHydrated, setCloudHydrated] = useState(false);
   const operationOpen = optimisticOpen ?? cloudOpen;
+
+  // Firestore subscriptions arrive asynchronously and, on a hard refresh, React
+  // first receives the local empty/default snapshot (0 pedidos, 0 motoboys and
+  // "Configure sua loja"). Wait until the incoming snapshots stop changing for a
+  // short moment before mounting the operational dashboard, so users never see a
+  // false empty operation flashing on screen.
+  const hydrationSignature = useMemo(() => {
+    const shift = props.shift || {};
+    const orders = props.orders || [];
+    const motoboys = props.motoboys || [];
+    return [
+      shift.id || '',
+      shift.storeName || '',
+      shift.shiftId || '',
+      shift.isOpen ? '1' : '0',
+      orders.length,
+      orders.map((o: any) => `${o.id}:${o.status}:${o.assignedMotoboyId || ''}`).join('|'),
+      motoboys.length,
+      motoboys.map((m: any) => `${m.id}:${m.status}`).join('|'),
+    ].join('::');
+  }, [props.shift, props.orders, props.motoboys]);
+
+  useEffect(() => {
+    setCloudHydrated(false);
+    const timer = window.setTimeout(() => setCloudHydrated(true), 420);
+    return () => window.clearTimeout(timer);
+  }, [hydrationSignature]);
 
   useEffect(() => {
     if (optimisticOpen !== null && cloudOpen === optimisticOpen) {
@@ -87,6 +115,22 @@ export const StoreDashboard: React.FC<any> = (props) => {
     shift: effectiveShift,
     onToggleShift: handleToggleOperation,
   };
+
+  if (!cloudHydrated) {
+    return (
+      <div className="flex min-h-[calc(100vh-32px)] w-full items-center justify-center rounded-2xl border border-slate-200 bg-white/70 shadow-sm backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-50 text-violet-600">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+          <div>
+            <p className="text-sm font-black text-slate-900">Sincronizando operação</p>
+            <p className="mt-1 text-[11px] text-slate-500">Carregando pedidos, entregadores e status da loja...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
