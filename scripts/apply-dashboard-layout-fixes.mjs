@@ -12,7 +12,7 @@ const patch = (path, mutate) => {
 };
 
 // Ajustes da Central de pedidos para operação com alto volume:
-// - sugestões de rota mais compactas;
+// - sugestões de rota mais compactas e com rótulo legível no lugar do percentual;
 // - idade do pedido mais antigo visível no cabeçalho da fila;
 // - ação "Atribuir mais antigos" junto da própria coluna de aguardando;
 // - seletor mostra apenas motoboys realmente disponíveis, em ordem de fila;
@@ -62,6 +62,10 @@ patch('src/components/OperationDispatchView.tsx', (input) => {
   s = s.replace(
     'className="mt-1 text-[10px] text-slate-500">{s.corridorName}',
     'className="mt-0.5 truncate text-[9px] text-slate-500">{s.corridorName}'
+  );
+  s = s.replace(
+    '<span className="text-[10px] font-black text-violet-700">{s.confidenceScore}%</span>',
+    '<span className="whitespace-nowrap rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-black text-violet-700">{s.confidenceScore >= 95 ? \'Excelente combinação\' : s.confidenceScore >= 80 ? \'Boa combinação\' : \'Combinação razoável\'}</span>'
   );
 
   // Remove a faixa isolada de atribuição: a ação passa a morar no cabeçalho da coluna "Aguardando entregador".
