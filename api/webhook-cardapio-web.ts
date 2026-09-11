@@ -94,6 +94,16 @@ function courierName(order: any): string | null {
   }
   return null;
 }
+function hasRotaFacilOwnership(existing: any): boolean {
+  return Boolean(existing?.rotaFacilMotoboyId || existing?.assignmentSource === 'rota_facil' || existing?.dispatchSource === 'rota_facil');
+}
+function statusWithLocalPriority(existing: any, incoming: ReturnType<typeof mapStatus>) {
+  if (!existing || !hasRotaFacilOwnership(existing)) return incoming;
+  if (incoming === 'delivered' || incoming === 'cancelled') return incoming;
+  const local = existing.status;
+  if (['ready_at_counter', 'picked_up', 'dispatched', 'in_transit'].includes(local)) return local;
+  return incoming;
+}
 
 function parseSourceDate(...values: any[]) {
   for (const raw of values) {
@@ -172,10 +182,12 @@ export default async function handler(req: any, res: any) {
     const existingSnap = cwOrderId ? await getDoc(existingRef) : null;
     const existing = existingSnap?.exists() ? existingSnap.data() as any : null;
     const driver = courierName(orderData) || courierName(payload);
+    const localPriority = hasRotaFacilOwnership(existing);
+    const effectiveStatus = statusWithLocalPriority(existing, mappedStatus);
 
     if (cwOrderId && existing && rawStatus) {
       const statusPatch: any = {
-        status: mappedStatus,
+        status: effectiveStatus,
         cardapioWebStatus: normalize(rawStatus),
         lastCardapioWebSyncAt: Date.now(),
         closedInCardapioWeb: mappedStatus === 'delivered',
@@ -185,12 +197,18 @@ export default async function handler(req: any, res: any) {
         statusPatch.sourceCreatedTimestamp = sourceCreated.timestamp;
       }
       if (mappedStatus === 'dispatched') {
+        statusPatch.cardapioWebDispatchedAt = Date.now();
         statusPatch.dispatchedAt = existing.dispatchedAt || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         statusPatch.closedAt = null;
       } else if (mappedStatus === 'delivered') {
         statusPatch.closedAt = existing.closedAt || new Date().toISOString();
       }
-      if (driver) { statusPatch.externalMotoboyName = driver; statusPatch.assignedMotoboyName = driver; }
+      if (driver) {
+        statusPatch.externalMotoboyName = driver;
+        statusPatch.cardapioWebMotoboyName = driver;
+      }
+      statusPatch.cardapioWebDispatchDetected = mappedStatus === 'dispatched' || Boolean(existing.cardapioWebDispatchDetected);
+      if (!localPriority && mappedStatus === 'dispatched') statusPatch.dispatchSource = 'cardapio_web';
       await setDoc(existingRef, statusPatch, { merge: true });
     }
 
@@ -206,7 +224,7 @@ export default async function handler(req: any, res: any) {
     const total = Number(orderData.total ?? payload.total ?? payload.valor_total ?? existing?.total ?? 0);
 
     if (total <= 0 && (!clientName || clientName.trim() === '')) {
-      if (existing && rawStatus) return res.status(200).json({ status: 'status_updated', success: true, orderId, mappedStatus });
+      if (existing && rawStatus) return res.status(200).json({ status: 'status_updated', success: true, orderId, mappedStatus: effectiveStatus });
       return res.status(200).json({ status: 'ignored_empty', message: 'Payload sem dados suficientes' });
     }
 
@@ -248,7 +266,7 @@ export default async function handler(req: any, res: any) {
       address: fullAddress, street, houseNumber, complement, neighborhood, lat: coords.lat, lng: coords.lng,
       items, itemsSummary, subtotal: subtotal || total, deliveryFee, total, paymentMethod,
       changeFor: rawPayment.change_for || rawPayment.troco_para || existing?.changeFor || null,
-      status: mappedStatus, createdAt: existing?.createdAt || new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+      status: effectiveStatus, createdAt: existing?.createdAt || new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
       createdDate: sourceCreated?.date || existing?.createdDate || localDateKey,
       createdTimestamp: sourceCreated?.timestamp || existing?.createdTimestamp || Date.now(),
       sourceCreatedDate: sourceCreated?.date || existing?.sourceCreatedDate || null,
@@ -256,13 +274,19 @@ export default async function handler(req: any, res: any) {
       originChannel: 'cardapio_web', storeBranch: branch, storeName,
       operationalEpoch: STORE_PILOT_RESET_VERSION, trackingCode, externalOrderId: String(cwOrderId || ''),
       cardapioWebStatus: normalize(rawStatus), lastCardapioWebSyncAt: Date.now(), closedInCardapioWeb: mappedStatus === 'delivered',
+      cardapioWebDispatchDetected: mappedStatus === 'dispatched' || Boolean(existing?.cardapioWebDispatchDetected),
+      ...(existing?.assignedMotoboyId ? { assignedMotoboyId: existing.assignedMotoboyId } : {}),
+      ...(existing?.assignedMotoboyName ? { assignedMotoboyName: existing.assignedMotoboyName } : {}),
+      ...(existing?.rotaFacilMotoboyId ? { rotaFacilMotoboyId: existing.rotaFacilMotoboyId } : {}),
+      ...(existing?.rotaFacilMotoboyName ? { rotaFacilMotoboyName: existing.rotaFacilMotoboyName } : {}),
+      ...(localPriority ? { assignmentSource: 'rota_facil', dispatchSource: 'rota_facil' } : mappedStatus === 'dispatched' ? { dispatchSource: 'cardapio_web' } : {}),
     };
-    if (mappedStatus === 'dispatched') { completeOrder.dispatchedAt = existing?.dispatchedAt || new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); completeOrder.closedAt = null; }
+    if (mappedStatus === 'dispatched') { completeOrder.cardapioWebDispatchedAt = Date.now(); completeOrder.dispatchedAt = existing?.dispatchedAt || new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); completeOrder.closedAt = null; }
     if (mappedStatus === 'delivered') completeOrder.closedAt = existing?.closedAt || new Date().toISOString();
-    if (driver) { completeOrder.externalMotoboyName = driver; completeOrder.assignedMotoboyName = driver; }
+    if (driver) { completeOrder.externalMotoboyName = driver; completeOrder.cardapioWebMotoboyName = driver; }
 
     await setDoc(existingRef, completeOrder, { merge: true });
-    return res.status(200).json({ status: 'received', success: true, orderId, codeNumber, displayCode, mappedStatus, driver: driver || null, sourceCreatedDate: completeOrder.sourceCreatedDate });
+    return res.status(200).json({ status: 'received', success: true, orderId, codeNumber, displayCode, mappedStatus: effectiveStatus, driver: driver || null, priority: localPriority ? 'rota_facil' : 'cardapio_web', sourceCreatedDate: completeOrder.sourceCreatedDate });
   } catch (err: any) {
     console.error('Erro no webhook Vercel:', err);
     return res.status(500).json({ error: 'Erro ao processar pedido', details: err?.message });
