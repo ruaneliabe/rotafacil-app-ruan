@@ -25,6 +25,11 @@ if (!s.includes('const [preparedRouteRevision, setPreparedRouteRevision]')) {
 }
 
 s = s.replace(
+  "type SideTab = 'orders' | 'queue' | 'returning' | 'delivering';",
+  "type SideTab = 'overview' | 'orders' | 'queue' | 'returning' | 'delivering';"
+);
+
+s = s.replace(
   "      if (!overlay) return;\n      legacyOverlayRef.current = overlay;",
   "      if (!overlay) return;\n      if (closedLegacyOverlayRef.current === overlay && overlay.style.display === 'none') return;\n      if (closedLegacyOverlayRef.current === overlay && overlay.style.display !== 'none') closedLegacyOverlayRef.current = null;\n      legacyOverlayRef.current = overlay;"
 );
@@ -46,6 +51,21 @@ s = s.replace(
   "  const waitingOrders = useMemo(() => activeOrders\n    .filter((o) => !o.assignedMotoboyId && !isRouteOrder(o) && !preparedRouteOrderIds.has(o.id))\n    .sort((a, b) => stamp(a) - stamp(b)), [activeOrders, preparedRouteOrderIds]);"
 );
 
+s = s.replace(
+  "    if (tab === 'queue') list = queue;\n    else if (tab === 'returning') list = returning;\n    else if (tab === 'delivering') list = delivering;",
+  "    if (tab === 'overview') list = motoboys.filter((m) => ['available', 'delivering', 'returning_to_store'].includes(String(m.status)));\n    else if (tab === 'queue') list = queue;\n    else if (tab === 'returning') list = returning;\n    else if (tab === 'delivering') list = delivering;"
+);
+
+s = s.replace(
+  "  }, [tab, queue, returning, delivering, selectedDriverId]);",
+  "  }, [tab, queue, returning, delivering, motoboys, selectedDriverId]);"
+);
+
+s = s.replace(
+  "    if (tab === 'orders') return filteredOrders;\n    if (tab === 'delivering') {",
+  "    if (tab === 'overview') return activeOrders;\n    if (tab === 'orders') return filteredOrders;\n    if (tab === 'delivering') {"
+);
+
 if (!s.includes('hideLegacyMapStatusBar')) {
   s = s.replace(
     "  useEffect(() => {\n    const valid = new Set(waitingOrders.map((o) => o.id));\n    setSelectedOrderIds((current) => current.filter((id) => valid.has(id)));\n  }, [waitingOrders]);",
@@ -65,6 +85,11 @@ s = s.replace(oldMap, stableMap);
 s = s.replace(previousPatchedMap, stableMap);
 
 s = s.replace(
+  "  const tabs: Array<[SideTab, string, number]> = [\n    ['orders', 'Pedidos', waitingOrders.length],",
+  "  const tabs: Array<[SideTab, string, number]> = [\n    ['overview', 'Visão geral', activeOrders.length],\n    ['orders', 'Pedidos', waitingOrders.length],"
+);
+
+s = s.replace(
   'Selecione os pedidos que deseja incluir na rota.',
   'Clique nos pedidos do mapa para incluir ou remover da rota.'
 );
@@ -77,4 +102,4 @@ s = s.replace(
 );
 
 fs.writeFileSync(path, s);
-console.log('[map-selection-fixes] stable map + mounted-order filtering + modal lifecycle applied');
+console.log('[map-selection-fixes] overview + stable map + mounted-order filtering + modal lifecycle applied');
