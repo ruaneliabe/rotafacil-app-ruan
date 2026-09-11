@@ -49,6 +49,18 @@ const polishButton = (button: HTMLButtonElement | null) => {
   }
 };
 
+const hideStoreLayerToggle = () => {
+  const modal = document.querySelector<HTMLElement>('[data-operation-enhanced-modal="true"]');
+  if (!modal) return;
+
+  const storeToggle = Array.from(modal.querySelectorAll<HTMLButtonElement>('button')).find((button) => {
+    const text = (button.textContent || '').replace(/\s+/g, ' ').trim();
+    return text === 'Loja' || text.startsWith('Loja Hope');
+  });
+
+  if (storeToggle) storeToggle.style.display = 'none';
+};
+
 const syncSidebar = () => {
   const buttons = Object.fromEntries(navLabels.map((label) => [label, findButton(label)])) as Record<string, HTMLButtonElement | null>;
 
@@ -67,6 +79,8 @@ const syncSidebar = () => {
   if (config) {
     config.style.borderTop = '1px solid transparent';
   }
+
+  hideStoreLayerToggle();
 };
 
 export const SidebarPolish: React.FC = () => {
