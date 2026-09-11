@@ -137,56 +137,44 @@ export const StoreDashboard: React.FC<any> = (props) => {
       <SidebarPolish />
       <CounterCallBridge motoboys={props.motoboys || []} />
 
-      <div className="fixed bottom-[76px] left-[14px] z-[90] hidden w-[178px] lg:block">
-        <div className={`overflow-hidden rounded-2xl border bg-white shadow-[0_8px_26px_rgba(15,23,42,.08)] ${operationOpen ? 'border-emerald-200' : 'border-slate-200'}`}>
-          <div className="px-3 py-3">
-            <div className="flex items-center gap-2.5">
-              <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${operationOpen ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-                {savingOperation ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : operationOpen ? (
-                  <PauseCircle className="h-4 w-4" />
-                ) : (
-                  <PlayCircle className="h-4 w-4" />
-                )}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className={`h-2 w-2 rounded-full ${operationOpen ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                  <p className="truncate text-[11px] font-black text-slate-900">
-                    {operationOpen ? 'Operação aberta' : 'Operação fechada'}
-                  </p>
-                </div>
-                <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-slate-500">
-                  {operationOpen ? 'Em andamento' : 'Parado'}
-                </span>
-              </div>
+      <div className="fixed bottom-[132px] left-[14px] z-[90] hidden w-[166px] lg:block">
+        <div className={`rounded-2xl border bg-white/95 p-2.5 shadow-[0_10px_28px_rgba(15,23,42,.10)] backdrop-blur ${operationOpen ? 'border-emerald-200' : 'border-slate-200'}`}>
+          <div className="flex items-center gap-2.5">
+            <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${operationOpen ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+              {savingOperation ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : operationOpen ? (
+                <PauseCircle className="h-4 w-4" />
+              ) : (
+                <PlayCircle className="h-4 w-4" />
+              )}
             </div>
 
-            <p className="mt-2 text-[9px] leading-relaxed text-slate-500">
-              {savingOperation
-                ? 'Salvando alteração...'
-                : operationOpen
-                  ? 'Sincronizado com a operação da loja.'
-                  : 'Pode abrir manualmente fora do horário.'}
-            </p>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${operationOpen ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                <p className="truncate text-[10px] font-black text-slate-900">
+                  {operationOpen ? 'Operação aberta' : 'Operação fechada'}
+                </p>
+              </div>
+              <p className="mt-0.5 text-[8px] font-semibold text-slate-400">
+                {operationOpen ? 'Em andamento' : 'Pode abrir fora do horário'}
+              </p>
+            </div>
           </div>
 
-          <div className="border-t border-slate-100 p-2.5">
-            <button
-              type="button"
-              onClick={handleToggleOperation}
-              disabled={savingOperation}
-              className={`flex h-9 w-full items-center justify-center rounded-xl text-[10px] font-black transition disabled:cursor-wait disabled:opacity-60 ${
-                operationOpen
-                  ? 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  : 'bg-violet-600 text-white shadow-sm hover:bg-violet-500'
-              }`}
-            >
-              {savingOperation ? 'AGUARDE' : operationOpen ? 'ENCERRAR TURNO' : 'ABRIR TURNO'}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleToggleOperation}
+            disabled={savingOperation}
+            className={`mt-2 flex h-8 w-full items-center justify-center rounded-xl text-[9px] font-black transition disabled:cursor-wait disabled:opacity-60 ${
+              operationOpen
+                ? 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                : 'bg-violet-600 text-white shadow-sm hover:bg-violet-500'
+            }`}
+          >
+            {savingOperation ? 'AGUARDE' : operationOpen ? 'ENCERRAR TURNO' : 'ABRIR TURNO'}
+          </button>
         </div>
       </div>
     </>
