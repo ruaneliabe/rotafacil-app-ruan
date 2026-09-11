@@ -125,27 +125,27 @@ export const StoreDashboard: React.FC<any> = (props) => {
       <CounterCallBridge motoboys={props.motoboys || []} />
       <TestOrdersControl shift={effectiveShift} orders={props.orders || []} />
 
-      <div className="fixed bottom-[132px] left-[14px] z-[90] hidden w-[166px] lg:block">
-        <div className={`rounded-2xl border bg-white/95 p-2.5 shadow-[0_10px_28px_rgba(15,23,42,.10)] backdrop-blur ${operationOpen ? 'border-emerald-200' : 'border-slate-200'}`}>
-          <div className="flex items-center gap-2.5">
-            <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${operationOpen ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+      <div className="fixed bottom-[132px] left-[14px] z-[90] hidden w-[146px] lg:block">
+        <div className={`rounded-xl border bg-white/95 p-2 shadow-[0_8px_22px_rgba(15,23,42,.08)] backdrop-blur ${operationOpen ? 'border-emerald-200' : 'border-slate-200'}`}>
+          <div className="flex items-center gap-2">
+            <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${operationOpen ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
               {savingOperation ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : operationOpen ? (
-                <PauseCircle className="h-4 w-4" />
+                <PauseCircle className="h-3.5 w-3.5" />
               ) : (
-                <PlayCircle className="h-4 w-4" />
+                <PlayCircle className="h-3.5 w-3.5" />
               )}
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className={`h-2 w-2 rounded-full ${operationOpen ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                <p className="truncate text-[10px] font-black text-slate-900">
+              <div className="flex items-center gap-1">
+                <span className={`h-1.5 w-1.5 rounded-full ${operationOpen ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                <p className="truncate text-[9px] font-black text-slate-900">
                   {operationOpen ? 'Operação aberta' : 'Operação fechada'}
                 </p>
               </div>
-              <p className="mt-0.5 text-[8px] font-semibold text-slate-400">
+              <p className="mt-0.5 truncate text-[7px] font-semibold text-slate-400">
                 {operationOpen ? 'Em andamento' : 'Pode abrir fora do horário'}
               </p>
             </div>
@@ -155,7 +155,7 @@ export const StoreDashboard: React.FC<any> = (props) => {
             type="button"
             onClick={handleToggleOperation}
             disabled={savingOperation}
-            className={`mt-2 flex h-8 w-full items-center justify-center rounded-xl text-[9px] font-black transition disabled:cursor-wait disabled:opacity-60 ${
+            className={`mt-1.5 flex h-7 w-full items-center justify-center rounded-lg text-[8px] font-black transition disabled:cursor-wait disabled:opacity-60 ${
               operationOpen
                 ? 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
                 : 'bg-violet-600 text-white shadow-sm hover:bg-violet-500'
