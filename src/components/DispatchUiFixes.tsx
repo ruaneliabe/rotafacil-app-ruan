@@ -41,8 +41,6 @@ const hideDuplicateOperationControls = () => {
     }
   });
 
-  // Algumas versões antigas do sidebar não usam o texto exato do botão.
-  // Esconde qualquer card operacional antigo que esteja fisicamente por baixo do card oficial.
   Array.from(document.querySelectorAll<HTMLElement>('div,section')).forEach((element) => {
     if (element === keep || keep.contains(element) || element.contains(keep)) return;
     if (element.dataset.hiddenDuplicateOperation === 'true') return;
@@ -57,6 +55,25 @@ const hideDuplicateOperationControls = () => {
     element.style.setProperty('display', 'none', 'important');
     element.dataset.hiddenDuplicateOperation = 'true';
   });
+};
+
+const hideObsoleteDensitySwitch = () => {
+  const cards = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => normalize(button.textContent) === 'Cards');
+  const compact = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => normalize(button.textContent) === 'Compacto');
+  if (!cards && !compact) return;
+
+  const common = cards?.parentElement && compact?.parentElement && cards.parentElement === compact.parentElement
+    ? cards.parentElement
+    : null;
+
+  if (common) {
+    common.style.setProperty('display', 'none', 'important');
+    common.dataset.hiddenDensitySwitch = 'true';
+    return;
+  }
+
+  if (cards) cards.style.setProperty('display', 'none', 'important');
+  if (compact) compact.style.setProperty('display', 'none', 'important');
 };
 
 const installOldestToggle = () => {
@@ -93,6 +110,7 @@ const installOldestToggle = () => {
 
 const sync = () => {
   hideDuplicateOperationControls();
+  hideObsoleteDensitySwitch();
   installOldestToggle();
 };
 
