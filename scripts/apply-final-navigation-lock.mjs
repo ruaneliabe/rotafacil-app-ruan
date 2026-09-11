@@ -13,7 +13,7 @@ const replaceOnce = (from, to, label) => {
 };
 
 // Iniciar rota deve SOMENTE iniciar o fluxo no Rota Fácil.
-// Nunca deve abrir Waze/Maps automaticamente nem reaproveitar modal antigo.
+// Nunca deve abrir app externo automaticamente.
 replaceOnce(
 `  const startRoute = () => {
     if (!route.length) return;
@@ -34,48 +34,36 @@ replaceOnce(
   'start route never opens external navigation'
 );
 
-// Waze por URL não suporta uma rota multi-paradas confiável.
-// Ele deve abrir exclusivamente a próxima parada; rota completa fica no Google Maps.
+// Remove o Waze do fluxo inteiro. Google Maps é o único navegador externo.
+s = s.replace(/\n\s*const openWaze = \(\) => \{[\s\S]*?\n\s*\};\n/, '\n');
+
 replaceOnce(
-`  const openWaze = () => {
-    if (!navRequest) return;
-    const baseRoute = navRequest.orders?.length ? navRequest.orders : remainingRoute(navRequest.from);
-    const target = baseRoute[0];
-    if (!target) return;
-    const destination = target.lat && target.lng
-      ? \`ll=\${target.lat},\${target.lng}\`
-      : \`q=\${encodeURIComponent(target.address)}\`;
-    setNavRequest(null);
-    launchExternalNavigation(\`https://waze.com/ul?\${destination}&navigate=yes\`);
-  };`,
-`  const openWaze = () => {
-    if (!navRequest) return;
-    const baseRoute = navRequest.orders?.length ? navRequest.orders : remainingRoute(navRequest.from);
-    const target = baseRoute[0];
-    if (!target) return;
-    const hasCoords = Number.isFinite(Number(target.lat)) && Number.isFinite(Number(target.lng));
-    const destination = hasCoords
-      ? \`ll=\${Number(target.lat)},\${Number(target.lng)}\`
-      : \`q=\${encodeURIComponent([target.address, target.neighborhood].filter(Boolean).join(', '))}\`;
-    setNavRequest(null);
-    launchExternalNavigation(\`https://waze.com/ul?\${destination}&navigate=yes\`);
-  };`,
-  'waze always opens next stop with valid destination'
+`<div><h3 className="text-lg font-black">Abrir navegação</h3><p className="mt-1 text-[11px] text-slate-500">Escolha o app que você usa na rua.</p></div>`,
+`<div><h3 className="text-lg font-black">Abrir no Google Maps</h3><p className="mt-1 text-[11px] text-slate-500">A rota completa será aberta no Google Maps com as paradas na ordem.</p></div>`,
+  'navigation explanation legacy'
 );
 
 replaceOnce(
 `<div><h3 className="text-lg font-black">Abrir navegação</h3><p className="mt-1 text-[11px] text-slate-500">Abre fora do Rota Fácil. No Google Maps, a rota completa mantém as paradas na ordem; no Waze, abre a próxima parada.</p></div>`,
-`<div><h3 className="text-lg font-black">Abrir navegação</h3><p className="mt-1 text-[11px] text-slate-500">Google Maps abre a rota completa com as paradas. Waze abre somente a próxima entrega.</p></div>`,
-  'navigation explanation'
+`<div><h3 className="text-lg font-black">Abrir no Google Maps</h3><p className="mt-1 text-[11px] text-slate-500">A rota completa será aberta no Google Maps com as paradas na ordem.</p></div>`,
+  'navigation explanation patched'
 );
 
 replaceOnce(
-`<button onClick={openGoogle} className="rounded-xl bg-[#081A2F] p-4 text-sm font-black text-white">Google Maps</button>
-              <button onClick={openWaze} className="rounded-xl bg-violet-600 p-4 text-sm font-black text-white">Waze</button>`,
-`<button onClick={openGoogle} className="rounded-xl bg-[#081A2F] p-4 text-sm font-black text-white"><span className="block">Google Maps</span><span className="mt-1 block text-[9px] font-semibold text-slate-300">Rota completa</span></button>
-              <button onClick={openWaze} className="rounded-xl bg-violet-600 p-4 text-sm font-black text-white"><span className="block">Waze</span><span className="mt-1 block text-[9px] font-semibold text-violet-100">Próxima parada</span></button>`,
-  'navigation button labels'
+`<div><h3 className="text-lg font-black">Abrir navegação</h3><p className="mt-1 text-[11px] text-slate-500">Google Maps abre a rota completa com as paradas. Waze abre somente a próxima entrega.</p></div>`,
+`<div><h3 className="text-lg font-black">Abrir no Google Maps</h3><p className="mt-1 text-[11px] text-slate-500">A rota completa será aberta no Google Maps com as paradas na ordem.</p></div>`,
+  'navigation explanation final'
+);
+
+s = s.replace(
+`            <div className="mt-5 grid grid-cols-2 gap-2">\n              <button onClick={openGoogle} className="rounded-xl bg-[#081A2F] p-4 text-sm font-black text-white">Google Maps</button>\n              <button onClick={openWaze} className="rounded-xl bg-violet-600 p-4 text-sm font-black text-white">Waze</button>\n            </div>`,
+`            <div className="mt-5">\n              <button onClick={openGoogle} className="w-full rounded-xl bg-[#081A2F] p-4 text-sm font-black text-white">Google Maps</button>\n            </div>`
+);
+
+s = s.replace(
+`            <div className="mt-5 grid grid-cols-2 gap-2">\n              <button onClick={openGoogle} className="rounded-xl bg-[#081A2F] p-4 text-sm font-black text-white"><span className="block">Google Maps</span><span className="mt-1 block text-[9px] font-semibold text-slate-300">Rota completa</span></button>\n              <button onClick={openWaze} className="rounded-xl bg-violet-600 p-4 text-sm font-black text-white"><span className="block">Waze</span><span className="mt-1 block text-[9px] font-semibold text-violet-100">Próxima parada</span></button>\n            </div>`,
+`            <div className="mt-5">\n              <button onClick={openGoogle} className="w-full rounded-xl bg-[#081A2F] p-4 text-sm font-black text-white"><span className="block">Google Maps</span><span className="mt-1 block text-[9px] font-semibold text-slate-300">Rota completa</span></button>\n            </div>`
 );
 
 fs.writeFileSync(path, s);
-console.log('[nav-lock] final navigation behavior locked');
+console.log('[nav-lock] Google Maps only navigation locked');
