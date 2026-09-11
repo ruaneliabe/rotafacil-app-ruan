@@ -2,13 +2,9 @@ import React, { useEffect } from 'react';
 
 const normalize = (value?: string | null) => (value || '').replace(/\s+/g, ' ').trim();
 
-const overlaps = (a: DOMRect, b: DOMRect) =>
-  a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
-
 const hideDuplicateOperationControls = () => {
   const keep = document.querySelector<HTMLElement>('[data-rota-operation-card="true"]');
   if (!keep) return;
-  const keepRect = keep.getBoundingClientRect();
 
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter((button) => {
     const text = normalize(button.textContent).toUpperCase();
@@ -21,59 +17,28 @@ const hideDuplicateOperationControls = () => {
     let node: HTMLElement | null = button.parentElement;
     let bestCandidate: HTMLElement | null = null;
 
-    for (let i = 0; i < 8 && node; i += 1) {
+    for (let i = 0; i < 7 && node; i += 1) {
       const text = normalize(node.textContent);
       const rect = node.getBoundingClientRect();
       const looksLikeOperationCard =
         /operaç|turno|andamento|aberta|fechada/i.test(text) &&
-        rect.width > 80 && rect.width <= 280 &&
-        rect.height > 35 && rect.height <= 240;
+        rect.width > 80 && rect.width <= 230 &&
+        rect.height > 35 && rect.height <= 170;
 
       if (looksLikeOperationCard) bestCandidate = node;
-      if (node.tagName === 'ASIDE' || rect.width > 320) break;
+
+      // Nunca sobe até o container inteiro da sidebar. Isso preserva
+      // Configuração da loja, usuário e botão de sair.
+      if (node.tagName === 'ASIDE' || node.closest('[data-rota-operation-card="true"]') || rect.height > 220 || rect.width > 260) break;
       node = node.parentElement;
     }
 
     const target = bestCandidate || button.parentElement;
-    if (target) {
+    if (target && !target.closest('[data-rota-operation-card="true"]')) {
       target.style.setProperty('display', 'none', 'important');
       target.dataset.hiddenDuplicateOperation = 'true';
     }
   });
-
-  Array.from(document.querySelectorAll<HTMLElement>('div,section')).forEach((element) => {
-    if (element === keep || keep.contains(element) || element.contains(keep)) return;
-    if (element.dataset.hiddenDuplicateOperation === 'true') return;
-
-    const rect = element.getBoundingClientRect();
-    if (rect.left > 220 || rect.width < 90 || rect.width > 280 || rect.height < 40 || rect.height > 240) return;
-    if (!overlaps(rect, keepRect)) return;
-
-    const text = normalize(element.textContent);
-    if (!/operaç|turno|andamento|aberta|fechada/i.test(text)) return;
-
-    element.style.setProperty('display', 'none', 'important');
-    element.dataset.hiddenDuplicateOperation = 'true';
-  });
-};
-
-const hideObsoleteDensitySwitch = () => {
-  const cards = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => normalize(button.textContent) === 'Cards');
-  const compact = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => normalize(button.textContent) === 'Compacto');
-  if (!cards && !compact) return;
-
-  const common = cards?.parentElement && compact?.parentElement && cards.parentElement === compact.parentElement
-    ? cards.parentElement
-    : null;
-
-  if (common) {
-    common.style.setProperty('display', 'none', 'important');
-    common.dataset.hiddenDensitySwitch = 'true';
-    return;
-  }
-
-  if (cards) cards.style.setProperty('display', 'none', 'important');
-  if (compact) compact.style.setProperty('display', 'none', 'important');
 };
 
 const installOldestToggle = () => {
@@ -110,7 +75,6 @@ const installOldestToggle = () => {
 
 const sync = () => {
   hideDuplicateOperationControls();
-  hideObsoleteDensitySwitch();
   installOldestToggle();
 };
 
