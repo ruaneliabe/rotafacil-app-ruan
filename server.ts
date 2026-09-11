@@ -1,12 +1,8 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import cardapioWebWebhook from './api/webhook-cardapio-web';
 import syncCardapioWeb from './api/sync-cardapio-web';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
@@ -19,7 +15,7 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
-  // O servidor local reutiliza exatamente os mesmos handlers da Vercel.
+  // O servidor reutiliza exatamente os mesmos handlers usados na Vercel.
   // Assim nao existe uma segunda implementacao com tokens, regras ou status divergentes.
   app.all('/api/webhook/cardapio-web/:storeId', async (req, res) => {
     req.query.storeId = req.params.storeId;
@@ -36,7 +32,10 @@ async function startServer() {
   });
 
   if (process.env.NODE_ENV === 'production') {
-    const distPath = path.resolve(__dirname, 'dist');
+    // O build gera dist/server.cjs em CommonJS. Usar import.meta.url aqui quebra
+    // no Render porque esbuild não preserva esse valor no bundle CJS.
+    // O processo do Render inicia na raiz do projeto, então o dist público é estável.
+    const distPath = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => res.sendFile(path.join(distPath, 'index.html')));
   } else {
