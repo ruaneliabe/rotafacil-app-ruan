@@ -55,13 +55,13 @@ const syncSidebar = () => {
   navLabels.forEach((label) => polishButton(buttons[label]));
 
   ensureSectionLabel(buttons['Pedidos e despacho'], 'operation', 'OPERAÇÃO');
-  ensureSectionLabel(buttons['Gestão e fechamento'], 'administration', 'ADMINISTRAÇÃO');
 
   const management = buttons['Gestão e fechamento'];
   if (management) {
-    management.style.border = '1px solid transparent';
-    management.style.outline = 'none';
+    management.style.display = 'none';
   }
+
+  ensureSectionLabel(buttons['Configurações'], 'administration', 'ADMINISTRAÇÃO');
 
   const config = buttons['Configurações'];
   if (config) {
