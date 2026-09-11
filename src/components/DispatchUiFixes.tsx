@@ -4,7 +4,7 @@ const normalize = (value?: string | null) => (value || '').replace(/\s+/g, ' ').
 
 const hideDuplicateOperationControls = () => {
   const keep = document.querySelector<HTMLElement>('[data-rota-operation-card="true"]');
-  if (!keep) return;
+  const headerControl = document.querySelector<HTMLElement>('[data-header-operation-control="true"]');
 
   const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter((button) => {
     const text = normalize(button.textContent).toUpperCase();
@@ -12,12 +12,12 @@ const hideDuplicateOperationControls = () => {
   });
 
   buttons.forEach((button) => {
-    if (keep.contains(button)) return;
+    if ((keep && keep.contains(button)) || (headerControl && headerControl.contains(button))) return;
 
     let node: HTMLElement | null = button.parentElement;
     let bestCandidate: HTMLElement | null = null;
 
-    for (let i = 0; i < 7 && node; i += 1) {
+    for (let i = 0; i < 6 && node; i += 1) {
       const text = normalize(node.textContent);
       const rect = node.getBoundingClientRect();
       const looksLikeOperationCard =
@@ -26,15 +26,12 @@ const hideDuplicateOperationControls = () => {
         rect.height > 35 && rect.height <= 170;
 
       if (looksLikeOperationCard) bestCandidate = node;
-
-      // Nunca sobe até o container inteiro da sidebar. Isso preserva
-      // Configuração da loja, usuário e botão de sair.
-      if (node.tagName === 'ASIDE' || node.closest('[data-rota-operation-card="true"]') || rect.height > 220 || rect.width > 260) break;
+      if (node.tagName === 'ASIDE' || rect.height > 220 || rect.width > 280) break;
       node = node.parentElement;
     }
 
     const target = bestCandidate || button.parentElement;
-    if (target && !target.closest('[data-rota-operation-card="true"]')) {
+    if (target && target.dataset.hiddenDuplicateOperation !== 'true') {
       target.style.setProperty('display', 'none', 'important');
       target.dataset.hiddenDuplicateOperation = 'true';
     }
@@ -53,23 +50,19 @@ const installOldestToggle = () => {
   button.dataset.showingOldest = 'false';
 
   button.addEventListener('click', () => {
-    window.setTimeout(() => {
-      const rows = Array.from(list.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
-      const showingOldest = button.dataset.showingOldest === 'true';
+    const rows = Array.from(list.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+    const showingOldest = button.dataset.showingOldest === 'true';
 
-      if (!showingOldest) {
-        rows.forEach((row, index) => {
-          row.style.display = index < 5 ? '' : 'none';
-        });
-        button.dataset.showingOldest = 'true';
-        button.textContent = 'Mostrar todos';
-        list.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        rows.forEach((row) => { row.style.display = ''; });
-        button.dataset.showingOldest = 'false';
-        button.textContent = 'Ver mais antigos';
-      }
-    }, 0);
+    if (!showingOldest) {
+      rows.forEach((row, index) => { row.style.display = index < 5 ? '' : 'none'; });
+      button.dataset.showingOldest = 'true';
+      button.textContent = 'Mostrar todos';
+      list.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      rows.forEach((row) => { row.style.display = ''; });
+      button.dataset.showingOldest = 'false';
+      button.textContent = 'Ver mais antigos';
+    }
   });
 };
 
@@ -80,13 +73,22 @@ const sync = () => {
 
 export const DispatchUiFixes: React.FC = () => {
   useEffect(() => {
+    let scheduled = 0;
+    const scheduleSync = () => {
+      if (scheduled) return;
+      scheduled = window.requestAnimationFrame(() => {
+        scheduled = 0;
+        sync();
+      });
+    };
+
     sync();
-    const observer = new MutationObserver(sync);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
-    const timer = window.setInterval(sync, 600);
+    const observer = new MutationObserver(scheduleSync);
+    observer.observe(document.body, { childList: true, subtree: true });
+
     return () => {
       observer.disconnect();
-      window.clearInterval(timer);
+      if (scheduled) window.cancelAnimationFrame(scheduled);
     };
   }, []);
 
