@@ -31,6 +31,20 @@ function mapCwStatus(raw: unknown): string | null {
   return null;
 }
 
+function courierName(order: any): string | null {
+  const candidates = [order?.deliveryman, order?.delivery_man, order?.courier, order?.driver, order?.motoboy, order?.entregador, order?.delivery_person,
+    order?.delivery?.deliveryman, order?.delivery?.courier, order?.delivery?.driver, order?.delivery?.motoboy, order?.delivery?.entregador];
+  for (const c of candidates) {
+    if (!c) continue;
+    if (typeof c === 'string' && c.trim()) return c.trim();
+    const name = c.name || c.nome || c.full_name || c.display_name;
+    if (name && String(name).trim()) return String(name).trim();
+  }
+  return null;
+}
+
+const hasRotaFacilOwnership = (data: any) => Boolean(data?.rotaFacilMotoboyId || data?.assignmentSource === 'rota_facil' || data?.dispatchSource === 'rota_facil');
+
 async function fetchOrderById(externalId: string, token: string) {
   if (!externalId) return null;
   try {
@@ -71,7 +85,7 @@ export default async function handler(req: any, res: any) {
     });
 
     const snap = await getDocs(collection(db, 'orders'));
-    let dispatchedCount = 0, deliveredCount = 0, cancelledCount = 0, purgedEmptyCount = 0, purgedTakeoutCount = 0, detailReconciledCount = 0;
+    let dispatchedCount = 0, deliveredCount = 0, cancelledCount = 0, purgedEmptyCount = 0, purgedTakeoutCount = 0, detailReconciledCount = 0, courierReconciledCount = 0;
     for (const d of snap.docs) {
       const data = d.data() as any;
       if (data.originChannel !== 'cardapio_web') continue;
@@ -84,8 +98,6 @@ export default async function handler(req: any, res: any) {
       const externalId = String(data.externalOrderId || d.id.replace(/^cw_/, ''));
       let cwOrder = cwMap.get(`${branch}:doc:${d.id}`) || cwMap.get(`${branch}:id:${externalId}`) || (data.codeNumber != null ? cwMap.get(`${branch}:display:${data.codeNumber}`) : null);
 
-      // O endpoint de lista pode remover pedidos assim que são concluídos. Para pedidos ainda
-      // ativos no Rota Fácil, consulta o pedido individualmente antes de mantê-lo preso em rota.
       if (!cwOrder && ['pending','preparing','ready_at_counter','picked_up','dispatched','in_transit'].includes(data.status)) {
         const primaryToken = branch === 'hope_burger' ? CARDAPIO_WEB_HOPE_BURGER_TOKEN : CARDAPIO_WEB_HOPE_PIZZA_TOKEN;
         const fallbackToken = branch === 'hope_burger' ? CARDAPIO_WEB_HOPE_PIZZA_TOKEN : CARDAPIO_WEB_HOPE_BURGER_TOKEN;
@@ -97,23 +109,50 @@ export default async function handler(req: any, res: any) {
 
       const status = normalize(cwOrder.status);
       const targetStatus = mapCwStatus(status);
-      if (!targetStatus || targetStatus === data.status) continue;
+      const externalDriver = courierName(cwOrder);
+      const localPriority = hasRotaFacilOwnership(data);
+      const patch: any = {
+        cardapioWebStatus: status,
+        lastCardapioWebSyncAt: Date.now(),
+        closedInCardapioWeb: targetStatus === 'delivered',
+      };
 
-      const patch: any = { status: targetStatus, cardapioWebStatus: status, lastCardapioWebSyncAt: Date.now(), closedInCardapioWeb: targetStatus === 'delivered' };
+      if (externalDriver) {
+        patch.externalMotoboyName = externalDriver;
+        patch.cardapioWebMotoboyName = externalDriver;
+        courierReconciledCount++;
+      }
+
       if (targetStatus === 'dispatched') {
-        patch.dispatchedAt = data.dispatchedAt || new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-        patch.closedAt = null;
-        dispatchedCount++;
+        patch.cardapioWebDispatchDetected = true;
+        patch.cardapioWebDispatchedAt = data.cardapioWebDispatchedAt || Date.now();
+        if (!localPriority) {
+          patch.status = 'dispatched';
+          patch.dispatchSource = 'cardapio_web';
+          patch.dispatchedAt = data.dispatchedAt || new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+          patch.closedAt = null;
+          dispatchedCount++;
+        }
       } else if (targetStatus === 'delivered') {
+        patch.status = 'delivered';
         patch.closedAt = data.closedAt || new Date().toISOString();
         patch.routeCompletedAt = data.routeCompletedAt || Date.now();
         deliveredCount++;
       } else if (targetStatus === 'cancelled') {
+        patch.status = 'cancelled';
         cancelledCount++;
+      } else if (targetStatus && !localPriority && targetStatus !== data.status) {
+        patch.status = targetStatus;
       }
+
+      if (localPriority) {
+        patch.assignmentSource = 'rota_facil';
+        patch.dispatchSource = 'rota_facil';
+      }
+
       await setDoc(doc(db, 'orders', d.id), patch, { merge: true });
     }
-    return res.status(200).json({ success:true,totalCwOrders:cwList.length,dispatchedCount,deliveredCount,cancelledCount,purgedEmptyCount,purgedTakeoutCount,detailReconciledCount,totalUpdated:dispatchedCount+deliveredCount+cancelledCount });
+    return res.status(200).json({ success:true,totalCwOrders:cwList.length,dispatchedCount,deliveredCount,cancelledCount,purgedEmptyCount,purgedTakeoutCount,detailReconciledCount,courierReconciledCount,totalUpdated:dispatchedCount+deliveredCount+cancelledCount+courierReconciledCount });
   } catch (err:any) {
     console.error('Erro na sincronização Cardápio Web Vercel:', err);
     return res.status(500).json({ error: err?.message || String(err) });
