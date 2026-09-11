@@ -3,6 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import cardapioWebWebhook from './api/webhook-cardapio-web';
 import syncCardapioWeb from './api/sync-cardapio-web';
+import debugCardapioWebCourier from './api/debug-cardapio-web-courier';
 
 async function startServer() {
   const app = express();
@@ -35,6 +36,12 @@ async function startServer() {
   // para o mesmo handler, sem qualquer escrita no Cardápio Web.
   app.all('/api/cardapio-web/sync', async (req, res) => {
     await syncCardapioWeb(req, res);
+  });
+
+  // Diagnóstico isolado e SOMENTE-LEITURA da API Partner do Cardápio Web.
+  // Não altera pedido, entregador ou status; apenas testa endpoints GET e mostra a forma do payload.
+  app.get('/api/cardapio-web/debug-courier', async (req, res) => {
+    await debugCardapioWebCourier(req, res);
   });
 
   if (process.env.NODE_ENV === 'production') {
