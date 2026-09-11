@@ -23,13 +23,18 @@ s = s.replace(
 );
 
 const oldMap = '<ReactiveRouteMap origin={{ name: shift.storeName || \'Loja\', address: shift.storeAddress || \'\', lat: shift.storeLat || -26.9194, lng: shift.storeLng || -49.0661 }} stops={stops} motoboysList={visibleDrivers} selectedMotoboyId={selectedDriverId} onSelectMotoboy={(id: string) => setSelectedDriverId(id)} />';
-const newMap = '<ReactiveRouteMap origin={{ name: shift.storeName || \'Loja\', address: shift.storeAddress || \'\', lat: shift.storeLat || -26.9194, lng: shift.storeLng || -49.0661 }} stops={stops} selectedStopId={selectedOrderIds[selectedOrderIds.length - 1] || null} onSelectStop={(stop: Stop) => { if (tab !== \'orders\') return; setSelectedOrderIds((current) => current.includes(stop.id) ? current.filter((id) => id !== stop.id) : [...current, stop.id]); }} motoboysList={visibleDrivers} selectedMotoboyId={selectedDriverId} onSelectMotoboy={(id: string) => setSelectedDriverId(id)} />';
-s = s.replace(oldMap, newMap);
+const previousPatchedMap = '<ReactiveRouteMap origin={{ name: shift.storeName || \'Loja\', address: shift.storeAddress || \'\', lat: shift.storeLat || -26.9194, lng: shift.storeLng || -49.0661 }} stops={stops} selectedStopId={selectedOrderIds[selectedOrderIds.length - 1] || null} onSelectStop={(stop: Stop) => { if (tab !== \'orders\') return; setSelectedOrderIds((current) => current.includes(stop.id) ? current.filter((id) => id !== stop.id) : [...current, stop.id]); }} motoboysList={visibleDrivers} selectedMotoboyId={selectedDriverId} onSelectMotoboy={(id: string) => setSelectedDriverId(id)} />';
+const stableMap = '<ReactiveRouteMap origin={{ name: shift.storeName || \'Loja\', address: shift.storeAddress || \'\', lat: shift.storeLat || -26.9194, lng: shift.storeLng || -49.0661 }} stops={stops} onSelectStop={(stop: Stop) => { if (tab !== \'orders\') return; setSelectedOrderIds((current) => current.includes(stop.id) ? current.filter((id) => id !== stop.id) : [...current, stop.id]); }} motoboysList={visibleDrivers} selectedMotoboyId={selectedDriverId} onSelectMotoboy={(id: string) => setSelectedDriverId(id)} />';
+s = s.replace(oldMap, stableMap);
+s = s.replace(previousPatchedMap, stableMap);
 
 s = s.replace(
   'Selecione os pedidos que deseja incluir na rota.',
   'Clique nos pedidos do mapa para incluir ou remover da rota.'
 );
 
+// The right panel is now only a basket of what the operator clicked on the map.
+s = s.replace('{filteredOrders.map((o) => { const selected = selectedOrderIds.includes(o.id);', '{selectedOrders.map((o) => { const selected = true;');
+
 fs.writeFileSync(path, s);
-console.log('[map-selection-fixes] map order selection + clean operational tabs applied');
+console.log('[map-selection-fixes] stable map selection + selected-only route basket applied');
