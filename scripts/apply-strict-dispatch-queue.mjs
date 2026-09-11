@@ -14,18 +14,21 @@ const patch = (path, mutate) => {
 
 const dispatch = patch('src/components/OperationDispatchView.tsx', (input) => {
   let s = input;
+
   const oldQueue = `  const queueDrivers = useMemo(
     () => motoboysAvailable
       .filter((m) => m.status === 'available' && load(m.id) === 0)
       .sort((a, b) => Number(a.joinedQueueAt || Number.MAX_SAFE_INTEGER) - Number(b.joinedQueueAt || Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name)),
     [motoboysAvailable, activeOrders]
   );`;
+
   const newQueue = `  const queueDrivers = useMemo(
     () => motoboys
       .filter((m) => m.status === 'available' && Boolean(m.joinedQueueAt) && !m.callingToCounterAt && load(m.id) === 0)
       .sort((a, b) => Number(a.joinedQueueAt || Number.MAX_SAFE_INTEGER) - Number(b.joinedQueueAt || Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name)),
     [motoboys, activeOrders]
   );`;
+
   if (s.includes(oldQueue)) s = s.replace(oldQueue, newQueue);
   return s;
 });
@@ -35,22 +38,36 @@ const panel = patch('src/components/PredispatchRoutesPanel.tsx', (input) => {
 
   const stateAnchor = `  const [selectedLoose, setSelectedLoose] = useState<string[]>([]);`;
   if (!s.includes('routeDriverOverrides') && s.includes(stateAnchor)) {
-    s = s.replace(stateAnchor, stateAnchor + `\n  const [routeDriverOverrides, setRouteDriverOverrides] = useState<Record<string, string>>({});`);
+    s = s.replace(
+      stateAnchor,
+      `${stateAnchor}\n  const [routeDriverOverrides, setRouteDriverOverrides] = useState<Record<string, string>>({});`
+    );
   }
 
   const oldNext = `  const nextDriver = queueDrivers[0];
   const readyPrepared = prepared.filter((route) => route.orders.length > 0 && route.orders.every(isReady));
   const nextRoute = readyPrepared[0];`;
+
   const newNext = `  const readyPrepared = prepared.filter((route) => route.orders.length > 0 && route.orders.every(isReady));
   const nextRoute = readyPrepared[0];
   const manualNextDriverId = nextRoute ? routeDriverOverrides[nextRoute.id] : '';
   const nextDriver = (manualNextDriverId ? queueDrivers.find((driver) => driver.id === manualNextDriverId) : undefined) || queueDrivers[0];`;
+
   if (s.includes(oldNext)) s = s.replace(oldNext, newNext);
 
-  const mapAnchor = `            {prepared.map((route, index) => {\n              const ready = route.orders.filter(isReady).length;`;
-  if (s.includes(mapAnchor)) {
-    s = s.replace(mapAnchor, `            {prepared.map((route, index) => {\n              const suggestedDriver = (routeDriverOverrides[route.id] ? queueDrivers.find((driver) => driver.id === routeDriverOverrides[route.id]) : undefined) || queueDrivers[index] || null;\n              const ready = route.orders.filter(isReady).length;`);
-  }
+  const preparedMapAnchor = `            {prepared.map((route, index) => {
+              const ready = route.orders.filter(isReady).length;`;
+  const preparedMapReplacement = `            {prepared.map((route, index) => {
+              const suggestedDriver = (routeDriverOverrides[route.id] ? queueDrivers.find((driver) => driver.id === routeDriverOverrides[route.id]) : undefined) || queueDrivers[index] || null;
+              const ready = route.orders.filter(isReady).length;`;
+  if (s.includes(preparedMapAnchor)) s = s.replace(preparedMapAnchor, preparedMapReplacement);
+
+  const filteredMapAnchor = `{prepared.filter((route) => route.id !== nextRoute?.id).map((route, index) => {
+              const ready = route.orders.filter(isReady).length;`;
+  const filteredMapReplacement = `{prepared.filter((route) => route.id !== nextRoute?.id).map((route, index) => {
+              const suggestedDriver = (routeDriverOverrides[route.id] ? queueDrivers.find((driver) => driver.id === routeDriverOverrides[route.id]) : undefined) || queueDrivers[index] || null;
+              const ready = route.orders.filter(isReady).length;`;
+  if (s.includes(filteredMapAnchor)) s = s.replace(filteredMapAnchor, filteredMapReplacement);
 
   const oldSuggestion = `<div className="mt-2 text-[9px] text-slate-500">Motoboy sugerido: <b className={nextDriver ? 'text-slate-800' : 'text-slate-400'}>{nextDriver ? nextDriver.name : 'aguardando fila'}</b></div>`;
   const newSuggestion = `<div className="mt-2 flex items-center gap-2 text-[9px] text-slate-500"><span className="shrink-0">Motoboy sugerido:</span><select value={routeDriverOverrides[route.id] || suggestedDriver?.id || ''} onChange={(e) => setRouteDriverOverrides((current) => ({ ...current, [route.id]: e.target.value }))} className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[9px] font-bold text-slate-800"><option value="">{suggestedDriver ? suggestedDriver.name : 'Aguardando fila'}</option>{queueDrivers.map((driver, queueIndex) => <option key={driver.id} value={driver.id}>{queueIndex + 1}º da fila - {driver.name}</option>)}</select></div>`;
@@ -66,9 +83,10 @@ const panel = patch('src/components/PredispatchRoutesPanel.tsx', (input) => {
 const checks = [
   ['fila oficial', dispatch.includes("Boolean(m.joinedQueueAt) && !m.callingToCounterAt")],
   ['override manual', panel.includes('routeDriverOverrides')],
-  ['sugestao sequencial', panel.includes('queueDrivers[index] || null')],
+  ['sugestao sequencial', panel.includes('const suggestedDriver =') && panel.includes('queueDrivers[index] || null')],
   ['primeiro da fila', panel.includes('|| queueDrivers[0]')],
 ];
+
 const failed = checks.filter((item) => !item[1]).map((item) => item[0]);
 if (failed.length) throw new Error('[strict-queue] validacao falhou: ' + failed.join(', '));
 console.log('[strict-queue] fila validada com ordem e selecao manual');
