@@ -76,26 +76,38 @@ const hideStoreLayerToggle = () => {
 
 const hideLegacyOperationCard = () => {
   const official = document.querySelector<HTMLElement>('[data-rota-operation-card="true"]');
-  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter((button) => {
-    if (official?.contains(button)) return false;
-    const text = (button.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
-    return text.includes('ENCERRAR TURNO') || text.includes('ABRIR TURNO') || text.includes('ABRIR LOJA');
-  });
 
-  buttons.forEach((button) => {
+  Array.from(document.querySelectorAll<HTMLButtonElement>('button')).forEach((button) => {
+    if (official?.contains(button)) return;
+
+    const label = (button.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
+    if (!['ENCERRAR TURNO', 'ABRIR TURNO', 'ABRIR LOJA'].some((text) => label.includes(text))) return;
+
+    const buttonRect = button.getBoundingClientRect();
+    if (buttonRect.left > 240) return;
+
     let node: HTMLElement | null = button.parentElement;
-    let candidate: HTMLElement | null = null;
-    for (let depth = 0; node && depth < 6; depth += 1, node = node.parentElement) {
+    let bestCandidate: HTMLElement | null = null;
+
+    for (let depth = 0; node && depth < 9; depth += 1, node = node.parentElement) {
+      if (official?.contains(node)) break;
+
       const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
-      const hasStatus = text.includes('Operação aberta') || text.includes('Operação fechada');
-      const hasAction = text.toUpperCase().includes('ENCERRAR TURNO') || text.toUpperCase().includes('ABRIR TURNO') || text.toUpperCase().includes('ABRIR LOJA');
-      if (hasStatus && hasAction && !text.includes('Configuração da loja')) {
-        candidate = node;
-        break;
-      }
+      const rect = node.getBoundingClientRect();
+      const hasStatus = /Operação (aberta|fechada)/i.test(text);
+      const hasAction = /(ENCERRAR TURNO|ABRIR TURNO|ABRIR LOJA)/i.test(text);
+      const isSidebarSized = rect.left < 240 && rect.width > 70 && rect.width <= 240;
+
+      if (hasStatus && hasAction && isSidebarSized) bestCandidate = node;
+      if (bestCandidate && ['fixed', 'absolute', 'sticky'].includes(window.getComputedStyle(node).position)) break;
     }
-    if (candidate) candidate.style.setProperty('display', 'none', 'important');
-    else button.style.setProperty('display', 'none', 'important');
+
+    if (bestCandidate) {
+      bestCandidate.style.setProperty('display', 'none', 'important');
+      bestCandidate.dataset.legacyOperationCardHidden = 'true';
+    } else {
+      button.style.setProperty('display', 'none', 'important');
+    }
   });
 };
 
@@ -124,7 +136,7 @@ export const SidebarPolish: React.FC = () => {
   useEffect(() => {
     syncSidebar();
     const observer = new MutationObserver(syncSidebar);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-current'] });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-current', 'style'] });
     return () => observer.disconnect();
   }, []);
 
