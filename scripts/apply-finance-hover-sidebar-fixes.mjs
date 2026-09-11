@@ -25,10 +25,14 @@ patch('src/components/ManagementHub.tsx', (input) => {
     'style={{height:`${Math.max(3,(item.revenue/maxHourlyRevenue)*100)}%`}}',
     'style={{height:`${item.revenue > 0 ? Math.max(3,(item.revenue/maxHourlyRevenue)*100) : 0}%`}}'
   );
-  s = s.replace(
-    '<div className="absolute left-1/2 w-2 -translate-x-1/2 rounded-full bg-violet-600 transition group-hover:scale-125" style={{bottom:`${Math.max(3,(item.deliveries/maxHourlyDeliveries)*92)}%`,height:8}} />',
-    '{item.deliveries > 0 && <div className="absolute left-1/2 w-2 -translate-x-1/2 rounded-full bg-violet-600 transition group-hover:scale-125" style={{bottom:`${Math.max(3,(item.deliveries/maxHourlyDeliveries)*92)}%`,height:8}} />}'
-  );
+
+  // Evita envolver novamente o marcador quando ele já possui a condição de entregas > 0.
+  if (!s.includes('{item.deliveries > 0 && <div className="absolute left-1/2 w-2 -translate-x-1/2 rounded-full bg-violet-600 transition group-hover:scale-125"')) {
+    s = s.replace(
+      '<div className="absolute left-1/2 w-2 -translate-x-1/2 rounded-full bg-violet-600 transition group-hover:scale-125" style={{bottom:`${Math.max(3,(item.deliveries/maxHourlyDeliveries)*92)}%`,height:8}} />',
+      '{item.deliveries > 0 && <div className="absolute left-1/2 w-2 -translate-x-1/2 rounded-full bg-violet-600 transition group-hover:scale-125" style={{bottom:`${Math.max(3,(item.deliveries/maxHourlyDeliveries)*92)}%`,height:8}} />}'
+    );
+  }
 
   return s;
 });
