@@ -15,6 +15,7 @@ const patch = (path, mutate) => {
 // - sugestões de rota mais compactas;
 // - idade do pedido mais antigo visível no cabeçalho da fila;
 // - ação "Atribuir mais antigos" junto da própria coluna de aguardando;
+// - seletor de entregador prioriza e identifica claramente a ordem da fila;
 // - colunas operacionais altas para suportar bastante volume.
 patch('src/components/OperationDispatchView.tsx', (input) => {
   let s = input;
@@ -65,6 +66,12 @@ patch('src/components/OperationDispatchView.tsx', (input) => {
   const oldHeader = '<div className="flex items-start justify-between gap-2 border-b border-slate-100 px-3.5 py-3"><div className="flex gap-2.5"><span className={`w-1 self-stretch rounded-full ${tones[id]}`} /><div><h3 className="text-[13px] font-black text-slate-900">{title}</h3><p className="mt-0.5 text-[10px] text-slate-400">{subtitle}</p></div></div><span className="grid h-7 min-w-7 place-items-center rounded-full bg-slate-100 px-2 text-xs font-black text-slate-600">{items.length}</span></div>';
   const newHeader = '<div className="flex items-start justify-between gap-2 border-b border-slate-100 px-3.5 py-3"><div className="flex min-w-0 gap-2.5"><span className={`w-1 self-stretch rounded-full ${tones[id]}`} /><div className="min-w-0"><h3 className="text-[13px] font-black text-slate-900">{title}</h3><div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1"><p className="text-[10px] text-slate-400">{subtitle}</p>{id === \'waiting\' && items.length > 0 && <span className={`text-[9px] font-black ${minsSince(stamp(items[0])) >= 15 ? \'text-rose-600\' : \'text-amber-600\'}`}>Mais antigo há {duration(minsSince(stamp(items[0])))}</span>}</div></div></div><div className="flex shrink-0 flex-col items-end gap-1.5"><span className="grid h-7 min-w-7 place-items-center rounded-full bg-slate-100 px-2 text-xs font-black text-slate-600">{items.length}</span>{id === \'waiting\' && items.length > 0 && queueDrivers.length > 0 && <button onClick={assignOldest} className="h-7 rounded-lg bg-violet-600 px-2.5 text-[9px] font-black text-white shadow-sm transition hover:bg-violet-500">Atribuir mais antigos</button>}</div></div>';
   s = s.replace(oldHeader, newHeader);
+
+  // Ao vincular pedidos, mostra primeiro a fila real de despacho com posição explícita.
+  // Ex.: "1º DA FILA — Ruan", "2º DA FILA — Julia". Outros motoboys ficam separados abaixo.
+  const oldDriverOptions = '{motoboys.filter((m) => m.status !== \'offline\').map((m) => <option key={m.id} value={m.id}>{m.name} — {driverLabel(m)}</option>)}';
+  const newDriverOptions = '{queueDrivers.length > 0 && <optgroup label="Fila de despacho">{queueDrivers.map((m, index) => <option key={m.id} value={m.id}>{index + 1}º DA FILA — {m.name}</option>)}</optgroup>}{motoboys.some((m) => m.status !== \'offline\' && !queueDrivers.some((q) => q.id === m.id)) && <optgroup label="Outros entregadores">{motoboys.filter((m) => m.status !== \'offline\' && !queueDrivers.some((q) => q.id === m.id)).map((m) => <option key={m.id} value={m.id}>{m.name} — {driverLabel(m)}</option>)}</optgroup>}';
+  s = s.replace(oldDriverOptions, newDriverOptions);
 
   return s;
 });
