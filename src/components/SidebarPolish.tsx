@@ -136,7 +136,7 @@ export const SidebarPolish: React.FC = () => {
   useEffect(() => {
     syncSidebar();
     const observer = new MutationObserver(syncSidebar);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-current', 'style'] });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-current'] });
     return () => observer.disconnect();
   }, []);
 
