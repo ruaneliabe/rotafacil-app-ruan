@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "node scripts/apply-runtime-source-fixes.mjs && node scripts/apply-motoboy-navigation-fixes.mjs && node scripts/apply-motoboy-waiting-route-fixes.mjs && node scripts/apply-delivery-management-reference.mjs && node scripts/apply-dashboard-layout-fixes.mjs && node scripts/apply-dispatch-operational-fixes.mjs && node scripts/apply-dispatch-layout-polish.mjs && node scripts/apply-dispatch-summary-cleanup.mjs && node scripts/apply-map-selection-fixes.mjs && node scripts/apply-map-route-sync-fixes.mjs && node scripts/apply-handoff-flow-fixes.mjs && node scripts/apply-finance-hover-sidebar-fixes.mjs && node scripts/remove-legacy-shift-toggle.mjs && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "node scripts/apply-runtime-source-fixes.mjs && node scripts/apply-motoboy-navigation-fixes.mjs && node scripts/apply-motoboy-waiting-route-fixes.mjs && node scripts/apply-delivery-management-reference.mjs && node scripts/apply-dashboard-layout-fixes.mjs && node scripts/apply-dispatch-operational-fixes.mjs && node scripts/apply-dispatch-layout-polish.mjs && node scripts/apply-dispatch-summary-cleanup.mjs && node scripts/apply-map-selection-fixes.mjs && node scripts/apply-map-route-sync-fixes.mjs && node scripts/apply-handoff-flow-fixes.mjs && node scripts/apply-finance-hover-sidebar-fixes.mjs && node scripts/apply-native-sidebar-readable-scale.mjs && node scripts/remove-legacy-shift-toggle.mjs && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview --port=3000 --host=0.0.0.0",
     "clean": "rm -rf dist server.js",
@@ -32,7 +32,6 @@
     "@types/leaflet": "^1.9.22",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
