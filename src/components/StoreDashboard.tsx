@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { Loader2, PauseCircle, PlayCircle } from 'lucide-react';
 import { StoreDashboard as LegacyStoreDashboard } from './StoreDashboardLegacy';
@@ -18,27 +18,13 @@ export const StoreDashboard: React.FC<any> = (props) => {
   const [cloudHydrated, setCloudHydrated] = useState(false);
   const operationOpen = optimisticOpen ?? cloudOpen;
 
-  const hydrationSignature = useMemo(() => {
-    const shift = props.shift || {};
-    const orders = props.orders || [];
-    const motoboys = props.motoboys || [];
-    return [
-      shift.id || '',
-      shift.storeName || '',
-      shift.shiftId || '',
-      shift.isOpen ? '1' : '0',
-      orders.length,
-      orders.map((o: any) => `${o.id}:${o.status}:${o.assignedMotoboyId || ''}`).join('|'),
-      motoboys.length,
-      motoboys.map((m: any) => `${m.id}:${m.status}`).join('|'),
-    ].join('::');
-  }, [props.shift, props.orders, props.motoboys]);
-
+  // A tela de sincronização existe apenas na primeira entrada no painel.
+  // Atualizações realtime de pedidos, status e motoboys nunca devem desmontar
+  // o dashboard nem mostrar loading novamente: os dados entram em tela no ato.
   useEffect(() => {
-    setCloudHydrated(false);
     const timer = window.setTimeout(() => setCloudHydrated(true), 420);
     return () => window.clearTimeout(timer);
-  }, [hydrationSignature]);
+  }, []);
 
   useEffect(() => {
     if (optimisticOpen !== null && cloudOpen === optimisticOpen) {
