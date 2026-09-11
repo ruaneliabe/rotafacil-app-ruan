@@ -15,16 +15,26 @@ const hideDuplicateOperationControls = () => {
     if (keep.contains(button)) return;
 
     let node: HTMLElement | null = button.parentElement;
-    let candidate: HTMLElement | null = null;
-    for (let i = 0; i < 5 && node; i += 1) {
-      candidate = node;
-      if (normalize(node.textContent).includes('Operação')) break;
+    let bestCandidate: HTMLElement | null = null;
+
+    for (let i = 0; i < 8 && node; i += 1) {
+      const text = normalize(node.textContent);
+      const rect = node.getBoundingClientRect();
+      const looksLikeOperationCard =
+        text.includes('Operação') &&
+        rect.width > 80 && rect.width <= 260 &&
+        rect.height > 35 && rect.height <= 220;
+
+      if (looksLikeOperationCard) bestCandidate = node;
+
+      if (node.tagName === 'ASIDE' || rect.width > 300) break;
       node = node.parentElement;
     }
 
-    if (candidate) {
-      candidate.style.display = 'none';
-      candidate.dataset.hiddenDuplicateOperation = 'true';
+    const target = bestCandidate || button.parentElement;
+    if (target) {
+      target.style.setProperty('display', 'none', 'important');
+      target.dataset.hiddenDuplicateOperation = 'true';
     }
   });
 };
