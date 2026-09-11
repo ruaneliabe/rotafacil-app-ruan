@@ -12,13 +12,18 @@ const patch = (path, mutate) => {
 };
 
 // Ajustes da Central de pedidos para operação com alto volume:
-// - sugestões de rota mais compactas e com rótulo legível no lugar do percentual;
+// - pré-despacho com rotas preparadas antes do motoboy ficar livre;
 // - idade do pedido mais antigo visível no cabeçalho da fila;
 // - ação "Atribuir mais antigos" junto da própria coluna de aguardando;
 // - seletor mostra apenas motoboys realmente disponíveis, em ordem de fila;
 // - colunas operacionais altas para suportar bastante volume.
 patch('src/components/OperationDispatchView.tsx', (input) => {
   let s = input;
+
+  s = s.replace(
+    "import { FleetBottleneckBanner } from './FleetBottleneckBanner';",
+    "import { FleetBottleneckBanner } from './FleetBottleneckBanner';\nimport { PredispatchRoutesPanel } from './PredispatchRoutesPanel';"
+  );
 
   s = s.replace(
     'className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"',
@@ -35,30 +40,10 @@ patch('src/components/OperationDispatchView.tsx', (input) => {
     'className="flex h-[600px] flex-col items-center justify-center px-5 text-center"'
   );
 
-  // Rotas que combinam: reduz altura e peso visual sem perder as 3 melhores sugestões.
+  // Troca o bloco simples de sugestões por um pré-despacho visual.
   s = s.replace(
-    'className="rounded-2xl border border-violet-200 bg-violet-50/70 p-3.5"',
-    'className="rounded-2xl border border-violet-200 bg-violet-50/60 px-3 py-2.5"'
-  );
-  s = s.replace(
-    'className="mb-2 flex items-center gap-2"',
-    'className="mb-1.5 flex items-center gap-2"'
-  );
-  s = s.replace(
-    'className="text-sm font-black text-slate-900">Rotas que combinam',
-    'className="text-xs font-black text-slate-900">Rotas que combinam'
-  );
-  s = s.replace(
-    'className="rounded-xl border border-violet-200 bg-white p-3 text-left"',
-    'className="rounded-xl border border-violet-200 bg-white px-2.5 py-2 text-left transition hover:border-violet-300 hover:bg-violet-50/40"'
-  );
-  s = s.replace(
-    'className="mt-1 text-[10px] text-slate-500">{s.corridorName}',
-    'className="mt-0.5 truncate text-[9px] text-slate-500">{s.corridorName}'
-  );
-  s = s.replace(
-    '<span className="text-[10px] font-black text-violet-700">{s.confidenceScore}%</span>',
-    '<span className="whitespace-nowrap rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-black text-violet-700">{s.confidenceScore >= 95 ? \'Excelente combinação\' : s.confidenceScore >= 80 ? \'Boa combinação\' : \'Combinação razoável\'}</span>'
+    /\n\s*\{suggestions\.length > 0 && <section className="rounded-2xl border border-violet-200 bg-violet-50\/70 p-3\.5">[\s\S]*?<\/section>\}\n/,
+    '\n      <PredispatchRoutesPanel suggestions={suggestions} activeOrders={activeOrders} queueDrivers={queueDrivers} onSelectOrders={(ids) => setSelected(ids)} onCallNextDriver={handleCallCounter} triggerActionToast={triggerActionToast} />\n'
   );
 
   // Remove a faixa isolada de atribuição: a ação passa a morar no cabeçalho da coluna "Aguardando entregador".
