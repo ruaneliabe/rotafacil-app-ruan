@@ -74,6 +74,31 @@ const hideStoreLayerToggle = () => {
   if (storeToggle) storeToggle.style.display = 'none';
 };
 
+const hideLegacyOperationCard = () => {
+  const official = document.querySelector<HTMLElement>('[data-rota-operation-card="true"]');
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter((button) => {
+    if (official?.contains(button)) return false;
+    const text = (button.textContent || '').replace(/\s+/g, ' ').trim().toUpperCase();
+    return text.includes('ENCERRAR TURNO') || text.includes('ABRIR TURNO') || text.includes('ABRIR LOJA');
+  });
+
+  buttons.forEach((button) => {
+    let node: HTMLElement | null = button.parentElement;
+    let candidate: HTMLElement | null = null;
+    for (let depth = 0; node && depth < 6; depth += 1, node = node.parentElement) {
+      const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+      const hasStatus = text.includes('Operação aberta') || text.includes('Operação fechada');
+      const hasAction = text.toUpperCase().includes('ENCERRAR TURNO') || text.toUpperCase().includes('ABRIR TURNO') || text.toUpperCase().includes('ABRIR LOJA');
+      if (hasStatus && hasAction && !text.includes('Configuração da loja')) {
+        candidate = node;
+        break;
+      }
+    }
+    if (candidate) candidate.style.setProperty('display', 'none', 'important');
+    else button.style.setProperty('display', 'none', 'important');
+  });
+};
+
 const syncSidebar = () => {
   const settingsButton = renameStoreSettings();
   const buttons = Object.fromEntries(navLabels.map((label) => [label, findButton(label)])) as Record<string, HTMLButtonElement | null>;
@@ -91,6 +116,7 @@ const syncSidebar = () => {
   const config = settingsButton || buttons['Configuração da loja'] || buttons['Configurações'];
   if (config) config.style.borderTop = '1px solid transparent';
 
+  hideLegacyOperationCard();
   hideStoreLayerToggle();
 };
 
