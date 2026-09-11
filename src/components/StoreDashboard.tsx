@@ -7,6 +7,7 @@ import { OperationManagementEnhancer } from './OperationManagementEnhancer';
 import { DashboardUiBehaviorFixes } from './DashboardUiBehaviorFixes';
 import { SidebarPolish } from './SidebarPolish';
 import { CounterCallBridge } from './CounterCallBridge';
+import { TestOrdersControl } from './TestOrdersControl';
 import { db } from '../lib/firebase';
 import { getBrazilDateKey, getBrazilTimeString } from '../utils/dateUtils';
 
@@ -136,6 +137,7 @@ export const StoreDashboard: React.FC<any> = (props) => {
       <DashboardUiBehaviorFixes />
       <SidebarPolish />
       <CounterCallBridge motoboys={props.motoboys || []} />
+      <TestOrdersControl shift={effectiveShift} orders={props.orders || []} />
 
       <div className="fixed bottom-[132px] left-[14px] z-[90] hidden w-[166px] lg:block">
         <div className={`rounded-2xl border bg-white/95 p-2.5 shadow-[0_10px_28px_rgba(15,23,42,.10)] backdrop-blur ${operationOpen ? 'border-emerald-200' : 'border-slate-200'}`}>
