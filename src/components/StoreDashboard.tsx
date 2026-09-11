@@ -8,6 +8,7 @@ import { DashboardUiBehaviorFixes } from './DashboardUiBehaviorFixes';
 import { SidebarPolish } from './SidebarPolish';
 import { CounterCallBridge } from './CounterCallBridge';
 import { TestOrdersControl } from './TestOrdersControl';
+import { DispatchUiFixes } from './DispatchUiFixes';
 import { db } from '../lib/firebase';
 import { getBrazilDateKey, getBrazilTimeString } from '../utils/dateUtils';
 
@@ -90,8 +91,9 @@ export const StoreDashboard: React.FC<any> = (props) => {
       <SidebarPolish />
       <CounterCallBridge motoboys={props.motoboys || []} />
       <TestOrdersControl shift={effectiveShift} orders={props.orders || []} />
+      <DispatchUiFixes />
 
-      <div className="fixed bottom-[118px] left-[13px] z-[90] hidden w-[154px] lg:block">
+      <div data-rota-operation-card="true" className="fixed bottom-[118px] left-[13px] z-[90] hidden w-[154px] lg:block">
         <div className={`rounded-xl border bg-white/95 p-2 shadow-[0_8px_22px_rgba(15,23,42,.08)] backdrop-blur ${operationOpen ? 'border-emerald-200' : 'border-slate-200'}`}>
           <div className="flex items-center gap-2">
             <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${operationOpen ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
