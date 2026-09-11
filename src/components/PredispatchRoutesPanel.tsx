@@ -92,7 +92,7 @@ export const PredispatchRoutesPanel: React.FC<Props> = ({
       createdAt: Date.now(),
     }]);
     setSelectedLoose([]);
-    triggerActionToast(`Rota montada com ${orderIds.length} pedidos.`);
+    triggerActionToast(`Rota sugerida montada com ${orderIds.length} pedidos.`);
   };
 
   const toggleLoose = (id: string) => {
@@ -100,12 +100,12 @@ export const PredispatchRoutesPanel: React.FC<Props> = ({
   };
 
   const createManualRoute = () => {
-    if (selectedLoose.length < 2) {
-      triggerActionToast('Selecione pelo menos 2 pedidos para montar uma rota.');
+    if (!selectedLoose.length) {
+      triggerActionToast('Selecione pelo menos 1 pedido para montar uma rota.');
       return;
     }
     const orders = selectedLoose.map((id) => activeById.get(id)).filter(Boolean) as Order[];
-    if (orders.length < 2) return;
+    if (!orders.length) return;
     const neighborhoods = Array.from(new Set(orders.map((order) => order.neighborhood).filter(Boolean) as string[]));
     const corridorName = neighborhoods.length
       ? neighborhoods.slice(0, 2).join(' / ')
@@ -117,7 +117,7 @@ export const PredispatchRoutesPanel: React.FC<Props> = ({
       confidenceScore: 80,
       createdAt: Date.now(),
     }]);
-    triggerActionToast(`Rota montada manualmente com ${orders.length} pedidos.`);
+    triggerActionToast(orders.length === 1 ? 'Saída individual montada.' : `Rota montada manualmente com ${orders.length} pedidos.`);
     setSelectedLoose([]);
   };
 
@@ -146,7 +146,7 @@ export const PredispatchRoutesPanel: React.FC<Props> = ({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button type="button" onClick={showOldest} className="h-8 rounded-lg border border-amber-200 bg-white px-3 text-[9px] font-black text-amber-800 hover:bg-amber-50">Ver mais antigos</button>
-            <button type="button" onClick={createManualRoute} disabled={selectedLoose.length < 2} className="h-8 rounded-lg bg-violet-600 px-3 text-[9px] font-black text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">Montar rota{selectedLoose.length >= 2 ? ` (${selectedLoose.length})` : ''}</button>
+            <button type="button" onClick={createManualRoute} disabled={!selectedLoose.length} className="h-8 rounded-lg bg-violet-600 px-3 text-[9px] font-black text-white disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400">Montar rota{selectedLoose.length ? ` (${selectedLoose.length})` : ''}</button>
           </div>
         </div>
       )}
@@ -154,7 +154,7 @@ export const PredispatchRoutesPanel: React.FC<Props> = ({
       <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-[1.05fr_1.25fr_1.05fr_.78fr]">
         <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3.5 py-3">
-            <div><h3 className="text-sm font-black text-slate-900">Pedidos soltos</h3><p className="text-[10px] text-slate-400">Selecione 2 ou mais para montar uma rota</p></div>
+            <div><h3 className="text-sm font-black text-slate-900">Pedidos soltos</h3><p className="text-[10px] text-slate-400">Selecione 1 ou mais pedidos para montar uma saída</p></div>
             <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-700">{looseOrders.length}</span>
           </div>
 
@@ -162,7 +162,7 @@ export const PredispatchRoutesPanel: React.FC<Props> = ({
             <div className="flex items-center gap-2 border-b border-violet-100 bg-violet-50/70 px-3 py-2">
               <span className="text-[10px] font-black text-violet-800">{selectedLoose.length} pedido{selectedLoose.length === 1 ? '' : 's'} selecionado{selectedLoose.length === 1 ? '' : 's'}</span>
               <button type="button" onClick={() => setSelectedLoose([])} className="ml-auto text-[9px] font-bold text-slate-500 hover:text-slate-800">Limpar</button>
-              <button type="button" onClick={createManualRoute} disabled={selectedLoose.length < 2} className="h-8 rounded-lg bg-violet-600 px-3 text-[9px] font-black text-white disabled:cursor-not-allowed disabled:bg-violet-200">Montar rota</button>
+              <button type="button" onClick={createManualRoute} className="h-8 rounded-lg bg-violet-600 px-3 text-[9px] font-black text-white">{selectedLoose.length === 1 ? 'Montar saída' : 'Montar rota'}</button>
             </div>
           )}
 
@@ -189,6 +189,15 @@ export const PredispatchRoutesPanel: React.FC<Props> = ({
         <section className="min-w-0 overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-100 px-3.5 py-3"><div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-lg bg-violet-50 text-violet-600"><Route className="h-4 w-4" /></span><div><h3 className="text-sm font-black text-slate-900">Rotas montadas</h3><p className="text-[10px] text-slate-400">Cargas penduradas aguardando liberação</p></div></div><span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-black text-violet-700">{prepared.length}</span></div>
           <div className="max-h-[760px] min-h-[620px] space-y-2 overflow-y-auto p-2.5">
+            {visibleSuggestions.length > 0 && (
+              <div className="rounded-xl border border-violet-200 bg-violet-50/35 p-2.5">
+                <div className="mb-2 flex items-center gap-1.5 text-[10px] font-black text-violet-700"><Sparkles className="h-3.5 w-3.5" />Sugestões inteligentes</div>
+                <div className="space-y-2">
+                  {visibleSuggestions.slice(0, 3).map((suggestion) => <article key={suggestion.id} className="rounded-lg border border-violet-100 bg-white p-2.5"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="text-[10px] font-black text-slate-800">{suggestion.orders.map(code).join(' + ')}</p><p className="mt-1 truncate text-[9px] text-slate-400">{suggestion.corridorName} · {confidenceLabel(suggestion.confidenceScore)}</p></div><button onClick={() => prepareRoute(suggestion)} className="h-7 shrink-0 rounded-lg bg-violet-600 px-2.5 text-[9px] font-black text-white">Usar sugestão</button></div></article>)}
+                </div>
+              </div>
+            )}
+
             {prepared.map((route, index) => {
               const ready = route.orders.filter(isReady).length;
               const total = route.orders.length;
@@ -196,8 +205,9 @@ export const PredispatchRoutesPanel: React.FC<Props> = ({
               const allReady = ready === total && ready > 0;
               const oldest = route.orders.reduce((min, order) => Math.min(min, stamp(order)), Date.now());
               const statusText = allReady ? 'Pronta para sair' : missingCount === 1 ? 'Aguardando último pedido' : `Aguardando ${missingCount} pedidos`;
+              const routeLabel = total === 1 ? 'Saída individual' : confidenceLabel(route.confidenceScore);
               return <article key={route.id} className={`rounded-xl border p-3 ${allReady ? 'border-emerald-300 bg-emerald-50/40' : 'border-violet-200 bg-violet-50/25'}`}>
-                <div className="flex items-start justify-between gap-2"><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5"><b className="text-xs text-slate-950">Rota {String(index + 1).padStart(2, '0')} · {route.corridorName}</b>{allReady ? <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[8px] font-black text-white">PRONTA PARA SAIR</span> : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[8px] font-black text-amber-700">EM PREPARO</span>}</div><p className="mt-1 text-[9px] text-slate-400">{confidenceLabel(route.confidenceScore)} · mais antigo há {minsSince(oldest)} min</p></div><button onClick={() => removeRoute(route.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-white"><X className="h-3.5 w-3.5" /></button></div>
+                <div className="flex items-start justify-between gap-2"><div className="min-w-0"><div className="flex flex-wrap items-center gap-1.5"><b className="text-xs text-slate-950">Rota {String(index + 1).padStart(2, '0')} · {route.corridorName}</b>{allReady ? <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[8px] font-black text-white">PRONTA PARA SAIR</span> : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[8px] font-black text-amber-700">EM PREPARO</span>}</div><p className="mt-1 text-[9px] text-slate-400">{routeLabel} · mais antigo há {minsSince(oldest)} min</p></div><button onClick={() => removeRoute(route.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-white"><X className="h-3.5 w-3.5" /></button></div>
                 <div className="mt-3 space-y-1.5">{route.orders.map((order) => <div key={order.id} className="flex items-center gap-2 rounded-lg bg-white px-2 py-1.5 text-[9px]"><b className="text-slate-800">{code(order)}</b><span className="min-w-0 flex-1 truncate text-slate-500">{order.clientName}</span><span className={`rounded-full px-1.5 py-0.5 font-black ${isReady(order) ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{isReady(order) ? 'Pronto' : 'Preparando'}</span></div>)}</div>
                 <div className="mt-3 rounded-lg border border-slate-100 bg-white/80 p-2.5">
                   <div className="flex items-center justify-between gap-2"><span className={`text-[10px] font-black ${allReady ? 'text-emerald-700' : 'text-slate-700'}`}>{statusText}</span><span className="text-[10px] font-black text-slate-700">{ready}/{total} prontos</span></div>
@@ -207,8 +217,7 @@ export const PredispatchRoutesPanel: React.FC<Props> = ({
                 <div className="mt-3 flex gap-2"><button onClick={() => onSelectOrders(route.orderIds)} className="h-8 flex-1 rounded-lg border border-slate-200 bg-white text-[9px] font-black text-slate-700">Ver pedidos</button>{allReady && <button disabled={!nextDriver} onClick={() => { if (!nextDriver) return; onSelectOrders(route.orderIds); onCallNextDriver?.(nextDriver.id, nextDriver.name); triggerActionToast(`${nextDriver.name.split(' ')[0]} chamado para a rota ${String(index + 1).padStart(2, '0')}.`); }} className="h-8 flex-1 rounded-lg bg-violet-600 px-2 text-[9px] font-black text-white disabled:bg-slate-300"><Play className="mr-1 inline h-3 w-3" />{nextDriver ? `Chamar ${nextDriver.name.split(' ')[0]}` : 'Aguardando motoboy'}</button>}</div>
               </article>;
             })}
-            {visibleSuggestions.slice(0, 3).map((suggestion) => <article key={suggestion.id} className="rounded-xl border border-dashed border-violet-200 bg-violet-50/20 p-3"><div className="flex items-start justify-between gap-2"><div><div className="flex items-center gap-1.5 text-[10px] font-black text-violet-700"><Sparkles className="h-3 w-3" />Sugestão de rota</div><p className="mt-1 text-[10px] font-bold text-slate-800">{suggestion.orders.map(code).join(' + ')}</p><p className="mt-1 text-[9px] text-slate-400">{suggestion.corridorName} · {confidenceLabel(suggestion.confidenceScore)}</p></div><button onClick={() => prepareRoute(suggestion)} className="h-8 rounded-lg bg-violet-600 px-2.5 text-[9px] font-black text-white">Montar rota</button></div></article>)}
-            {!prepared.length && !visibleSuggestions.length && <div className="flex min-h-[420px] flex-col items-center justify-center text-center"><Route className="h-6 w-6 text-slate-300" /><p className="mt-2 text-xs font-bold text-slate-600">Nenhuma rota montada</p><p className="mt-1 max-w-[220px] text-[9px] leading-relaxed text-slate-400">Selecione 2 ou 3 pedidos próximos na coluna ao lado. A barra de seleção aparece automaticamente.</p></div>}
+            {!prepared.length && !visibleSuggestions.length && <div className="flex min-h-[420px] flex-col items-center justify-center text-center"><Route className="h-6 w-6 text-slate-300" /><p className="mt-2 text-xs font-bold text-slate-600">Nenhuma rota montada</p><p className="mt-1 max-w-[220px] text-[9px] leading-relaxed text-slate-400">Selecione um pedido para uma saída individual ou vários pedidos para montar uma rota.</p></div>}
           </div>
         </section>
 
