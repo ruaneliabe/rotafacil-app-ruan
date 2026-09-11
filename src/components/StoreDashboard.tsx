@@ -9,6 +9,7 @@ import { SidebarPolish } from './SidebarPolish';
 import { CounterCallBridge } from './CounterCallBridge';
 import { TestOrdersControl } from './TestOrdersControl';
 import { DispatchUiFixes } from './DispatchUiFixes';
+import { HeaderOperationControl } from './HeaderOperationControl';
 import { db } from '../lib/firebase';
 import { getBrazilDateKey, getBrazilTimeString } from '../utils/dateUtils';
 
@@ -92,8 +93,9 @@ export const StoreDashboard: React.FC<any> = (props) => {
       <CounterCallBridge motoboys={props.motoboys || []} />
       <TestOrdersControl shift={effectiveShift} orders={props.orders || []} />
       <DispatchUiFixes />
+      <HeaderOperationControl operationOpen={operationOpen} saving={savingOperation} onToggle={handleToggleOperation} />
 
-      <div data-rota-operation-card="true" className="fixed bottom-[104px] left-[12px] z-[90] hidden w-[164px] lg:block">
+      <div data-rota-operation-card="true" className="hidden">
         <div className={`rounded-xl border bg-white/95 p-2.5 shadow-[0_8px_22px_rgba(15,23,42,.08)] backdrop-blur ${operationOpen ? 'border-emerald-200' : 'border-slate-200'}`}>
           <div className="flex items-center gap-2">
             <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg ${operationOpen ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
