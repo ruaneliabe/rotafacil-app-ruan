@@ -11,10 +11,24 @@ const patch = (path, mutate) => {
   }
 };
 
-// Gestão de entrega: cada motoboy mostra TODOS os pedidos que está levando.
+// Gestão de entrega: cada motoboy mostra TODOS os pedidos ativos que estão vinculados a ele.
+// Não dependemos mais somente de isRoute(), porque durante o handoff um pedido pode estar
+// ready_at_counter / picked_up / preparing por alguns instantes e ainda assim já pertencer à rota.
 patch('src/components/OperationDispatchView.tsx', (input) => {
   let s = input;
-  if (s.includes('data-delivery-owner-details="manage"')) return s;
+
+  // Se o bloco já foi aplicado por um build anterior, atualiza apenas a regra que monta a carga.
+  if (s.includes('data-delivery-owner-details="manage"')) {
+    s = s.replace(
+      `.filter((o) => o.assignedMotoboyId === m.id && isRoute(o))`,
+      `.filter((o) => o.assignedMotoboyId === m.id && !['delivered', 'cancelled', 'failed'].includes(o.status))`
+    );
+    s = s.replace(
+      `const nextOrder = driverOrders.find((o) => o.status === 'in_transit') || driverOrders[0];`,
+      `const nextOrder = driverOrders.find((o) => ['in_transit', 'dispatched'].includes(o.status)) || driverOrders.find((o) => o.status === 'picked_up') || driverOrders[0];`
+    );
+    return s;
+  }
 
   const headerPos = s.indexOf('Motoboys em entrega');
   if (headerPos < 0) return s;
@@ -32,9 +46,9 @@ patch('src/components/OperationDispatchView.tsx', (input) => {
                   <div className="space-y-2 p-2">
                     {searchedDeliveringDrivers.slice(0, 8).map((m) => {
                       const driverOrders = activeOrders
-                        .filter((o) => o.assignedMotoboyId === m.id && isRoute(o))
+                        .filter((o) => o.assignedMotoboyId === m.id && !['delivered', 'cancelled', 'failed'].includes(o.status))
                         .sort((a, b) => Number(a.routeSequence || 999) - Number(b.routeSequence || 999));
-                      const nextOrder = driverOrders.find((o) => o.status === 'in_transit') || driverOrders[0];
+                      const nextOrder = driverOrders.find((o) => ['in_transit', 'dispatched'].includes(o.status)) || driverOrders.find((o) => o.status === 'picked_up') || driverOrders[0];
                       return (
                         <button key={m.id} onClick={() => setFocusDriverId(focusDriverId === m.id ? null : m.id)} className={\`w-full rounded-xl border p-3 text-left transition hover:bg-slate-50 \${focusDriverId === m.id ? 'border-blue-300 bg-blue-50/40' : 'border-slate-200 bg-white'}\`}>
                           <div className="flex items-center gap-2">
@@ -69,6 +83,14 @@ patch('src/components/OperationDispatchView.tsx', (input) => {
 // Painel principal "Em entrega": agrupa por motoboy, não mais um card solto por pedido.
 patch('src/components/PredispatchRoutesPanel.tsx', (input) => {
   let s = input;
+
+  // A lista de acompanhamento deve considerar qualquer pedido ativo já atribuído,
+  // inclusive no intervalo entre chamada, retirada e início da rota.
+  s = s.replace(
+    /const routeOrders = useMemo\(\(\) => activeOrders\.filter\([^;]+\)\.sort\(\(a, b\) => stamp\(a\) - stamp\(b\)\), \[activeOrders\]\);/,
+    "const routeOrders = useMemo(() => activeOrders.filter((order) => Boolean(order.assignedMotoboyId) && !['delivered', 'cancelled', 'failed'].includes(order.status)).sort((a, b) => Number(a.routeSequence || 999) - Number(b.routeSequence || 999) || stamp(a) - stamp(b)), [activeOrders]);"
+  );
+
   if (s.includes('data-delivery-owner-details="predispatch"')) return s;
 
   const headerPos = s.indexOf('<h3 className="text-sm font-black text-slate-900">Em entrega</h3>');
@@ -86,7 +108,7 @@ patch('src/components/PredispatchRoutesPanel.tsx', (input) => {
             {Array.from(new Set(routeOrders.map((o) => o.assignedMotoboyId).filter(Boolean) as string[])).length ? Array.from(new Set(routeOrders.map((o) => o.assignedMotoboyId).filter(Boolean) as string[])).map((motoboyId) => {
               const driverOrders = routeOrders.filter((o) => o.assignedMotoboyId === motoboyId).sort((a, b) => Number(a.routeSequence || 999) - Number(b.routeSequence || 999));
               const first = driverOrders[0];
-              const next = driverOrders.find((o) => o.status === 'in_transit') || first;
+              const next = driverOrders.find((o) => ['in_transit', 'dispatched'].includes(o.status)) || driverOrders.find((o) => o.status === 'picked_up') || first;
               const driverName = first?.assignedMotoboyName || 'Motoboy';
               return (
                 <article key={motoboyId} className="rounded-xl border border-sky-200 bg-sky-50/25 p-3">
@@ -104,4 +126,4 @@ patch('src/components/PredispatchRoutesPanel.tsx', (input) => {
   return s.slice(0, start) + block + s.slice(nextPos);
 });
 
-console.log('[delivery-owner] detalhes por motoboy aplicados nas duas telas');
+console.log('[delivery-owner] detalhes por motoboy aplicados nas duas telas com todos os pedidos ativos vinculados');
