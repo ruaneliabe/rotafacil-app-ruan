@@ -37,6 +37,16 @@ patch('src/components/ManagementHub.tsx', (input) => {
   return s;
 });
 
+// Remove o toggle de "Loja" da legenda do mapa. A loja continua sempre visível no mapa.
+patch('src/components/OperationManagementEnhancer.tsx', (input) => {
+  let s = input;
+  s = s.replace(
+    /\n\s*<button onClick=\{\(\) => setShowStore\(\(v\) => !v\)\} className="flex w-full items-start gap-2\.5 px-3 py-2\.5 text-left hover:bg-slate-50">[\s\S]*?<\/button>/,
+    ''
+  );
+  return s;
+});
+
 // Mantém compatibilidade com versões antigas do card de operação sem sobrescrever
 // o card atual, que já é posicionado e estilizado diretamente no StoreDashboard.
 patch('src/components/StoreDashboard.tsx', (input) => input);
