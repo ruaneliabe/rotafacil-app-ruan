@@ -98,18 +98,22 @@ export default async function handler(req: any, res: any) {
       const externalId = String(data.externalOrderId || d.id.replace(/^cw_/, ''));
       let cwOrder = cwMap.get(`${branch}:doc:${d.id}`) || cwMap.get(`${branch}:id:${externalId}`) || (data.codeNumber != null ? cwMap.get(`${branch}:display:${data.codeNumber}`) : null);
 
-      if (!cwOrder && ['pending','preparing','ready_at_counter','picked_up','dispatched','in_transit'].includes(data.status)) {
+      const activeStatus = ['pending','preparing','ready_at_counter','picked_up','dispatched','in_transit'].includes(data.status);
+      const missingCourier = !data.externalMotoboyName && !data.cardapioWebMotoboyName && !courierName(cwOrder);
+      if ((!cwOrder || (activeStatus && missingCourier)) && activeStatus) {
         const primaryToken = branch === 'hope_burger' ? CARDAPIO_WEB_HOPE_BURGER_TOKEN : CARDAPIO_WEB_HOPE_PIZZA_TOKEN;
         const fallbackToken = branch === 'hope_burger' ? CARDAPIO_WEB_HOPE_PIZZA_TOKEN : CARDAPIO_WEB_HOPE_BURGER_TOKEN;
-        cwOrder = await fetchOrderById(externalId, primaryToken);
-        if (!cwOrder) cwOrder = await fetchOrderById(externalId, fallbackToken);
-        if (cwOrder) detailReconciledCount++;
+        const detail = await fetchOrderById(externalId, primaryToken) || await fetchOrderById(externalId, fallbackToken);
+        if (detail) {
+          cwOrder = { ...(cwOrder || {}), ...detail };
+          detailReconciledCount++;
+        }
       }
       if (!cwOrder) continue;
 
       const status = normalize(cwOrder.status);
       const targetStatus = mapCwStatus(status);
-      const externalDriver = courierName(cwOrder);
+      const externalDriver = courierName(cwOrder) || data.cardapioWebMotoboyName || data.externalMotoboyName || null;
       const localPriority = hasRotaFacilOwnership(data);
       const patch: any = {
         cardapioWebStatus: status,
