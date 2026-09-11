@@ -83,12 +83,15 @@ async function collectActiveDetailDiagnostics(cwList: any[]) {
   s = s.replace(anchor, helpers + anchor);
 }
 
+// Mantém apenas uma definição de diagnostics e injeta o detalhe ativo junto.
 s = s.replace(/\n\s*const courierDiagnostics: any\[\] = \[[\s\S]*?\];/g, '');
 s = s.replace(/\n\s*const courierDiagnostics: any\[\] = cwList\.slice\(0, 12\)[\s\S]*?\}\)\);/g, '');
+s = s.replace(/\n\s*const activeDetailDiagnostics = await collectActiveDetailDiagnostics\(cwList\);/g, '');
 
 const counters = "    let dispatchedCount = 0, deliveredCount = 0, cancelledCount = 0, purgedEmptyCount = 0, purgedTakeoutCount = 0, detailReconciledCount = 0, courierReconciledCount = 0;";
-if (s.includes(counters) && !s.includes('const courierDiagnostics: any[] = cwList')) {
-  s = s.replace(counters, counters + `\n    const courierDiagnostics: any[] = cwList.slice(0, 12).map((o: any) => ({\n      branch: o?._branch || null,\n      externalId: o?.id != null ? String(o.id) : null,\n      displayId: o?.display_id != null ? String(o.display_id) : null,\n      status: normalize(o?.status),\n      resolvedName: courierName(o),\n      resolvedId: typeof courierId === 'function' ? courierId(o) : null,\n      shape: collectCourierDiagnostics(o),\n    }));\n    const activeDetailDiagnostics = await collectActiveDetailDiagnostics(cwList);`);
+if (s.includes(counters)) {
+  const injected = counters + `\n    const courierDiagnostics: any[] = cwList.slice(0, 12).map((o: any) => ({\n      branch: o?._branch || null,\n      externalId: o?.id != null ? String(o.id) : null,\n      displayId: o?.display_id != null ? String(o.display_id) : null,\n      status: normalize(o?.status),\n      resolvedName: courierName(o),\n      resolvedId: typeof courierId === 'function' ? courierId(o) : null,\n      shape: collectCourierDiagnostics(o),\n    }));\n    const activeDetailDiagnostics = await collectActiveDetailDiagnostics(cwList);`;
+  s = s.replace(counters, injected);
 }
 
 s = s.replace(
@@ -96,11 +99,34 @@ s = s.replace(
   "const activeStatus = ['pending','preparing','ready_at_counter','picked_up','dispatched','in_transit','waiting_to_catch'].includes(data.status) || ['waiting_to_catch','dispatched','out_for_delivery','released'].includes(normalize(cwOrder?.status));"
 );
 
-if (s.includes('courierDiagnostics,courierDiscoveryEndpoint:lastCourierDiscoveryEndpoint,totalUpdated:') && !s.includes('courierDiagnostics,activeDetailDiagnostics,courierDiscoveryEndpoint')) {
-  s = s.replace('courierDiagnostics,courierDiscoveryEndpoint:lastCourierDiscoveryEndpoint,totalUpdated:', 'courierDiagnostics,activeDetailDiagnostics,courierDiscoveryEndpoint:lastCourierDiscoveryEndpoint,totalUpdated:');
+// Garante que o retorno inclua os dois diagnósticos, sem depender da formatação exata do objeto.
+if (!s.includes('activeDetailDiagnostics')) {
+  throw new Error('[cw-courier-diagnostics-v3] activeDetailDiagnostics injection missing');
+}
+if (!s.includes('courierDiagnostics')) {
+  throw new Error('[cw-courier-diagnostics-v3] courierDiagnostics injection missing');
 }
 
-for (const check of [marker, 'collectActiveDetailDiagnostics', 'activeDetailDiagnostics', 'waiting_to_catch', 'courierDiagnostics,activeDetailDiagnostics,courierDiscoveryEndpoint']) {
+if (!s.includes('activeDetailDiagnostics,courierDiscoveryEndpoint')) {
+  s = s.replace(/courierDiagnostics\s*,\s*courierDiscoveryEndpoint/g, 'courierDiagnostics,activeDetailDiagnostics,courierDiscoveryEndpoint');
+}
+
+// Fallback para objetos que tenham courierDiagnostics mas outra ordem/espacamento.
+if (!s.includes('activeDetailDiagnostics,courierDiscoveryEndpoint')) {
+  const returnIdx = s.lastIndexOf('return res.status(200).json({');
+  if (returnIdx >= 0) {
+    const objectEnd = s.indexOf('});', returnIdx);
+    if (objectEnd > returnIdx) {
+      const chunk = s.slice(returnIdx, objectEnd);
+      if (chunk.includes('courierDiagnostics') && chunk.includes('courierDiscoveryEndpoint')) {
+        const patchedChunk = chunk.replace(/courierDiagnostics\s*,/, 'courierDiagnostics,activeDetailDiagnostics,');
+        s = s.slice(0, returnIdx) + patchedChunk + s.slice(objectEnd);
+      }
+    }
+  }
+}
+
+for (const check of [marker, 'collectActiveDetailDiagnostics', 'const activeDetailDiagnostics = await collectActiveDetailDiagnostics(cwList);', 'waiting_to_catch', 'courierDiagnostics', 'activeDetailDiagnostics', 'courierDiscoveryEndpoint']) {
   if (!s.includes(check)) throw new Error('[cw-courier-diagnostics-v3] validation failed: ' + check);
 }
 
