@@ -10,6 +10,42 @@ if (!s.includes('const mapShellRef = useRef<HTMLDivElement | null>(null);')) {
   );
 }
 
+if (!s.includes('const closedLegacyOverlayRef = useRef<HTMLElement | null>(null);')) {
+  s = s.replace(
+    "  const mapShellRef = useRef<HTMLDivElement | null>(null);",
+    "  const mapShellRef = useRef<HTMLDivElement | null>(null);\n  const closedLegacyOverlayRef = useRef<HTMLElement | null>(null);"
+  );
+}
+
+if (!s.includes('const [preparedRouteRevision, setPreparedRouteRevision]')) {
+  s = s.replace(
+    "  const [toast, setToast] = useState<string | null>(null);",
+    "  const [toast, setToast] = useState<string | null>(null);\n  const [preparedRouteRevision, setPreparedRouteRevision] = useState(0);"
+  );
+}
+
+s = s.replace(
+  "      if (!overlay) return;\n      legacyOverlayRef.current = overlay;",
+  "      if (!overlay) return;\n      if (closedLegacyOverlayRef.current === overlay && overlay.style.display === 'none') return;\n      if (closedLegacyOverlayRef.current === overlay && overlay.style.display !== 'none') closedLegacyOverlayRef.current = null;\n      legacyOverlayRef.current = overlay;"
+);
+
+s = s.replace(
+  "  const close = () => {\n    suppressOpenRef.current = true;\n    if (legacyOverlayRef.current?.isConnected) legacyOverlayRef.current.style.display = 'none';",
+  "  const close = () => {\n    suppressOpenRef.current = true;\n    closedLegacyOverlayRef.current = legacyOverlayRef.current;\n    if (legacyOverlayRef.current?.isConnected) legacyOverlayRef.current.style.display = 'none';"
+);
+
+if (!s.includes("window.addEventListener('rotafacil-prepared-routes-changed'")) {
+  s = s.replace(
+    "  const activeOrders = useMemo(() => orders.filter((o) => !['delivered', 'cancelled', 'failed'].includes(String(o.status))), [orders]);",
+    "  useEffect(() => {\n    const refreshPreparedRoutes = () => setPreparedRouteRevision((value) => value + 1);\n    window.addEventListener('storage', refreshPreparedRoutes);\n    window.addEventListener('rotafacil-prepared-routes-changed', refreshPreparedRoutes);\n    return () => {\n      window.removeEventListener('storage', refreshPreparedRoutes);\n      window.removeEventListener('rotafacil-prepared-routes-changed', refreshPreparedRoutes);\n    };\n  }, []);\n\n  const preparedRouteOrderIds = useMemo(() => {\n    try {\n      const raw = window.localStorage.getItem(STORAGE_KEY);\n      const list = raw ? JSON.parse(raw) : [];\n      return new Set<string>((Array.isArray(list) ? list : []).flatMap((route: any) => Array.isArray(route?.orderIds) ? route.orderIds : []));\n    } catch {\n      return new Set<string>();\n    }\n  }, [preparedRouteRevision]);\n\n  const activeOrders = useMemo(() => orders.filter((o) => !['delivered', 'cancelled', 'failed'].includes(String(o.status))), [orders]);"
+  );
+}
+
+s = s.replace(
+  "  const waitingOrders = useMemo(() => activeOrders\n    .filter((o) => !o.assignedMotoboyId && !isRouteOrder(o))\n    .sort((a, b) => stamp(a) - stamp(b)), [activeOrders]);",
+  "  const waitingOrders = useMemo(() => activeOrders\n    .filter((o) => !o.assignedMotoboyId && !isRouteOrder(o) && !preparedRouteOrderIds.has(o.id))\n    .sort((a, b) => stamp(a) - stamp(b)), [activeOrders, preparedRouteOrderIds]);"
+);
+
 if (!s.includes('hideLegacyMapStatusBar')) {
   s = s.replace(
     "  useEffect(() => {\n    const valid = new Set(waitingOrders.map((o) => o.id));\n    setSelectedOrderIds((current) => current.filter((id) => valid.has(id)));\n  }, [waitingOrders]);",
@@ -33,8 +69,12 @@ s = s.replace(
   'Clique nos pedidos do mapa para incluir ou remover da rota.'
 );
 
-// The right panel is now only a basket of what the operator clicked on the map.
 s = s.replace('{filteredOrders.map((o) => { const selected = selectedOrderIds.includes(o.id);', '{selectedOrders.map((o) => { const selected = true;');
 
+s = s.replace(
+  "      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));\n      window.dispatchEvent(new Event('storage'));",
+  "      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(list));\n      window.dispatchEvent(new Event('storage'));\n      window.dispatchEvent(new Event('rotafacil-prepared-routes-changed'));\n      setPreparedRouteRevision((value) => value + 1);"
+);
+
 fs.writeFileSync(path, s);
-console.log('[map-selection-fixes] stable map selection + selected-only route basket applied');
+console.log('[map-selection-fixes] stable map + mounted-order filtering + modal lifecycle applied');
