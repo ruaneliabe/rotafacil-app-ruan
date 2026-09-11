@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 
-const navLabels = ['Pedidos e despacho', 'Kanban', 'Entregadores', 'Financeiro', 'Gestão e fechamento', 'Configurações'];
+const navLabels = ['Pedidos e despacho', 'Kanban', 'Entregadores', 'Financeiro', 'Gestão e fechamento', 'Configurações', 'Configuração da loja'];
 
 const findButton = (label: string) =>
   Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) =>
@@ -49,6 +49,19 @@ const polishButton = (button: HTMLButtonElement | null) => {
   }
 };
 
+const renameStoreSettings = () => {
+  const button = findButton('Configurações') || findButton('Configuração da loja');
+  if (!button) return null;
+  const textNodes = Array.from(button.querySelectorAll<HTMLElement>('span,p,div')).filter((node) => (node.textContent || '').trim() === 'Configurações');
+  if (textNodes.length) textNodes.forEach((node) => { node.textContent = 'Configuração da loja'; });
+  else if ((button.textContent || '').trim() === 'Configurações') {
+    const text = Array.from(button.childNodes).find((node) => node.nodeType === Node.TEXT_NODE && (node.textContent || '').trim() === 'Configurações');
+    if (text) text.textContent = ' Configuração da loja';
+  }
+  button.setAttribute('aria-label', 'Configuração da loja');
+  return button;
+};
+
 const hideStoreLayerToggle = () => {
   const modal = document.querySelector<HTMLElement>('[data-operation-enhanced-modal="true"]');
   if (!modal) return;
@@ -62,23 +75,21 @@ const hideStoreLayerToggle = () => {
 };
 
 const syncSidebar = () => {
+  const settingsButton = renameStoreSettings();
   const buttons = Object.fromEntries(navLabels.map((label) => [label, findButton(label)])) as Record<string, HTMLButtonElement | null>;
 
   navLabels.forEach((label) => polishButton(buttons[label]));
+  if (settingsButton) polishButton(settingsButton);
 
   ensureSectionLabel(buttons['Pedidos e despacho'], 'operation', 'OPERAÇÃO');
 
   const management = buttons['Gestão e fechamento'];
-  if (management) {
-    management.style.display = 'none';
-  }
+  if (management) management.style.display = 'none';
 
-  ensureSectionLabel(buttons['Configurações'], 'administration', 'ADMINISTRAÇÃO');
+  ensureSectionLabel(settingsButton || buttons['Configuração da loja'] || buttons['Configurações'], 'administration', 'ADMINISTRAÇÃO');
 
-  const config = buttons['Configurações'];
-  if (config) {
-    config.style.borderTop = '1px solid transparent';
-  }
+  const config = settingsButton || buttons['Configuração da loja'] || buttons['Configurações'];
+  if (config) config.style.borderTop = '1px solid transparent';
 
   hideStoreLayerToggle();
 };
