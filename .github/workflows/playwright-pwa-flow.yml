@@ -30,13 +30,21 @@ on:
       gps_duration_ms:
         description: Duração total do deslocamento em ms
         required: true
-        default: '30000'
+        default: '60000'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playwright-pwa-gps-production
+  cancel-in-progress: false
 
 jobs:
   pwa-gps-flow:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
+      CI: 'true'
       E2E_BASE_URL: ${{ inputs.base_url }}
       E2E_START_LAT: ${{ inputs.start_lat }}
       E2E_START_LNG: ${{ inputs.start_lng }}
@@ -56,10 +64,26 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+
+      - name: Wait for Rota Fácil
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Aguardando ${E2E_BASE_URL}/api/health"
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 15 "${E2E_BASE_URL}/api/health" >/tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "Tentativa ${attempt}/30 - aguardando 10s..."
+            sleep 10
+          done
+          echo "Rota Fácil não respondeu ao health check."
+          exit 1
 
       - name: Run PWA GPS flow
         run: npm run test:e2e:pwa
@@ -68,7 +92,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-pwa-report
+          name: playwright-pwa-report-${{ github.run_number }}
           path: |
             playwright-report/
             test-results/
