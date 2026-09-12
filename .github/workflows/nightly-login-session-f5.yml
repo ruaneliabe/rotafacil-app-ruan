@@ -2,6 +2,11 @@ name: Playwright - Login, sessão e F5
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/nightly-login-session-f5.yml'
   schedule:
     - cron: '10 7 * * *'
 
