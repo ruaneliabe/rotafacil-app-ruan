@@ -5,7 +5,8 @@ export default defineConfig({
   timeout: 10 * 60 * 1000,
   expect: { timeout: 20_000 },
   fullyParallel: false,
-  retries: 0,
+  workers: 1,
+  retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env.E2E_BASE_URL || 'https://rotafacil-app-ruan.onrender.com',
