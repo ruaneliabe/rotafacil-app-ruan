@@ -3,6 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import cardapioWebWebhook from './api/webhook-cardapio-web';
 import syncCardapioWeb from './api/sync-cardapio-web';
+import seedFlowTest from './api/seed-flow-test';
 
 async function startServer() {
   const app = express();
@@ -13,6 +14,10 @@ async function startServer() {
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });
+  });
+
+  app.get('/api/seed-flow-test', async (req, res) => {
+    await seedFlowTest(req, res);
   });
 
   app.all('/api/webhook/cardapio-web/:storeId', async (req, res) => {
