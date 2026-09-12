@@ -27,7 +27,14 @@ export const CounterCallBridge: React.FC<Props> = ({ motoboys }) => {
       }
 
       try {
-        await saveMotoboyToCloud({ ...driver, callingToCounterAt: Date.now() });
+        // Ao chamar o motoboy para o balcão ele deixa de ocupar uma posição
+        // na fila imediatamente. A próxima entrada na fila recebe um novo
+        // joinedQueueAt somente quando ele confirmar que voltou à loja.
+        await saveMotoboyToCloud({
+          ...driver,
+          joinedQueueAt: null,
+          callingToCounterAt: Date.now(),
+        });
       } catch (err) {
         console.error('Rota Fácil: falha ao enviar chamada ao balcão.', err);
       }
