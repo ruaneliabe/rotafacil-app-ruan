@@ -21,6 +21,7 @@ on:
     paths:
       - '.github/workflows/manual-full-operation-playwright.yml'
       - 'playwright.config.ts'
+      - 'src/**'
       - 'tests/e2e/**'
       - 'scripts/patch-playwright-gps.mjs'
       - 'scripts/apply-e2e-flow-readiness.mjs'
@@ -75,18 +76,23 @@ jobs:
         run: |
           set -euo pipefail
           echo "Testing: $E2E_BASE_URL"
+          echo "Expected commit: $GITHUB_SHA"
           for i in $(seq 1 30); do
             code=$(curl -sS --max-time 20 -o /tmp/health.json -w '%{http_code}' "$E2E_BASE_URL/api/health" || true)
+            deployed_commit=""
             if [ "$code" = "200" ]; then
               cat /tmp/health.json
               echo
-              echo "Render respondeu 200."
-              exit 0
+              deployed_commit=$(node -e "try { const x=require('/tmp/health.json'); process.stdout.write(String(x.commit || '')); } catch {}")
+              if [ "$deployed_commit" = "$GITHUB_SHA" ]; then
+                echo "Render respondeu 200 no commit correto."
+                exit 0
+              fi
             fi
-            echo "Render ainda não respondeu 200 (HTTP ${code}), tentativa ${i}/30..."
+            echo "Render ainda não está no commit esperado (HTTP ${code}, commit ${deployed_commit:-desconhecido}), tentativa ${i}/30..."
             sleep 10
           done
-          echo "Rota Fácil não ficou disponível a tempo."
+          echo "Rota Fácil não publicou o commit $GITHUB_SHA a tempo."
           exit 1
 
       - name: Run detailed PWA end-to-end flow
