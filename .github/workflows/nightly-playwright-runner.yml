@@ -21,6 +21,10 @@ env:
   CI: 'true'
   E2E_BASE_URL: https://rotafacil-app-ruan.onrender.com
 
+concurrency:
+  group: rotafacil-e2e-shared-firestore
+  cancel-in-progress: false
+
 jobs:
   run-suite:
     name: ${{ inputs.suite_name }}
