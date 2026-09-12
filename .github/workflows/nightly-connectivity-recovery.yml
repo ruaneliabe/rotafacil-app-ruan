@@ -1,0 +1,16 @@
+name: Playwright - Queda de conexão e recuperação
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '45 8 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  recovery:
+    uses: ./.github/workflows/nightly-playwright-runner.yml
+    with:
+      grep: '@recovery'
+      suite_name: 'Queda de conexão e recuperação'

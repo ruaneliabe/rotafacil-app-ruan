@@ -1,0 +1,70 @@
+name: Playwright - Bateria noturna completa
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 06:30 em Blumenau/São Paulo (09:30 UTC), depois de todas as suítes.
+    - cron: '30 9 * * *'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  nightly-summary:
+    name: Resumo da bateria noturna
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conferir todas as suítes noturnas
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh run list --repo "$GITHUB_REPOSITORY" --limit 100 --json workflowName,conclusion,event,createdAt,url > /tmp/runs.json
+
+          workflows=(
+            "Playwright - Smoke produção"
+            "Playwright - Login, sessão e F5"
+            "Playwright - Sincronização multi-dispositivo"
+            "Playwright - Fluxo PWA completo"
+            "Playwright - Fila e múltiplos motoboys"
+            "Playwright - Pedidos e ciclo de entrega"
+            "Playwright - Rotas, GPS e rastreamento"
+            "Playwright - Cardápio Web e sincronização"
+            "Playwright - Queda de conexão e recuperação"
+            "Playwright - Integridade do banco e isolamento"
+          )
+
+          echo "## Bateria noturna Rota Fácil" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Teste | Resultado |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          for workflow in "${workflows[@]}"; do
+            row=$(jq -c --arg w "$workflow" '[.[] | select(.workflowName == $w and .event == "schedule")][0] // empty' /tmp/runs.json)
+            if [ -z "$row" ]; then
+              echo "| $workflow | ❌ NÃO EXECUTOU |" >> "$GITHUB_STEP_SUMMARY"
+              failed=1
+              continue
+            fi
+
+            conclusion=$(echo "$row" | jq -r '.conclusion // "em andamento"')
+            url=$(echo "$row" | jq -r '.url')
+            if [ "$conclusion" = "success" ]; then
+              echo "| $workflow | ✅ OK |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| $workflow | ❌ $conclusion — [abrir execução]($url) |" >> "$GITHUB_STEP_SUMMARY"
+              failed=1
+            fi
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$failed" -eq 0 ]; then
+            echo "### ✅ 10/10 testes aprovados — bateria noturna 100% verde." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ❌ A bateria noturna encontrou falhas. Abra os testes vermelhos acima." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

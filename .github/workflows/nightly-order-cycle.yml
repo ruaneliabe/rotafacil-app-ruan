@@ -1,0 +1,16 @@
+name: Playwright - Pedidos e ciclo de entrega
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  ordercycle:
+    uses: ./.github/workflows/nightly-playwright-runner.yml
+    with:
+      grep: '@ordercycle'
+      suite_name: 'Pedidos e ciclo de entrega'

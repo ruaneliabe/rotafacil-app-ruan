@@ -1,0 +1,16 @@
+name: Playwright - Rotas, GPS e rastreamento
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 8 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  gps:
+    uses: ./.github/workflows/nightly-playwright-runner.yml
+    with:
+      grep: '@gps'
+      suite_name: 'Rotas, GPS e rastreamento'

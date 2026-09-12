@@ -1,0 +1,93 @@
+name: Playwright - Runner noturno reutilizável
+
+on:
+  workflow_call:
+    inputs:
+      grep:
+        required: true
+        type: string
+      suite_name:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+  E2E_BASE_URL: https://rotafacil-app-ruan.onrender.com
+
+jobs:
+  run-suite:
+    name: ${{ inputs.suite_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Playwright runner
+        run: npm install --no-save --no-package-lock @playwright/test@1.63.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Apply CI GPS resilience patch
+        run: node scripts/patch-playwright-gps.mjs
+
+      - name: Wake up Render and wait for deployed commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Esperando o Render publicar exatamente o commit ${GITHUB_SHA}"
+          for i in $(seq 1 45); do
+            code=$(curl -sS --max-time 20 -o /tmp/health.json -w '%{http_code}' "$E2E_BASE_URL/api/health" || true)
+            if [ "$code" = "200" ]; then
+              deployed=$(node -e "const fs=require('fs'); try{const x=JSON.parse(fs.readFileSync('/tmp/health.json','utf8')); process.stdout.write(String(x.commit||''));}catch{}")
+              echo "Tentativa ${i}/45: HTTP 200, commit publicado=${deployed:-desconhecido}"
+              if [ "$deployed" = "$GITHUB_SHA" ]; then
+                cat /tmp/health.json
+                echo
+                echo "Render está no commit correto."
+                exit 0
+              fi
+            else
+              echo "Tentativa ${i}/45: HTTP ${code}"
+            fi
+            sleep 10
+          done
+          echo "Render não publicou o commit ${GITHUB_SHA} a tempo."
+          exit 1
+
+      - name: Run nightly Playwright suite
+        run: npx playwright test tests/e2e/nightly-battery.spec.ts --grep "${{ inputs.grep }}"
+
+      - name: Publish summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## ${{ inputs.suite_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Suite: \`${{ inputs.grep }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ambiente: $E2E_BASE_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,0 +1,16 @@
+name: Playwright - Cardápio Web e sincronização
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 8 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  cardapio:
+    uses: ./.github/workflows/nightly-playwright-runner.yml
+    with:
+      grep: '@cardapio'
+      suite_name: 'Cardápio Web e sincronização'

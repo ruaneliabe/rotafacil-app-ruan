@@ -1,0 +1,16 @@
+name: Playwright - Integridade do banco e isolamento
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  integrity:
+    uses: ./.github/workflows/nightly-playwright-runner.yml
+    with:
+      grep: '@integrity'
+      suite_name: 'Integridade do banco e isolamento'

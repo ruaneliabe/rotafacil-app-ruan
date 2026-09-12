@@ -1,0 +1,16 @@
+name: Playwright - Login, sessão e F5
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '10 7 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  session:
+    uses: ./.github/workflows/nightly-playwright-runner.yml
+    with:
+      grep: '@session'
+      suite_name: 'Login, sessão e F5'

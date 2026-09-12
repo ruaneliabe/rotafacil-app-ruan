@@ -1,0 +1,16 @@
+name: Playwright - Sincronização multi-dispositivo
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 7 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  multidevice:
+    uses: ./.github/workflows/nightly-playwright-runner.yml
+    with:
+      grep: '@multidevice'
+      suite_name: 'Sincronização multi-dispositivo'

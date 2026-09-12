@@ -1,0 +1,16 @@
+name: Playwright - Smoke produção
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 7 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    uses: ./.github/workflows/nightly-playwright-runner.yml
+    with:
+      grep: '@smoke'
+      suite_name: 'Smoke produção'

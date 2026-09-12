@@ -1,0 +1,16 @@
+name: Playwright - Fila e múltiplos motoboys
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '45 7 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  queue:
+    uses: ./.github/workflows/nightly-playwright-runner.yml
+    with:
+      grep: '@queue'
+      suite_name: 'Fila e múltiplos motoboys'
