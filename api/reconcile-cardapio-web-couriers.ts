@@ -1,22 +1,24 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, collection, getDocs, doc, setDoc } from 'firebase/firestore';
 
 const ACTIVE_STATUSES = ['pending','preparing','ready_at_counter','picked_up','dispatched','in_transit'];
 const ROUTE_STATUSES = ['released','dispatched','saiu_para_entrega','out_for_delivery'];
 const TERMINAL_STATUSES = ['closed','delivered','finalized','concluded','completed','finished','done','canceled','cancelled','rejected'];
+const FIREBASE_APP_NAME = 'rotafacil-cardapio-courier-reconcile';
 
 function getDbInstance() {
   const firebaseConfig = {
-    apiKey: process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY,
-    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'rotafcildelivery',
-    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.VITE_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID,
+    apiKey: process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || 'AIzaSyD-XkOCjvoGt3VZRfLQyH5Dg1S7P2Ex2-8',
+    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN || 'rotafacil-app-oficial.firebaseapp.com',
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'rotafacil-app-oficial',
+    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET || 'rotafacil-app-oficial.firebasestorage.app',
+    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_MESSAGING_SENDER_ID || '846726683671',
+    appId: process.env.VITE_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID || '1:846726683671:web:d0b5ddc701815609be9052',
   };
-  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || 'ai-studio-rotafcildelivery-495fd3be-5974-4310-960a-26a794361d3b';
-  return getFirestore(app, databaseId);
+  const app = getApps().find((candidate) => candidate.name === FIREBASE_APP_NAME)
+    || initializeApp(firebaseConfig, FIREBASE_APP_NAME);
+  const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || '(default)';
+  return databaseId && databaseId !== '(default)' ? getFirestore(app, databaseId) : getFirestore(app);
 }
 
 function normalizeName(value: unknown) {
@@ -104,9 +106,6 @@ export default async function handler(req: any, res: any) {
           movedToPreparing++;
         }
       } else {
-        // Entregador existe no Cardápio Web, mas não está cadastrado no app.
-        // Mantemos a operação coerente no painel da loja colocando o pedido em rota,
-        // sem inventar um motoboy local nem criar conta automaticamente.
         patch.assignedMotoboyId = null;
         patch.status = 'dispatched';
         patch.dispatchedAt = order.dispatchedAt || new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
