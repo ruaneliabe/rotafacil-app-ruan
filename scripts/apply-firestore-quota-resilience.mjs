@@ -33,6 +33,17 @@ firebase = firebase.replace(
 
 const saveOrderReplacement = `export async function saveOrderToCloud(order: Order): Promise<boolean> {\n  try {\n    const today = localDateKey();\n    const payload: Order = {\n      ...order,\n      operationalEpoch: STORE_PILOT_RESET_VERSION,\n      createdDate: order.createdDate || today,\n      ...(order.status === 'delivered' ? { deliveredDate: order.deliveredDate || today, deliveredTimestamp: order.deliveredTimestamp || Date.now() } : {}),\n    };\n    await setDoc(doc(db, 'orders', payload.id), cleanForFirestore(payload), { merge: true });\n    return true;\n  } catch (err) {\n    warnFirestoreThrottled('save-order', err);\n    return false;\n  }\n}\n\n`;
 firebase = replaceBlock(firebase, 'export async function saveOrderToCloud', 'export async function saveMotoboyToCloud', saveOrderReplacement, 'saveOrderToCloud');
+
+// The earlier motoboy-login build patch inserts findMotoboyForLogin immediately before
+// saveMotoboyToCloud. Replacing the saveOrder block used to delete that helper. Restore it
+// here, but in a quota-friendly way: direct document lookup + two equality queries instead
+// of scanning the entire motoboys collection on every cross-device login.
+if (!firebase.includes('export async function findMotoboyForLogin')) {
+  const anchor = 'export async function saveMotoboyToCloud(motoboy: Motoboy) {';
+  const helper = `export async function findMotoboyForLogin(term: string): Promise<Motoboy | null> {\n  try {\n    const normalized = term.trim().toLowerCase();\n    if (!normalized) return null;\n\n    const direct = await getDoc(doc(db, 'motoboys', term.trim()));\n    if (direct.exists()) {\n      const raw = { id: direct.id, ...direct.data() } as Motoboy;\n      if (raw.operationalEpoch === STORE_PILOT_RESET_VERSION) return raw;\n    }\n\n    for (const field of ['username', 'name'] as const) {\n      const snap = await getDocs(query(collection(db, 'motoboys'), where(field, '==', term.trim())));\n      const found = snap.docs.find((row) => (row.data() as any).operationalEpoch === STORE_PILOT_RESET_VERSION);\n      if (found) return { id: found.id, ...found.data() } as Motoboy;\n    }\n\n    // Usernames created by this app are normally lowercase. Try normalized username once.\n    if (normalized !== term.trim()) {\n      const snap = await getDocs(query(collection(db, 'motoboys'), where('username', '==', normalized)));\n      const found = snap.docs.find((row) => (row.data() as any).operationalEpoch === STORE_PILOT_RESET_VERSION);\n      if (found) return { id: found.id, ...found.data() } as Motoboy;\n    }\n    return null;\n  } catch (err) {\n    warnFirestoreThrottled('motoboy-login', err);\n    return null;\n  }\n}\n\n`;
+  if (!firebase.includes(anchor)) throw new Error('[quota-resilience] motoboy login anchor missing');
+  firebase = firebase.replace(anchor, helper + anchor);
+}
 fs.writeFileSync(FIREBASE, firebase);
 
 let app = fs.readFileSync(APP, 'utf8');
@@ -81,6 +92,7 @@ fs.writeFileSync(SYNC, sync);
 
 for (const [file, marker] of [
   [FIREBASE, "where('operationalEpoch', '==', STORE_PILOT_RESET_VERSION)"],
+  [FIREBASE, 'export async function findMotoboyForLogin'],
   [APP, "session.role === 'motoboy' ? session.motoboyId : undefined"],
   [SYNC, "where('originChannel', '==', 'cardapio_web')"],
 ]) {
@@ -88,4 +100,4 @@ for (const [file, marker] of [
   if (!text.includes(marker)) throw new Error(`[quota-resilience] validation failed in ${file}: ${marker}`);
 }
 
-console.log('[quota-resilience] scoped listeners, low-frequency watchdog, lean CW sync and degraded-mode UI validated');
+console.log('[quota-resilience] scoped listeners, optimized motoboy login, low-frequency watchdog, lean CW sync and degraded-mode UI validated');
