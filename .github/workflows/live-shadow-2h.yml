@@ -1,0 +1,97 @@
+name: Playwright - Operação sombra ao vivo 2h
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/live-shadow-2h.yml'
+      - 'tests/e2e/live-shadow-day.spec.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rotafacil-e2e-shared-firestore
+  cancel-in-progress: false
+
+env:
+  CI: 'true'
+  E2E_BASE_URL: https://rotafacil-app-ruan.onrender.com
+  LIVE_TEST_DURATION_MINUTES: '120'
+  LIVE_TEST_DRIVER_COUNT: '20'
+  LIVE_TEST_GPS_INTERVAL_MS: '60000'
+  LIVE_TEST_TICK_MS: '15000'
+  LIVE_TEST_MAX_ORDERS: '60'
+
+jobs:
+  live-shadow:
+    name: 2h - pedidos reais + 20 motoboys sombra
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Playwright runner
+        run: npm install --no-save --no-package-lock @playwright/test@1.63.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Wake up Render
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            code=$(curl -sS --max-time 20 -o /tmp/health.json -w '%{http_code}' "$E2E_BASE_URL/api/health" || true)
+            if [ "$code" = "200" ]; then
+              cat /tmp/health.json
+              echo
+              echo "Rota Fácil está saudável; iniciando operação sombra."
+              exit 0
+            fi
+            echo "Tentativa ${i}/30: HTTP ${code}"
+            sleep 10
+          done
+          echo "Rota Fácil não respondeu saudável a tempo."
+          exit 1
+
+      - name: Run live shadow operation for 2 hours
+        run: npx playwright test tests/e2e/live-shadow-day.spec.ts --grep "Operação sombra ao vivo por 2h"
+
+      - name: Publish live test summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## Operação sombra ao vivo - 2h" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- duração planejada: 120 minutos" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 20 motoboys fake" >> "$GITHUB_STEP_SUMMARY"
+          echo "- pedidos reais do Cardápio Web usados somente como molde" >> "$GITHUB_STEP_SUMMARY"
+          echo "- pedidos originais nunca são alterados" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GPS sombra a cada 60 segundos" >> "$GITHUB_STEP_SUMMARY"
+          echo "- fila FIFO, despacho, entrega, retorno e reentrada na fila" >> "$GITHUB_STEP_SUMMARY"
+          echo "- cleanup somente do namespace PW LIVE" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-shadow-2h-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
