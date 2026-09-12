@@ -3,8 +3,6 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import cardapioWebWebhook from './api/webhook-cardapio-web';
 import syncCardapioWeb from './api/sync-cardapio-web';
-import debugCardapioWebCourier from './api/debug-cardapio-web-courier';
-import seedHopeTestMotoboys from './api/seed-hope-test-motoboys';
 
 async function startServer() {
   const app = express();
@@ -17,14 +15,11 @@ async function startServer() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
-  // O servidor reutiliza exatamente os mesmos handlers usados na Vercel.
-  // Assim nao existe uma segunda implementacao com tokens, regras ou status divergentes.
   app.all('/api/webhook/cardapio-web/:storeId', async (req, res) => {
     req.query.storeId = req.params.storeId;
     await cardapioWebWebhook(req, res);
   });
 
-  // Compatibilidade temporaria com URLs antigas que enviam storeId/branch por query string.
   app.all('/api/webhook-cardapio-web', async (req, res) => {
     await cardapioWebWebhook(req, res);
   });
@@ -33,22 +28,19 @@ async function startServer() {
     await syncCardapioWeb(req, res);
   });
 
-  // O dashboard usa este caminho no auto-sync. Mantemos os dois aliases apontando
-  // para o mesmo handler, sem qualquer escrita no Cardápio Web.
   app.all('/api/cardapio-web/sync', async (req, res) => {
     await syncCardapioWeb(req, res);
   });
 
-  // Diagnóstico isolado e SOMENTE-LEITURA da API Partner do Cardápio Web.
-  // Não altera pedido, entregador ou status; apenas testa endpoints GET e mostra a forma do payload.
-  app.get('/api/cardapio-web/debug-courier', async (req, res) => {
-    await debugCardapioWebCourier(req, res);
+  // Older builds may still attempt these endpoints. They no longer perform any
+  // Firestore scan/write; return success so a stale browser tab cannot create a 404 loop.
+  app.all('/api/reconcile-cardapio-web-couriers', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(204).end();
   });
-
-  // Temporário: cria as 5 contas controladas para o teste operacional da Hope.
-  // Remover após o seed ser executado.
-  app.get('/api/test/seed-hope-motoboys', async (req, res) => {
-    await seedHopeTestMotoboys(req, res);
+  app.all('/api/reconcile-cardapio-web-completed', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(204).end();
   });
 
   if (process.env.NODE_ENV === 'production') {
