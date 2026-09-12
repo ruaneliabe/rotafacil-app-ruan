@@ -1,40 +1,48 @@
 import fs from 'node:fs';
 
-const WEBHOOK = 'api/webhook-cardapio-web.ts';
-const SYNC = 'api/sync-cardapio-web.ts';
+const files = [
+  'firebase-applet-config.json',
+  'src/lib/firebase.ts',
+  'api/webhook-cardapio-web.ts',
+  'api/sync-cardapio-web.ts',
+  'api/cardapio-web-shadow-sync.ts',
+  'api/reconcile-cardapio-web-completed.ts',
+  'api/reconcile-cardapio-web-couriers.ts',
+];
 
-const defaultProject = 'rotafacil-app-oficial';
-const defaultConfig = {
-  projectId: defaultProject,
-  appId: '1:846726683671:web:d0b5ddc701815609be9052',
-  apiKey: 'AIzaSyD-XkOCjvoGt3VZRfLQyH5Dg1S7P2Ex2-8',
-  authDomain: 'rotafacil-app-oficial.firebaseapp.com',
-  storageBucket: 'rotafacil-app-oficial.firebasestorage.app',
-  messagingSenderId: '846726683671',
-};
+const legacyMarkers = [
+  'gentle-country',
+  'rotafcildelivery',
+  'ai-studio-rotafcildelivery',
+];
 
-function patchWebhook() {
-  let source = fs.readFileSync(WEBHOOK, 'utf8');
-  source = source.replace(/const FIREBASE_CONFIG = \{[\s\S]*?\n\};/, `const FIREBASE_CONFIG = {\n  projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || ${JSON.stringify(defaultConfig.projectId)},\n  appId: process.env.VITE_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID || ${JSON.stringify(defaultConfig.appId)},\n  apiKey: process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || ${JSON.stringify(defaultConfig.apiKey)},\n  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN || ${JSON.stringify(defaultConfig.authDomain)},\n  firestoreDatabaseId: process.env.VITE_FIRESTORE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || '(default)',\n  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET || ${JSON.stringify(defaultConfig.storageBucket)},\n  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_MESSAGING_SENDER_ID || ${JSON.stringify(defaultConfig.messagingSenderId)},\n};`);
-  if (!source.includes("firestoreDatabaseId: process.env.VITE_FIRESTORE_DATABASE_ID")) {
-    throw new Error('[firebase-migration] webhook config patch failed');
+for (const file of files) {
+  if (!fs.existsSync(file)) continue;
+  const source = fs.readFileSync(file, 'utf8');
+  const marker = legacyMarkers.find((item) => source.includes(item));
+  if (marker) {
+    throw new Error(`[firebase-migration] legacy Firebase marker "${marker}" found in ${file}`);
   }
-  fs.writeFileSync(WEBHOOK, source);
 }
 
-function patchSync() {
-  let source = fs.readFileSync(SYNC, 'utf8');
-  source = source.replace("projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'rotafcildelivery',", "projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'rotafacil-app-oficial',");
-  source = source.replace(
-    /const dbId = process\.env\.VITE_FIRESTORE_DATABASE_ID \|\| process\.env\.FIRESTORE_DATABASE_ID \|\| '[^']+';\n  return getFirestore\(app, dbId\);/,
-    "const dbId = process.env.VITE_FIRESTORE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || '(default)';\n  return dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);"
-  );
-  if (!source.includes("dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app)")) {
-    throw new Error('[firebase-migration] sync default database patch failed');
-  }
-  fs.writeFileSync(SYNC, source);
+const frontendConfig = JSON.parse(fs.readFileSync('firebase-applet-config.json', 'utf8'));
+if (frontendConfig.projectId !== 'rotafacil-app-oficial') {
+  throw new Error(`[firebase-migration] frontend projectId must be rotafacil-app-oficial, got ${frontendConfig.projectId}`);
+}
+if ((frontendConfig.firestoreDatabaseId || '(default)') !== '(default)') {
+  throw new Error(`[firebase-migration] frontend Firestore database must be (default), got ${frontendConfig.firestoreDatabaseId}`);
 }
 
-patchWebhook();
-patchSync();
-console.log('[firebase-migration] frontend, webhook and sync aligned with rotafacil-app-oficial');
+const webhook = fs.readFileSync('api/webhook-cardapio-web.ts', 'utf8');
+const sync = fs.readFileSync('api/sync-cardapio-web.ts', 'utf8');
+
+for (const [label, source] of [['webhook', webhook], ['sync', sync]]) {
+  if (!source.includes('rotafacil-app-oficial')) {
+    throw new Error(`[firebase-migration] ${label} is not pinned to rotafacil-app-oficial`);
+  }
+  if (!source.includes("'(default)'")) {
+    throw new Error(`[firebase-migration] ${label} is not configured for Firestore (default)`);
+  }
+}
+
+console.log('[firebase-migration] validated: no legacy Firebase references; frontend/webhook/sync use rotafacil-app-oficial/(default)');
