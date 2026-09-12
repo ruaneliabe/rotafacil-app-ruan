@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { deleteDoc, doc, getFirestore, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, getFirestore, setDoc } from 'firebase/firestore';
 
 const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
 const fileConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -89,6 +89,20 @@ export async function seedPwaFlowFixture() {
       isPlaywrightTest: true,
     }, { merge: true });
   }
+}
+
+export async function readTestDriver() {
+  const snap = await getDoc(doc(db, 'motoboys', DRIVER_ID));
+  return snap.exists() ? { id: snap.id, ...snap.data() } as any : null;
+}
+
+export async function readTestOrder(id: string) {
+  const snap = await getDoc(doc(db, 'orders', id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } as any : null;
+}
+
+export async function readTestOrders() {
+  return Promise.all(ORDER_IDS.map(readTestOrder));
 }
 
 export async function cleanupPwaFlowFixture() {
