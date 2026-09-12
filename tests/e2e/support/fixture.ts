@@ -10,6 +10,7 @@ import {
   getFirestore,
   setDoc,
 } from 'firebase/firestore';
+import { hashPassword } from '../../../src/lib/passwordSecurity';
 
 const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
 const fileConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -63,19 +64,24 @@ export async function cleanupFullFlowData() {
 
 export async function seedFullFlowIdentities() {
   const now = Date.now();
+  const storeCredential = await hashPassword(STORE_PASS);
+
   await setDoc(doc(db, 'stores', STORE_USER), {
     id: STORE_USER,
     username: STORE_USER,
-    password: STORE_PASS,
+    passwordHash: storeCredential.hash,
+    passwordSalt: storeCredential.salt,
     storeName: 'PLAYWRIGHT FULL FLOW',
     createdAt: now,
   }, { merge: true });
 
   for (const [index, driver] of DRIVERS.entries()) {
+    const credential = await hashPassword(driver.password);
     await setDoc(doc(db, 'motoboys', driver.id), {
       id: driver.id,
       username: driver.username,
-      password: driver.password,
+      passwordHash: credential.hash,
+      passwordSalt: credential.salt,
       name: driver.name,
       phone: `4799999200${index + 1}`,
       status: 'returning_to_store',
