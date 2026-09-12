@@ -3,7 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import cardapioWebWebhook from './api/webhook-cardapio-web';
 import syncCardapioWeb from './api/sync-cardapio-web';
-import seedFlowTest from './api/seed-flow-test';
+import seedFlowTest, { seedFlowTestOrders } from './api/seed-flow-test';
 
 async function startServer() {
   const app = express();
@@ -63,6 +63,11 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Rota Facil server running on http://localhost:${PORT}`);
   });
+
+  // Temporary, idempotent pilot seed: creates exactly six TESTE orders once.
+  seedFlowTestOrders()
+    .then((result) => console.log(`[flow-test-seed] ${result.alreadyCreated ? 'already present' : 'created'}: ${result.count} orders`))
+    .catch((error) => console.error('[flow-test-seed] failed:', error));
 }
 
 startServer().catch((error) => {
