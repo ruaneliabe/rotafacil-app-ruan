@@ -1,23 +1,23 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 
 const STORE_PILOT_RESET_VERSION = 'zeroed_store_pilot_2026_08_17_v10';
+const FIREBASE_APP_NAME = 'rotafacil-cardapio-web';
 
 const FIREBASE_CONFIG = {
-  projectId: "gentle-country-q2l12",
-  appId: "1:1093185971024:web:0d69aec4e35fcbaae24255",
-  apiKey: "AIzaSyCvh0-Qr7HWJSX3NozYqHyfBY9ZaNEAejg",
-  authDomain: "gentle-country-q2l12.firebaseapp.com",
-  firestoreDatabaseId: "ai-studio-rotafcildelivery-495fd3be-5974-4310-960a-26a794361d3b",
-  storageBucket: "gentle-country-q2l12.firebasestorage.app",
-  messagingSenderId: "1093185971024",
+  projectId: 'rotafacil-app-oficial',
+  appId: '1:846726683671:web:d0b5ddc701815609be9052',
+  apiKey: 'AIzaSyD-XkOCjvoGt3VZRfLQyH5Dg1S7P2Ex2-8',
+  authDomain: 'rotafacil-app-oficial.firebaseapp.com',
+  firestoreDatabaseId: '(default)',
+  storageBucket: 'rotafacil-app-oficial.firebasestorage.app',
+  messagingSenderId: '846726683671',
 };
 
 function getDbInstance() {
-  const fbApp = getApps().length > 0 ? getApp() : initializeApp(FIREBASE_CONFIG);
-  return FIREBASE_CONFIG.firestoreDatabaseId && FIREBASE_CONFIG.firestoreDatabaseId !== '(default)'
-    ? getFirestore(fbApp, FIREBASE_CONFIG.firestoreDatabaseId)
-    : getFirestore(fbApp);
+  const fbApp = getApps().find((app) => app.name === FIREBASE_APP_NAME)
+    || initializeApp(FIREBASE_CONFIG, FIREBASE_APP_NAME);
+  return getFirestore(fbApp);
 }
 
 const BLUMENAU_NEIGHBORHOOD_COORDS: Record<string, { lat: number; lng: number }> = {
