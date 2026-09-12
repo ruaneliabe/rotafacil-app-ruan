@@ -9,6 +9,10 @@ on:
       suite_name:
         required: true
         type: string
+      test_file:
+        required: false
+        type: string
+        default: 'tests/e2e/nightly-battery.spec.ts'
 
 permissions:
   contents: read
@@ -92,7 +96,7 @@ jobs:
           exit 1
 
       - name: Run nightly Playwright suite
-        run: npx playwright test tests/e2e/nightly-battery.spec.ts --grep "${{ inputs.grep }}"
+        run: npx playwright test "${{ inputs.test_file }}" --grep "${{ inputs.grep }}"
 
       - name: Publish summary
         if: always()
@@ -100,6 +104,7 @@ jobs:
         run: |
           echo "## ${{ inputs.suite_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Arquivo: \`${{ inputs.test_file }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Suite: \`${{ inputs.grep }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Ambiente: $E2E_BASE_URL" >> "$GITHUB_STEP_SUMMARY"
