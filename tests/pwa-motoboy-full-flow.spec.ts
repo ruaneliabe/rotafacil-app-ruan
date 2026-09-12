@@ -4,7 +4,6 @@ import {
   cleanupPwaFlowFixture,
   DRIVER_PASS,
   DRIVER_USER,
-  ORDER_IDS,
   readTestDriver,
   readTestOrders,
   seedPwaFlowFixture,
@@ -129,8 +128,8 @@ test.describe('Rota Fácil PWA - fluxo completo do entregador com GPS móvel', (
     expect(completed).toBe(2);
 
     await expect.poll(async () => {
-      const statuses = (await Promise.all(ORDER_IDS.map(async (id) => (await readTestOrders()).find((o) => o?.id === id)?.status)));
-      return statuses;
+      const orders = await readTestOrders();
+      return orders.map((o) => o?.status);
     }, { timeout: 30_000 }).toEqual(['delivered', 'delivered']);
 
     await expect.poll(async () => (await readTestDriver())?.status, { timeout: 30_000 }).toBe('returning_to_store');
