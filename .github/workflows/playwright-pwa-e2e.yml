@@ -1,0 +1,97 @@
+name: Playwright PWA GPS E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_lat:
+        description: "Latitude inicial X"
+        required: false
+        default: "-26.9204"
+      start_lng:
+        description: "Longitude inicial X"
+        required: false
+        default: "-49.0982"
+      end_lat:
+        description: "Latitude final Y"
+        required: false
+        default: "-26.9176"
+      end_lng:
+        description: "Longitude final Y"
+        required: false
+        default: "-49.0927"
+      gps_duration_ms:
+        description: "Duração do deslocamento GPS em ms"
+        required: false
+        default: "60000"
+  push:
+    branches: [main]
+    paths:
+      - 'tests/**'
+      - 'playwright.config.ts'
+      - 'package.json'
+      - '.github/workflows/playwright-pwa-e2e.yml'
+
+concurrency:
+  group: playwright-pwa-e2e
+  cancel-in-progress: false
+
+jobs:
+  pwa-gps-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      E2E_BASE_URL: https://rotafacil-app-ruan.onrender.com
+      E2E_GPS_INTERVAL_MS: '5000'
+      E2E_START_LAT: ${{ inputs.start_lat || '-26.9204' }}
+      E2E_START_LNG: ${{ inputs.start_lng || '-49.0982' }}
+      E2E_END_LAT: ${{ inputs.end_lat || '-26.9176' }}
+      E2E_END_LNG: ${{ inputs.end_lng || '-49.0927' }}
+      E2E_GPS_DURATION_MS: ${{ inputs.gps_duration_ms || '60000' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # package-lock ainda pode estar defasado enquanto o piloto evolui; npm install
+      # evita quebrar o runner por isso e instala a versão declarada do Playwright.
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for Render
+        shell: bash
+        run: |
+          set -e
+          for i in {1..40}; do
+            code=$(curl -sS -o /tmp/health.json -w '%{http_code}' "$E2E_BASE_URL/api/health" || true)
+            if [ "$code" = "200" ]; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "Render ainda não respondeu 200 (tentativa $i/40, HTTP $code). Aguardando 10s..."
+            sleep 10
+          done
+          echo "Render não ficou disponível a tempo."
+          exit 1
+
+      - name: Run full PWA + GPS flow
+        run: npm run test:e2e:pwa
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-pwa-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
