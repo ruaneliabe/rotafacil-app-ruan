@@ -2,6 +2,11 @@ name: Playwright - Queda de conexão e recuperação
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/nightly-connectivity-recovery.yml'
   schedule:
     - cron: '45 8 * * *'
 
