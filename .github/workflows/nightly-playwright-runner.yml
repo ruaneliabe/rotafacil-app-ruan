@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
 
       - name: Setup Node 20
         uses: actions/setup-node@v5
@@ -47,20 +49,37 @@ jobs:
       - name: Apply nightly mobile assertion patch
         run: node scripts/patch-nightly-battery-ci.mjs
 
-      - name: Wake up Render and wait for deployed commit
+      - name: Wake up Render and validate deployment
         shell: bash
         run: |
           set -euo pipefail
-          echo "Esperando o Render publicar exatamente o commit ${GITHUB_SHA}"
+
+          workflow_only=false
+          changed_files="$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" || true)"
+          if [ -n "$changed_files" ] && ! printf '%s\n' "$changed_files" | grep -Ev '^\.github/workflows/' >/dev/null; then
+            workflow_only=true
+          fi
+
+          echo "Commit do teste: ${GITHUB_SHA}"
+          echo "Alteração somente de workflow: ${workflow_only}"
+
           for i in $(seq 1 45); do
             code=$(curl -sS --max-time 20 -o /tmp/health.json -w '%{http_code}' "$E2E_BASE_URL/api/health" || true)
             if [ "$code" = "200" ]; then
               deployed=$(node -e "const fs=require('fs'); try{const x=JSON.parse(fs.readFileSync('/tmp/health.json','utf8')); process.stdout.write(String(x.commit||''));}catch{}")
               echo "Tentativa ${i}/45: HTTP 200, commit publicado=${deployed:-desconhecido}"
+
               if [ "$deployed" = "$GITHUB_SHA" ]; then
                 cat /tmp/health.json
                 echo
-                echo "Render está no commit correto."
+                echo "Render está no commit exato do teste."
+                exit 0
+              fi
+
+              if [ "$workflow_only" = "true" ] && [ -n "$deployed" ]; then
+                cat /tmp/health.json
+                echo
+                echo "Commit difere porque este push altera apenas GitHub Actions; aplicação publicada está saudável."
                 exit 0
               fi
             else
@@ -68,7 +87,8 @@ jobs:
             fi
             sleep 10
           done
-          echo "Render não publicou o commit ${GITHUB_SHA} a tempo."
+
+          echo "Render não ficou pronto para o commit ${GITHUB_SHA} a tempo."
           exit 1
 
       - name: Run nightly Playwright suite
