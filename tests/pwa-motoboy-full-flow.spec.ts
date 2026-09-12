@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { moveGps } from './helpers/gps';
 import {
   cleanupPwaFlowFixture,
@@ -29,6 +29,38 @@ const GPS_DURATION_MS = num('E2E_GPS_DURATION_MS', 60_000);
 
 const closeTo = (a: number, b: number, tolerance = 0.0002) => Math.abs(a - b) <= tolerance;
 
+async function readBrowserGpsSafely(page: Page) {
+  if (page.isClosed()) return null;
+
+  return page.evaluate(() => new Promise<{ latitude: number; longitude: number } | null>((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+
+    let settled = false;
+    const finish = (value: { latitude: number; longitude: number } | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    const timer = window.setTimeout(() => finish(null), 4000);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        window.clearTimeout(timer);
+        finish({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+      },
+      () => {
+        window.clearTimeout(timer);
+        finish(null);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 3000 },
+    );
+  })).catch(() => null);
+}
+
 test.describe('Rota Fácil PWA - fluxo completo do entregador com GPS móvel', () => {
   test.beforeEach(async () => {
     await seedPwaFlowFixture();
@@ -52,7 +84,7 @@ test.describe('Rota Fácil PWA - fluxo completo do entregador com GPS móvel', (
     // Confirma que estamos realmente exercitando a versão PWA.
     await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.json');
     await expect.poll(async () => {
-      return page.evaluate(async () => Boolean(await navigator.serviceWorker?.getRegistration()));
+      return page.evaluate(async () => Boolean(await navigator.serviceWorker?.getRegistration())).catch(() => false);
     }, { timeout: 30_000 }).toBe(true);
 
     // Login real do PWA com um motoboy isolado criado só para o teste.
@@ -90,16 +122,18 @@ test.describe('Rota Fácil PWA - fluxo completo do entregador com GPS móvel', (
       },
     });
 
-    const browserGps = await page.evaluate(() => new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-        reject,
-        { enableHighAccuracy: true, maximumAge: 0 },
-      );
-    }));
-
-    expect(closeTo(browserGps.latitude, END.latitude)).toBe(true);
-    expect(closeTo(browserGps.longitude, END.longitude)).toBe(true);
+    // O PWA pode navegar/reidratar enquanto o GPS está sendo alterado. A leitura anterior
+    // podia ficar pendurada até o timeout de 10 minutos e morrer com "Execution context was destroyed".
+    // Agora cada tentativa tem timeout próprio, tolera navegação e repete até a página estabilizar.
+    await expect.poll(async () => {
+      const browserGps = await readBrowserGpsSafely(page);
+      if (!browserGps) return false;
+      return closeTo(browserGps.latitude, END.latitude) && closeTo(browserGps.longitude, END.longitude);
+    }, {
+      timeout: 30_000,
+      intervals: [500, 1000, 2000],
+      message: 'O navegador deve receber a posição GPS final Y mesmo se o PWA navegar/reidratar',
+    }).toBe(true);
 
     // Como o app grava no Firestore no máximo a cada 45s, não exigimos que a posição
     // em nuvem seja exatamente Y; exigimos que ela tenha realmente avançado a partir de X.
