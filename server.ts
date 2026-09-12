@@ -12,7 +12,11 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true }));
 
   app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', time: new Date().toISOString() });
+    res.json({
+      status: 'ok',
+      time: new Date().toISOString(),
+      commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || null,
+    });
   });
 
   app.all('/api/webhook/cardapio-web/:storeId', async (req, res) => {
