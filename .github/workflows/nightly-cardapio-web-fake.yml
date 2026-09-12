@@ -14,6 +14,12 @@ on:
       - 'api/cardapio-web-shadow-sync.ts'
       - 'api/reconcile-cardapio-web-completed.ts'
       - 'api/reconcile-cardapio-web-couriers.ts'
+      - 'scripts/apply-cardapio-web-import-recovery.mjs'
+      - 'scripts/apply-cardapio-web-today-backfill.mjs'
+      - 'scripts/apply-cardapio-web-recent-backfill.mjs'
+      - 'scripts/apply-firebase-project-migration.mjs'
+      - 'scripts/apply-firestore-quota-resilience.mjs'
+      - 'scripts/apply-order-subscription-session-fallback.mjs'
   schedule:
     # 04:35 America/Sao_Paulo (UTC-3)
     - cron: '35 7 * * *'
