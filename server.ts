@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import cardapioWebWebhook from './api/webhook-cardapio-web';
 import syncCardapioWeb from './api/sync-cardapio-web';
 import debugCardapioWebCourier from './api/debug-cardapio-web-courier';
+import seedHopeTestMotoboys from './api/seed-hope-test-motoboys';
 
 async function startServer() {
   const app = express();
@@ -42,6 +43,12 @@ async function startServer() {
   // Não altera pedido, entregador ou status; apenas testa endpoints GET e mostra a forma do payload.
   app.get('/api/cardapio-web/debug-courier', async (req, res) => {
     await debugCardapioWebCourier(req, res);
+  });
+
+  // Temporário: cria as 5 contas controladas para o teste operacional da Hope.
+  // Remover após o seed ser executado.
+  app.get('/api/test/seed-hope-motoboys', async (req, res) => {
+    await seedHopeTestMotoboys(req, res);
   });
 
   if (process.env.NODE_ENV === 'production') {
