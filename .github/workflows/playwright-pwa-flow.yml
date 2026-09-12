@@ -1,0 +1,76 @@
+name: Playwright PWA GPS Flow
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: URL do Rota Fácil a testar
+        required: true
+        default: https://rotafacil-app-ruan.onrender.com
+      start_lat:
+        description: Latitude inicial X
+        required: true
+        default: '-26.9204'
+      start_lng:
+        description: Longitude inicial X
+        required: true
+        default: '-49.0982'
+      end_lat:
+        description: Latitude final Y
+        required: true
+        default: '-26.9176'
+      end_lng:
+        description: Longitude final Y
+        required: true
+        default: '-49.0927'
+      gps_interval_ms:
+        description: Intervalo entre posições GPS em ms
+        required: true
+        default: '5000'
+      gps_duration_ms:
+        description: Duração total do deslocamento em ms
+        required: true
+        default: '30000'
+
+jobs:
+  pwa-gps-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      E2E_BASE_URL: ${{ inputs.base_url }}
+      E2E_START_LAT: ${{ inputs.start_lat }}
+      E2E_START_LNG: ${{ inputs.start_lng }}
+      E2E_END_LAT: ${{ inputs.end_lat }}
+      E2E_END_LNG: ${{ inputs.end_lng }}
+      E2E_GPS_INTERVAL_MS: ${{ inputs.gps_interval_ms }}
+      E2E_GPS_DURATION_MS: ${{ inputs.gps_duration_ms }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run PWA GPS flow
+        run: npm run test:e2e:pwa
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-pwa-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
