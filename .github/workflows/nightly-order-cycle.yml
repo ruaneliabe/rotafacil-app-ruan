@@ -2,6 +2,11 @@ name: Playwright - Pedidos e ciclo de entrega
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/nightly-order-cycle.yml'
   schedule:
     - cron: '0 8 * * *'
 
