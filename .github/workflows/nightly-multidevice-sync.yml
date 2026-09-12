@@ -16,6 +16,7 @@ on:
 permissions:
   contents: read
 
+# Diagnóstico explícito: valida Firestore -> regra do turno -> UI.
 jobs:
   multidevice:
     uses: ./.github/workflows/nightly-playwright-runner.yml
