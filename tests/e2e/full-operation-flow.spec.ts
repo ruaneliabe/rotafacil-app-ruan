@@ -11,6 +11,7 @@ import {
   STORE_USER,
   waitForOrderCount,
 } from './support/fixture';
+import { prepareOperationalShiftForTest, restoreOperationalShift } from './support/shift';
 
 const numberEnv = (name: string, fallback: number) => {
   const parsed = Number(process.env[name]);
@@ -72,23 +73,30 @@ async function selectLooseOrder(page: Page, clientName: string) {
 async function buildRoute(page: Page, clientNames: string[]) {
   for (const name of clientNames) await selectLooseOrder(page, name);
   const label = clientNames.length === 1 ? /Montar saída/i : /Montar rota/i;
-  const button = page.getByRole('button', { name: label }).filter({ visible: true }).last();
+  const buttons = page.getByRole('button', { name: label });
+  const button = buttons.last();
+  await expect(button).toBeVisible({ timeout: 10_000 });
   await expect(button).toBeEnabled({ timeout: 10_000 });
   await button.click();
   await page.waitForTimeout(500);
 }
 
 async function markOrderReady(page: Page, clientName: string) {
+  const readyName = /Pronto(?: p\/ Entrega| ➔)?$/i;
   const row = page.locator('div').filter({ hasText: clientName }).filter({
-    has: page.getByRole('button', { name: /Pronto(?: p\/ Entrega| ➔)?$/i }),
+    has: page.getByRole('button', { name: readyName }),
   }).last();
   await expect(row).toBeVisible({ timeout: 30_000 });
-  const ready = row.getByRole('button', { name: /Pronto(?: p\/ Entrega| ➔)?$/i }).first();
-  await ready.click();
+  await row.getByRole('button', { name: readyName }).first().click();
 }
 
 async function loginDriver(page: Page, driver: (typeof DRIVERS)[number]) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.json');
+  await expect.poll(async () => page.evaluate(async () => Boolean(await navigator.serviceWorker?.getRegistration())).catch(() => false), {
+    timeout: 30_000,
+  }).toBe(true);
+
   await page.getByRole('button', { name: /^Entregador$/i }).click();
   await page.locator('input[name="driver-user"]').fill(driver.username);
   await page.locator('input[name="driver-pass"]').fill(driver.password);
@@ -124,10 +132,8 @@ async function finishDriverRoute(
 
   let current: Point = STORE_LOCATION;
   for (const order of assigned) {
-    const target = {
-      latitude: Number(order.lat),
-      longitude: Number(order.lng),
-    };
+    const target = { latitude: Number(order.lat), longitude: Number(order.lng) };
+    expect(Number.isFinite(target.latitude) && Number.isFinite(target.longitude), `GPS inválido para ${order.clientName}`).toBe(true);
 
     await moveGps(context, current, target, `${driverId} -> ${order.clientName}`);
     current = target;
@@ -165,6 +171,7 @@ async function finishDriverRoute(
 test('fluxo completo: loja + 8 pedidos + 3 rotas + fila + 3 motoboys + GPS + retorno', async ({ browser }) => {
   test.setTimeout(12 * 60 * 1000);
   await cleanupFullFlowData();
+  await prepareOperationalShiftForTest();
   await seedFullFlowIdentities();
 
   const contexts: BrowserContext[] = [];
@@ -183,9 +190,7 @@ test('fluxo completo: loja + 8 pedidos + 3 rotas + fila + 3 motoboys + GPS + ret
 
     await loginStore(store);
 
-    for (let i = 0; i < ORDER_INPUTS.length; i += 1) {
-      await createOrder(store, ORDER_INPUTS[i], i);
-    }
+    for (let i = 0; i < ORDER_INPUTS.length; i += 1) await createOrder(store, ORDER_INPUTS[i], i);
 
     const created = await waitForOrderCount(8);
     expect(new Set(created.map((order) => order.id)).size).toBe(8);
@@ -271,5 +276,6 @@ test('fluxo completo: loja + 8 pedidos + 3 rotas + fila + 3 motoboys + GPS + ret
   } finally {
     await Promise.allSettled(contexts.map((context) => context.close()));
     await cleanupFullFlowData();
+    await restoreOperationalShift();
   }
 });
