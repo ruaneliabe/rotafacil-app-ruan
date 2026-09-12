@@ -57,6 +57,9 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Apply CI GPS resilience patch
+        run: node scripts/patch-playwright-gps.mjs
+
       - name: Wake up and validate Render
         shell: bash
         run: |
