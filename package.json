@@ -13,7 +13,7 @@
     "preview": "vite preview --port=3000 --host=0.0.0.0",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:e2e:pwa": "playwright test tests/pwa-motoboy-full-flow.spec.ts"
+    "test:e2e:full": "playwright test tests/e2e/full-operation-flow.spec.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
