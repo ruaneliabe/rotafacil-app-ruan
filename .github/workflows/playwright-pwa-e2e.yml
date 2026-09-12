@@ -26,15 +26,19 @@ on:
         required: false
         default: "60000"
 
+permissions:
+  contents: read
+
 concurrency:
-  group: playwright-pwa-e2e
+  group: playwright-pwa-e2e-main
   cancel-in-progress: true
 
 jobs:
   pwa-gps-flow:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
+      CI: 'true'
       E2E_BASE_URL: https://rotafacil-app-ruan.onrender.com
       E2E_GPS_INTERVAL_MS: '5000'
       E2E_START_LAT: ${{ github.event.inputs.start_lat || '-26.9204' }}
@@ -42,37 +46,51 @@ jobs:
       E2E_END_LAT: ${{ github.event.inputs.end_lat || '-26.9176' }}
       E2E_END_LNG: ${{ github.event.inputs.end_lng || '-49.0927' }}
       E2E_GPS_DURATION_MS: ${{ github.event.inputs.gps_duration_ms || '60000' }}
+      EXPECTED_COMMIT: ${{ github.sha }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Wait for Render
+      - name: Wait for the exact commit on Render
         shell: bash
         run: |
-          set -e
-          for i in {1..40}; do
-            code=$(curl -sS -o /tmp/health.json -w '%{http_code}' "$E2E_BASE_URL/api/health" || true)
+          set -euo pipefail
+          echo "Esperando Render publicar o commit ${EXPECTED_COMMIT}"
+
+          for i in $(seq 1 90); do
+            code=$(curl -sS --max-time 15 -o /tmp/health.json -w '%{http_code}' "$E2E_BASE_URL/api/health" || true)
             if [ "$code" = "200" ]; then
               cat /tmp/health.json
-              exit 0
+              deployed=$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/health.json','utf8'));process.stdout.write(String(x.commit||''));")
+
+              if [ "$deployed" = "$EXPECTED_COMMIT" ]; then
+                echo "Render está no commit correto. Iniciando Playwright."
+                exit 0
+              fi
+
+              echo "Render ainda está em ${deployed:-commit-nao-informado}; esperado ${EXPECTED_COMMIT}."
+            else
+              echo "Render ainda não respondeu 200 (HTTP ${code})."
             fi
-            echo "Render ainda não respondeu 200 (tentativa $i/40, HTTP $code). Aguardando 10s..."
+
+            echo "Tentativa $i/90; aguardando 10s..."
             sleep 10
           done
-          echo "Render não ficou disponível a tempo."
+
+          echo "Render não publicou o commit esperado dentro do prazo."
           exit 1
 
       - name: Run full PWA + GPS flow
