@@ -1,8 +1,7 @@
-const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
-const CARDAPIO_WEB_HOPE_BURGER_TOKEN = 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
+const CARDAPIO_WEB_HOPE_PIZZA_TOKEN = process.env.CARDAPIO_WEB_HOPE_PIZZA_TOKEN || 'ed3bxFMKCQGtaqbTVJrDy6ZqfM7z2hEFLaRmQBo3tMW4ZkGuxTmBHAweBTrx';
+const CARDAPIO_WEB_HOPE_BURGER_TOKEN = process.env.CARDAPIO_WEB_HOPE_BURGER_TOKEN || 'ddoFwAw7TbrhTcV1CzeR1bqZAegsjZyzescnjr9QfR2dBEdo6QZNMNkbSeYx';
 
 const BASE = 'https://integracao.cardapioweb.com/api/partner/v1';
-
 const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase();
 
 function safeActor(value: any) {
@@ -13,8 +12,8 @@ function safeActor(value: any) {
   if (typeof value !== 'object') return { type: typeof value };
   return {
     type: Array.isArray(value) ? 'array' : 'object',
-    keys: Object.keys(value).sort(),
-    id: value?.id ?? value?.uuid ?? value?.code ?? null,
+    keys: Object.keys(value).sort().slice(0, 80),
+    id: value?.id ?? value?.uuid ?? value?.code ?? value?.driver_id ?? value?.courier_id ?? null,
     name: value?.name ?? value?.nome ?? value?.full_name ?? value?.display_name ?? value?.username ?? null,
   };
 }
@@ -25,25 +24,23 @@ function safeShape(payload: any) {
     return {
       type: 'array',
       length: payload.length,
-      firstItemKeys: payload[0] && typeof payload[0] === 'object' ? Object.keys(payload[0]).sort() : [],
+      firstItemKeys: payload[0] && typeof payload[0] === 'object' ? Object.keys(payload[0]).sort().slice(0, 80) : [],
+      firstItemActor: payload[0] && typeof payload[0] === 'object' ? safeActor(payload[0]) : null,
     };
   }
-  if (typeof payload !== 'object') return { type: typeof payload, value: String(payload).slice(0, 120) };
+  if (typeof payload !== 'object') return { type: typeof payload, value: String(payload).slice(0, 160) };
 
-  const interesting = /(driver|courier|motoboy|entregador|deliver|delivery|rider|logistic|dispatch|route|shipping|user|assigned|responsible)/i;
+  const interesting = /(driver|courier|motoboy|entregador|deliver|delivery|rider|logistic|dispatch|route|shipping|user|assigned|responsible|fleet|carrier|pickup|catch|transport)/i;
   const hits: any[] = [];
   const seen = new Set<any>();
   const walk = (node: any, base = '', depth = 0) => {
-    if (!node || typeof node !== 'object' || depth > 6 || seen.has(node)) return;
+    if (!node || typeof node !== 'object' || depth > 7 || seen.has(node)) return;
     seen.add(node);
     for (const [key, value] of Object.entries(node)) {
       const path = base ? `${base}.${key}` : key;
       if (interesting.test(key)) {
-        if (value && typeof value === 'object') {
-          hits.push({ path, ...safeActor(value) });
-        } else {
-          hits.push({ path, type: typeof value, value: String(value ?? '').slice(0, 160) });
-        }
+        if (value && typeof value === 'object') hits.push({ path, ...safeActor(value) });
+        else hits.push({ path, type: typeof value, value: String(value ?? '').slice(0, 160) });
       }
       if (value && typeof value === 'object') walk(value, path, depth + 1);
     }
@@ -52,10 +49,9 @@ function safeShape(payload: any) {
 
   return {
     type: 'object',
-    keys: Object.keys(payload).sort(),
+    keys: Object.keys(payload).sort().slice(0, 100),
     deliveredBy: safeActor(payload?.delivered_by),
-    user: safeActor(payload?.user),
-    courierRelated: hits,
+    courierRelated: hits.slice(0, 100),
   };
 }
 
@@ -71,7 +67,14 @@ async function getJson(url: string, token: string) {
 }
 
 function pickActive(list: any[]) {
-  return list.filter((o: any) => !['closed','canceled','cancelled'].includes(normalize(o?.status))).slice(0, 3);
+  return list.filter((o: any) => !['closed','canceled','cancelled'].includes(normalize(o?.status))).slice(0, 2);
+}
+
+function isUseful(probe: any) {
+  if (!probe?.ok || probe?.payload == null) return false;
+  if (Array.isArray(probe.payload)) return probe.payload.length > 0;
+  if (typeof probe.payload === 'object') return Object.keys(probe.payload).length > 0;
+  return String(probe.payload).trim().length > 0;
 }
 
 export default async function handler(req: any, res: any) {
@@ -83,7 +86,20 @@ export default async function handler(req: any, res: any) {
     { branch: 'hope_burger', token: CARDAPIO_WEB_HOPE_BURGER_TOKEN },
   ];
 
-  const result: any = { success: true, runtimeMarker: 'cw-courier-probe-v2', branches: [] };
+  const result: any = { success: true, runtimeMarker: 'cw-logistics-probe-v3', branches: [] };
+
+  const rootEndpoints = [
+    'deliveries','delivery','dispatches','dispatch','logistics','logistic','routes','delivery-routes','delivery_routes',
+    'shipping','shipments','assignments','delivery-assignments','courier-assignments','driver-assignments',
+    'fleets','fleet','carriers','couriers','drivers','deliverymen','motoboys','entregadores','riders','pickups','pickup'
+  ];
+
+  const orderSuffixes = [
+    '', '/delivery', '/deliveries', '/dispatch', '/dispatches', '/logistics', '/logistic', '/route', '/routes',
+    '/delivery-route', '/delivery-routes', '/shipping', '/shipment', '/assignment', '/assignments',
+    '/courier-assignment', '/driver-assignment', '/driver', '/courier', '/deliveryman', '/motoboy', '/entregador',
+    '/rider', '/fleet', '/carrier', '/pickup', '/tracking'
+  ];
 
   for (const entry of branches) {
     const listRes = await getJson(`${BASE}/orders`, entry.token);
@@ -93,26 +109,39 @@ export default async function handler(req: any, res: any) {
       branch: entry.branch,
       listStatus: listRes.status,
       totalOrders: list.length,
-      activeSample: active.map((o: any) => ({ id: o?.id ?? null, status: o?.status ?? null, keys: Object.keys(o || {}).sort() })),
-      probes: [],
-      directoryProbes: [],
+      activeSample: active.map((o: any) => ({ id: o?.id ?? null, status: o?.status ?? null })),
+      usefulOrderEndpoints: [],
+      usefulRootEndpoints: [],
+      checkedOrderEndpointCount: 0,
+      checkedRootEndpointCount: 0,
     };
 
     for (const order of active) {
       const id = String(order?.id || '');
       if (!id) continue;
-      const suffixes = ['', '/delivery', '/deliveryman', '/delivery-man', '/driver', '/courier', '/motoboy', '/entregador'];
-      const orderProbe: any = { id, status: order?.status ?? null, endpoints: [] };
-      for (const suffix of suffixes) {
-        const probe = await getJson(`${BASE}/orders/${encodeURIComponent(id)}${suffix}`, entry.token);
-        orderProbe.endpoints.push({ path: `/orders/${id}${suffix}`, status: probe.status, ok: probe.ok, shape: probe.shape });
+      for (const suffix of orderSuffixes) {
+        const path = `/orders/${encodeURIComponent(id)}${suffix}`;
+        const probe = await getJson(`${BASE}${path}`, entry.token);
+        branchResult.checkedOrderEndpointCount++;
+        if (isUseful(probe)) {
+          branchResult.usefulOrderEndpoints.push({
+            orderId: id,
+            orderStatus: order?.status ?? null,
+            path,
+            status: probe.status,
+            shape: probe.shape,
+          });
+        }
       }
-      branchResult.probes.push(orderProbe);
     }
 
-    for (const endpoint of ['deliverymen','delivery-men','delivery_people','delivery-persons','deliverypersons','drivers','couriers','motoboys','entregadores']) {
-      const probe = await getJson(`${BASE}/${endpoint}`, entry.token);
-      branchResult.directoryProbes.push({ path: `/${endpoint}`, status: probe.status, ok: probe.ok, shape: probe.shape });
+    for (const endpoint of rootEndpoints) {
+      const path = `/${endpoint}`;
+      const probe = await getJson(`${BASE}${path}`, entry.token);
+      branchResult.checkedRootEndpointCount++;
+      if (isUseful(probe)) {
+        branchResult.usefulRootEndpoints.push({ path, status: probe.status, shape: probe.shape });
+      }
     }
 
     result.branches.push(branchResult);
