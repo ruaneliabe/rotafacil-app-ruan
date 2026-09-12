@@ -9,6 +9,7 @@ on:
       - '.github/workflows/nightly-cardapio-web-fake.yml'
       - '.github/workflows/nightly-playwright-runner.yml'
       - 'tests/e2e/cardapio-fake-safe.spec.ts'
+      - 'src/components/CardapioWebShadowSyncBridge.tsx'
       - 'api/webhook-cardapio-web.ts'
       - 'api/sync-cardapio-web.ts'
       - 'api/cardapio-web-shadow-sync.ts'
@@ -17,9 +18,12 @@ on:
       - 'scripts/apply-cardapio-web-import-recovery.mjs'
       - 'scripts/apply-cardapio-web-today-backfill.mjs'
       - 'scripts/apply-cardapio-web-recent-backfill.mjs'
+      - 'scripts/apply-cardapio-web-rate-limit-guard.mjs'
+      - 'scripts/apply-cardapio-web-runtime-firebase-fix.mjs'
       - 'scripts/apply-firebase-project-migration.mjs'
       - 'scripts/apply-firestore-quota-resilience.mjs'
       - 'scripts/apply-order-subscription-session-fallback.mjs'
+      - 'package.json'
   schedule:
     # 04:35 America/Sao_Paulo (UTC-3)
     - cron: '35 7 * * *'
