@@ -11,14 +11,17 @@ on:
       - 'tests/e2e/cardapio-fake-safe.spec.ts'
       - 'api/webhook-cardapio-web.ts'
   schedule:
-    - cron: '35 8 * * *'
+    # 04:35 America/Sao_Paulo (UTC-3)
+    - cron: '35 7 * * *'
 
 permissions:
   contents: read
 
+# Todos os testes que escrevem no Firestore devem compartilhar este grupo.
+# Assim uma bateria não apaga/contamina os dados temporários de outra.
 concurrency:
-  group: playwright-cardapio-web-fake
-  cancel-in-progress: true
+  group: playwright-firestore-e2e
+  cancel-in-progress: false
 
 jobs:
   cardapiofake:
