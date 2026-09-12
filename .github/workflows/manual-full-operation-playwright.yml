@@ -20,14 +20,14 @@ on:
       - main
     paths:
       - '.github/workflows/manual-full-operation-playwright.yml'
-      - 'playwright.config.ts'
       - 'src/**'
+      - 'playwright.config.ts'
       - 'tests/e2e/**'
       - 'scripts/patch-playwright-gps.mjs'
       - 'scripts/apply-e2e-flow-readiness.mjs'
       - 'scripts/apply-returning-flow-lock.mjs'
   schedule:
-    # 04:30 em Blumenau/São Paulo (07:30 UTC), fora do pico da loja.
+    # 04:30 em Blumenau/São Paulo (07:30 UTC), dentro da bateria noturna.
     - cron: '30 7 * * *'
 
 permissions:
@@ -76,20 +76,18 @@ jobs:
         run: |
           set -euo pipefail
           echo "Testing: $E2E_BASE_URL"
-          echo "Expected commit: $GITHUB_SHA"
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             code=$(curl -sS --max-time 20 -o /tmp/health.json -w '%{http_code}' "$E2E_BASE_URL/api/health" || true)
-            deployed_commit=""
             if [ "$code" = "200" ]; then
-              cat /tmp/health.json
-              echo
-              deployed_commit=$(node -e "try { const x=require('/tmp/health.json'); process.stdout.write(String(x.commit || '')); } catch {}")
-              if [ "$deployed_commit" = "$GITHUB_SHA" ]; then
+              deployed=$(node -e "const fs=require('fs'); try{const x=JSON.parse(fs.readFileSync('/tmp/health.json','utf8')); process.stdout.write(String(x.commit||''));}catch{}")
+              echo "Tentativa ${i}/45: HTTP 200, commit publicado=${deployed:-desconhecido}"
+              if [ "$deployed" = "$GITHUB_SHA" ]; then
+                cat /tmp/health.json
+                echo
                 echo "Render respondeu 200 no commit correto."
                 exit 0
               fi
             fi
-            echo "Render ainda não está no commit esperado (HTTP ${code}, commit ${deployed_commit:-desconhecido}), tentativa ${i}/30..."
             sleep 10
           done
           echo "Rota Fácil não publicou o commit $GITHUB_SHA a tempo."
