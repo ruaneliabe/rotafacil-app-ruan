@@ -1,0 +1,80 @@
+name: Playwright - Fluxo operacional completo (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "URL do Rota Fácil para testar"
+        required: false
+        default: "https://rotafacil-app-ruan.onrender.com"
+      gps_interval_ms:
+        description: "Intervalo entre mudanças do GPS (ms)"
+        required: false
+        default: "5000"
+      gps_steps_per_leg:
+        description: "Passos de GPS por trecho (loja -> cliente / cliente -> cliente / retorno)"
+        required: false
+        default: "2"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-full-operation-playwright
+  cancel-in-progress: false
+
+jobs:
+  full-operation-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      E2E_BASE_URL: ${{ inputs.base_url }}
+      E2E_GPS_INTERVAL_MS: ${{ inputs.gps_interval_ms }}
+      E2E_GPS_STEPS_PER_LEG: ${{ inputs.gps_steps_per_leg }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Wake up / validate Render
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            code=$(curl -sS --max-time 20 -o /tmp/health.json -w '%{http_code}' "$E2E_BASE_URL/api/health" || true)
+            if [ "$code" = "200" ]; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "Render ainda não respondeu 200 (HTTP ${code}), tentativa ${i}/30..."
+            sleep 10
+          done
+          echo "Rota Fácil não ficou disponível a tempo."
+          exit 1
+
+      - name: Run complete store + 3 drivers + GPS flow
+        run: npm run test:e2e:full
+
+      - name: Upload Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-full-operation-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
