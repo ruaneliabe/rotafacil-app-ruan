@@ -44,6 +44,9 @@ jobs:
       - name: Apply CI GPS resilience patch
         run: node scripts/patch-playwright-gps.mjs
 
+      - name: Apply nightly mobile assertion patch
+        run: node scripts/patch-nightly-battery-ci.mjs
+
       - name: Wake up Render and wait for deployed commit
         shell: bash
         run: |
