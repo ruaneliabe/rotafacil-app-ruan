@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: playwright-cardapio-web-sync
+  cancel-in-progress: true
+
 jobs:
   cardapio:
     uses: ./.github/workflows/nightly-playwright-runner.yml
