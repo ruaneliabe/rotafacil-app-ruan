@@ -1,4 +1,4 @@
-name: Playwright - Fluxo operacional completo (manual)
+name: Playwright - Fluxo PWA completo
 
 on:
   workflow_dispatch:
@@ -12,32 +12,37 @@ on:
         required: false
         default: "5000"
       gps_steps_per_leg:
-        description: "Passos de GPS por trecho (loja -> cliente / cliente -> cliente / retorno)"
+        description: "Passos de GPS por trecho"
         required: false
         default: "2"
+  schedule:
+    # 04:30 em Blumenau/São Paulo (07:30 UTC), fora do pico da loja.
+    - cron: '30 7 * * *'
 
 permissions:
   contents: read
 
 concurrency:
-  group: manual-full-operation-playwright
+  group: playwright-full-pwa-operation
   cancel-in-progress: false
 
 jobs:
   full-operation-flow:
+    name: Loja + 8 pedidos + 3 motoboys + GPS + retorno
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       CI: 'true'
-      E2E_BASE_URL: ${{ inputs.base_url }}
-      E2E_GPS_INTERVAL_MS: ${{ inputs.gps_interval_ms }}
-      E2E_GPS_STEPS_PER_LEG: ${{ inputs.gps_steps_per_leg }}
+      E2E_BASE_URL: ${{ inputs.base_url || 'https://rotafacil-app-ruan.onrender.com' }}
+      E2E_GPS_INTERVAL_MS: ${{ inputs.gps_interval_ms || '5000' }}
+      E2E_GPS_STEPS_PER_LEG: ${{ inputs.gps_steps_per_leg || '2' }}
+      E2E_RETURN_HOLD_MS: '3500'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Node
+      - name: Setup Node 20
         uses: actions/setup-node@v5
         with:
           node-version: '20'
@@ -46,20 +51,23 @@ jobs:
       - name: Install project dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Install Playwright test runner
+      - name: Install Playwright runner
         run: npm install --no-save --no-package-lock @playwright/test@1.63.0
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Wake up / validate Render
+      - name: Wake up and validate Render
         shell: bash
         run: |
           set -euo pipefail
+          echo "Testing: $E2E_BASE_URL"
           for i in $(seq 1 30); do
             code=$(curl -sS --max-time 20 -o /tmp/health.json -w '%{http_code}' "$E2E_BASE_URL/api/health" || true)
             if [ "$code" = "200" ]; then
               cat /tmp/health.json
+              echo
+              echo "Render respondeu 200."
               exit 0
             fi
             echo "Render ainda não respondeu 200 (HTTP ${code}), tentativa ${i}/30..."
@@ -68,8 +76,23 @@ jobs:
           echo "Rota Fácil não ficou disponível a tempo."
           exit 1
 
-      - name: Run complete store + 3 drivers + GPS flow
+      - name: Run detailed PWA end-to-end flow
         run: npm run test:e2e:full
+
+      - name: Publish Playwright summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## Rota Fácil - Playwright E2E" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 8 pedidos de teste" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 3 rotas: 3 + 3 + 2" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 3 motoboys em sessões PWA móveis independentes" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GPS muda a cada ${E2E_GPS_INTERVAL_MS}ms durante ida, entregas e retorno" >> "$GITHUB_STEP_SUMMARY"
+          echo "- valida fila FIFO e isolamento entre motoboys" >> "$GITHUB_STEP_SUMMARY"
+          echo "- valida que a última entrega NÃO entra em retorno automaticamente" >> "$GITHUB_STEP_SUMMARY"
+          echo "- exige clique em **Estou retornando** antes de **Entrar na fila**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- screenshots, vídeo/trace em falha e telemetria JSON ficam no artifact" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Playwright evidence
         if: always()
