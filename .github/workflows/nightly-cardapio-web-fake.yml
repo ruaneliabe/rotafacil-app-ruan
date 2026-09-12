@@ -1,0 +1,25 @@
+name: Playwright - Cardápio Web fake (entrada segura)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/nightly-cardapio-web-fake.yml'
+      - '.github/workflows/nightly-playwright-runner.yml'
+      - 'scripts/patch-nightly-battery-ci.mjs'
+      - 'tests/e2e/nightly-battery.spec.ts'
+      - 'api/webhook-cardapio-web.ts'
+  schedule:
+    - cron: '35 8 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  cardapiofake:
+    uses: ./.github/workflows/nightly-playwright-runner.yml
+    with:
+      grep: '@cardapiofake '
+      suite_name: 'Cardápio Web fake (entrada segura)'
