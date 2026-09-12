@@ -15,6 +15,16 @@ on:
         description: "Passos de GPS por trecho"
         required: false
         default: "2"
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/manual-full-operation-playwright.yml'
+      - 'playwright.config.ts'
+      - 'tests/e2e/**'
+      - 'scripts/patch-playwright-gps.mjs'
+      - 'scripts/apply-e2e-flow-readiness.mjs'
+      - 'scripts/apply-returning-flow-lock.mjs'
   schedule:
     # 04:30 em Blumenau/São Paulo (07:30 UTC), fora do pico da loja.
     - cron: '30 7 * * *'
