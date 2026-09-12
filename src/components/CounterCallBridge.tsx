@@ -12,7 +12,12 @@ export const CounterCallBridge: React.FC<Props> = ({ motoboys }) => {
       const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>('button');
       if (!button) return;
       if (!button.closest('[data-operation-enhanced-modal="true"]')) return;
-      if (button.textContent?.trim() !== 'Chamar balcão') return;
+
+      // Existem dois rótulos usados hoje no despacho: "Chamar balcão" e
+      // "Chamar <nome> ... balcão". O teste completo mostrou que aceitar só
+      // o primeiro fazia o 2º/3º motoboy permanecer com joinedQueueAt gravado.
+      const buttonLabel = button.textContent?.replace(/\s+/g, ' ').trim() || '';
+      if (!/^Chamar\b.*\bbalc[aã]o$/i.test(buttonLabel)) return;
 
       const row = button.closest<HTMLElement>('[data-counter-driver-id]') || button.parentElement?.parentElement;
       const explicitId = row?.dataset.counterDriverId;
@@ -27,9 +32,8 @@ export const CounterCallBridge: React.FC<Props> = ({ motoboys }) => {
       }
 
       try {
-        // Ao chamar o motoboy para o balcão ele deixa de ocupar uma posição
-        // na fila imediatamente. A próxima entrada na fila recebe um novo
-        // joinedQueueAt somente quando ele confirmar que voltou à loja.
+        // Chamado ao balcão = fora da fila. Ele só recebe um novo timestamp
+        // quando confirmar a chegada à loja depois da rota.
         await saveMotoboyToCloud({
           ...driver,
           joinedQueueAt: null,
