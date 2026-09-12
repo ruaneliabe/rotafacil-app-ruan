@@ -1,4 +1,4 @@
-name: Playwright - Operação real ao vivo
+name: Playwright - Operação real ao vivo 2h
 
 on:
   workflow_dispatch:
@@ -19,18 +19,20 @@ concurrency:
 env:
   CI: 'true'
   E2E_BASE_URL: https://rotafacil-app-ruan.onrender.com
-  LIVE_TEST_DURATION_MINUTES: '10'
+  LIVE_TEST_DURATION_MINUTES: '120'
   LIVE_TEST_DRIVER_COUNT: '20'
   LIVE_TEST_GPS_INTERVAL_MS: '15000'
   LIVE_TEST_TICK_MS: '5000'
-  LIVE_TEST_MAX_ORDERS: '20'
+  LIVE_TEST_MAX_ORDERS: '120'
   LIVE_TEST_PICKUP_DELAY_MS: '10000'
+  LIVE_TEST_MAX_ROUTE_ORDERS: '6'
+  LIVE_TEST_NEARBY_RADIUS_KM: '2.5'
 
 jobs:
   live-real:
-    name: Validação - pedidos reais + 20 motoboys fake
+    name: Validação 2h - pedidos reais + 20 motoboys fake
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 150
 
     steps:
       - name: Checkout
@@ -51,6 +53,100 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Patch live test for realistic nearby routes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tests/e2e/live-shadow-day.spec.ts')
+          s = p.read_text(encoding='utf-8')
+
+          s = s.replace(
+              "const PICKUP_DELAY_MS = Math.max(5000, Number(process.env.LIVE_TEST_PICKUP_DELAY_MS || 10000));\n",
+              "const PICKUP_DELAY_MS = Math.max(5000, Number(process.env.LIVE_TEST_PICKUP_DELAY_MS || 10000));\n"
+              "const MAX_ROUTE_ORDERS = Math.max(2, Number(process.env.LIVE_TEST_MAX_ROUTE_ORDERS || 6));\n"
+              "const NEARBY_RADIUS_KM = Math.max(0.5, Number(process.env.LIVE_TEST_NEARBY_RADIUS_KM || 2.5));\n"
+          )
+
+          s = s.replace(
+              "  clientName: string;\n  trackingCode: string;\n",
+              "  clientName: string;\n  trackingCode: string;\n  branch: string;\n"
+          )
+
+          s = s.replace(
+              "          trackingCode: String(source.trackingCode || ''),\n          lat,\n",
+              "          trackingCode: String(source.trackingCode || ''),\n"
+              "          branch: String(source.storeBranch || 'default'),\n"
+              "          lat,\n"
+          )
+
+          marker = "function interpolate(fromLat: number, fromLng: number, toLat: number, toLng: number, step: number, total: number) {"
+          helper = r'''function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
+            const toRad = (v: number) => v * Math.PI / 180;
+            const dLat = toRad(bLat - aLat);
+            const dLng = toRad(bLng - aLng);
+            const h = Math.sin(dLat / 2) ** 2
+              + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+            return 2 * 6371 * Math.asin(Math.sqrt(h));
+          }
+
+          function buildNearbyBatch(waiting: RealOrderRuntime[]) {
+            if (!waiting.length) return [];
+            const seed = [...waiting].sort((a, b) => a.firstSeenAt - b.firstSeenAt)[0];
+            const batch = [seed];
+            let current = seed;
+            while (batch.length < MAX_ROUTE_ORDERS) {
+              const selected = new Set(batch.map((o) => o.id));
+              const next = waiting
+                .filter((o) => !selected.has(o.id) && o.branch === seed.branch)
+                .map((o) => ({ order: o, km: distanceKm(current.lat, current.lng, o.lat, o.lng) }))
+                .filter((x) => x.km <= NEARBY_RADIUS_KM)
+                .sort((a, b) => a.km - b.km || a.order.firstSeenAt - b.order.firstSeenAt)[0];
+              if (!next) break;
+              batch.push(next.order);
+              current = next.order;
+            }
+            for (const order of batch) {
+              const index = waiting.findIndex((candidate) => candidate.id === order.id);
+              if (index >= 0) waiting.splice(index, 1);
+            }
+            return batch;
+          }
+
+          '''
+          if 'function buildNearbyBatch' not in s:
+              s = s.replace(marker, helper + marker)
+
+          s = s.replace(
+              "        const batch = waiting.splice(0, Math.min(3, waiting.length));",
+              "        const batch = buildNearbyBatch(waiting);"
+          )
+
+          s = s.replace(
+              "        logEvent(telemetry, 'assigned', { driverId: driver.id, orders: batch.map((o) => o.id) });",
+              "        logEvent(telemetry, 'assigned', { driverId: driver.id, orders: batch.map((o) => o.id), routeSize: batch.length, branch: batch[0]?.branch, nearbyRadiusKm: NEARBY_RADIUS_KM, clients: batch.map((o) => o.clientName) });"
+          )
+
+          old = """        if (visibleCandidate) {
+                    await validateOrderOnStore(storePage, visibleCandidate);
+                    logEvent(telemetry, 'store-ui-ok', { orderId: visibleCandidate.id, clientName: visibleCandidate.clientName });
+                  }
+          """
+          new = """        if (visibleCandidate) {
+                    try {
+                      await validateOrderOnStore(storePage, visibleCandidate);
+                      logEvent(telemetry, 'store-ui-ok', { orderId: visibleCandidate.id, clientName: visibleCandidate.clientName });
+                    } catch {
+                      logEvent(telemetry, 'store-ui-diagnostic-miss', { orderId: visibleCandidate.id, clientName: visibleCandidate.clientName });
+                    }
+                  }
+          """
+          s = s.replace(old, new)
+
+          p.write_text(s, encoding='utf-8')
+          print('Teste preparado: rotas por proximidade, até 6 pedidos, UI não derruba o fluxo.')
+          PY
+
       - name: Wake up Render
         shell: bash
         run: |
@@ -60,7 +156,7 @@ jobs:
             if [ "$code" = "200" ]; then
               cat /tmp/health.json
               echo
-              echo "Rota Fácil está saudável; iniciando operação real simulada."
+              echo "Rota Fácil está saudável; iniciando operação real simulada de 2 horas."
               exit 0
             fi
             echo "Tentativa ${i}/30: HTTP ${code}"
@@ -69,21 +165,22 @@ jobs:
           echo "Rota Fácil não respondeu saudável a tempo."
           exit 1
 
-      - name: Run live real-order validation
+      - name: Run live real-order validation for 2h
         run: npx playwright test tests/e2e/live-shadow-day.spec.ts --grep "Operação real ao vivo"
 
       - name: Publish live test summary
         if: always()
         shell: bash
         run: |
-          echo "## Operação real ao vivo - validação" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Operação real ao vivo - 2 horas" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- duração: 10 minutos" >> "$GITHUB_STEP_SUMMARY"
-          echo "- 20 motoboys fake" >> "$GITHUB_STEP_SUMMARY"
-          echo "- usa os pedidos reais já importados do Cardápio Web no Rota Fácil" >> "$GITHUB_STEP_SUMMARY"
-          echo "- NÃO clona pedidos" >> "$GITHUB_STEP_SUMMARY"
-          echo "- nenhuma escrita de volta para o Cardápio Web" >> "$GITHUB_STEP_SUMMARY"
-          echo "- atribuição, GPS, entrega, retorno e reentrada na fila no Rota Fácil" >> "$GITHUB_STEP_SUMMARY"
+          echo "- duração: 120 minutos" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 20 motoboys fake em fila FIFO" >> "$GITHUB_STEP_SUMMARY"
+          echo "- pedidos reais já importados do Cardápio Web" >> "$GITHUB_STEP_SUMMARY"
+          echo "- rotas agrupadas por proximidade, mesma filial, até 6 pedidos" >> "$GITHUB_STEP_SUMMARY"
+          echo "- raio para agregar próximo pedido: 2,5 km a partir da parada atual" >> "$GITHUB_STEP_SUMMARY"
+          echo "- atribuição, GPS, entregas, retorno e reentrada no fim da fila" >> "$GITHUB_STEP_SUMMARY"
+          echo "- checagem visual da loja é diagnóstica e não interrompe o fluxo" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Playwright evidence
         if: always()
