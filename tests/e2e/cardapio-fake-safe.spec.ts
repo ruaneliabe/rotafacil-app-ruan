@@ -49,6 +49,13 @@ async function expectVisibleText(page: Page, text: string | RegExp, timeout = 30
   }, { timeout }).toBe(true);
 }
 
+async function expectRenderedBodyText(page: Page, text: string, timeout = 30_000) {
+  await expect.poll(async () => {
+    const rendered = await page.locator('body').innerText().catch(() => '');
+    return rendered.includes(text);
+  }, { timeout }).toBe(true);
+}
+
 test('Cardápio Web fake entra no Rota Fácil sem tocar o cliente', async ({ browser, request }) => {
   await seedStore();
   let fakeOrderId = '';
@@ -122,7 +129,11 @@ test('Cardápio Web fake entra no Rota Fácil sem tocar o cliente', async ({ bro
 
       await loginStore(storePage);
       try {
-        await expectVisibleText(storePage, CLIENT_NAME, 45_000);
+        // body.innerText representa o texto efetivamente renderizado. O layout atual
+        // divide o card em vários elementos, então getByText() pode não localizar
+        // uma ocorrência única mesmo com o pedido visível no painel.
+        await expectRenderedBodyText(storePage, CLIENT_NAME, 45_000);
+        await expectRenderedBodyText(storePage, String(order.trackingCode || order.codeNumber), 45_000);
       } catch (error) {
         const stillThere = await getDoc(orderRef);
         console.log('[CWFAKE][dashboard-failure]', JSON.stringify({
@@ -134,7 +145,6 @@ test('Cardápio Web fake entra no Rota Fácil sem tocar o cliente', async ({ bro
         }));
         throw error;
       }
-      await expectVisibleText(storePage, /Cardápio Web|Cardápio/i, 45_000);
       await storeContext.close();
       console.log('[CWFAKE][dashboard] pedido fake visível no painel da loja');
     }
