@@ -17,10 +17,9 @@ on:
 permissions:
   contents: read
 
-# Todos os testes que escrevem no Firestore devem compartilhar este grupo.
-# Assim uma bateria não apaga/contamina os dados temporários de outra.
+# Compartilha o mesmo lock dos demais E2E que escrevem no Firestore.
 concurrency:
-  group: playwright-firestore-e2e
+  group: rotafacil-e2e-shared-firestore
   cancel-in-progress: false
 
 jobs:
