@@ -21,20 +21,20 @@ on:
     paths:
       - '.github/workflows/manual-full-operation-playwright.yml'
       - 'src/**'
+      - 'api/**'
       - 'playwright.config.ts'
       - 'tests/e2e/**'
       - 'scripts/patch-playwright-gps.mjs'
       - 'scripts/apply-e2e-flow-readiness.mjs'
       - 'scripts/apply-returning-flow-lock.mjs'
   schedule:
-    # 04:30 em Blumenau/São Paulo (07:30 UTC), dentro da bateria noturna.
     - cron: '30 7 * * *'
 
 permissions:
   contents: read
 
 concurrency:
-  group: playwright-full-pwa-operation
+  group: rotafacil-e2e-shared-firestore
   cancel-in-progress: false
 
 jobs:
