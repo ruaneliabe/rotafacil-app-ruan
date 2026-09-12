@@ -20,5 +20,5 @@ jobs:
   cardapio:
     uses: ./.github/workflows/nightly-playwright-runner.yml
     with:
-      grep: '@cardapio'
+      grep: '@cardapio '
       suite_name: 'Cardápio Web e sincronização'
