@@ -28,15 +28,11 @@ function spTime() {
   return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date());
 }
 
-export default async function handler(req: any, res: any) {
-  res.setHeader('Cache-Control', 'no-store');
-  if (req.method !== 'GET') return res.status(405).json({ success: false });
-  if (String(req.query?.key || '') !== KEY) return res.status(404).json({ success: false });
-
+export async function seedFlowTestOrders() {
   const db = getDb();
   const markerRef = doc(db, 'system', 'flow_test_seed_20260912');
   const marker = await getDoc(markerRef);
-  if (marker.exists()) return res.status(200).json({ success: true, alreadyCreated: true, count: 6 });
+  if (marker.exists()) return { alreadyCreated: true, count: 6 };
 
   const today = spDate();
   const now = Date.now();
@@ -85,5 +81,13 @@ export default async function handler(req: any, res: any) {
   }
 
   await setDoc(markerRef, { createdAt: Date.now(), count: 6 }, { merge: true });
-  return res.status(200).json({ success: true, count: 6, ids: orders.map((_, i) => `flow_test_20260912_${String(i + 1).padStart(2, '0')}`) });
+  return { alreadyCreated: false, count: 6 };
+}
+
+export default async function handler(req: any, res: any) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'GET') return res.status(405).json({ success: false });
+  if (String(req.query?.key || '') !== KEY) return res.status(404).json({ success: false });
+  const result = await seedFlowTestOrders();
+  return res.status(200).json({ success: true, ...result });
 }
