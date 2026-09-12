@@ -1,6 +1,8 @@
 name: Playwright PWA GPS E2E
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       start_lat:
@@ -23,17 +25,10 @@ on:
         description: "Duração do deslocamento GPS em ms"
         required: false
         default: "60000"
-  push:
-    branches: [main]
-    paths:
-      - 'tests/**'
-      - 'playwright.config.ts'
-      - 'package.json'
-      - '.github/workflows/playwright-pwa-e2e.yml'
 
 concurrency:
   group: playwright-pwa-e2e
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   pwa-gps-flow:
@@ -42,11 +37,11 @@ jobs:
     env:
       E2E_BASE_URL: https://rotafacil-app-ruan.onrender.com
       E2E_GPS_INTERVAL_MS: '5000'
-      E2E_START_LAT: ${{ inputs.start_lat || '-26.9204' }}
-      E2E_START_LNG: ${{ inputs.start_lng || '-49.0982' }}
-      E2E_END_LAT: ${{ inputs.end_lat || '-26.9176' }}
-      E2E_END_LNG: ${{ inputs.end_lng || '-49.0927' }}
-      E2E_GPS_DURATION_MS: ${{ inputs.gps_duration_ms || '60000' }}
+      E2E_START_LAT: ${{ github.event.inputs.start_lat || '-26.9204' }}
+      E2E_START_LNG: ${{ github.event.inputs.start_lng || '-49.0982' }}
+      E2E_END_LAT: ${{ github.event.inputs.end_lat || '-26.9176' }}
+      E2E_END_LNG: ${{ github.event.inputs.end_lng || '-49.0927' }}
+      E2E_GPS_DURATION_MS: ${{ github.event.inputs.gps_duration_ms || '60000' }}
 
     steps:
       - name: Checkout
@@ -58,8 +53,6 @@ jobs:
           node-version: '20'
           cache: npm
 
-      # package-lock ainda pode estar defasado enquanto o piloto evolui; npm install
-      # evita quebrar o runner por isso e instala a versão declarada do Playwright.
       - name: Install dependencies
         run: npm install
 
