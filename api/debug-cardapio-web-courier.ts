@@ -5,6 +5,20 @@ const BASE = 'https://integracao.cardapioweb.com/api/partner/v1';
 
 const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase();
 
+function safeActor(value: any) {
+  if (value == null) return null;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return { type: typeof value, value: String(value).slice(0, 160) };
+  }
+  if (typeof value !== 'object') return { type: typeof value };
+  return {
+    type: Array.isArray(value) ? 'array' : 'object',
+    keys: Object.keys(value).sort(),
+    id: value?.id ?? value?.uuid ?? value?.code ?? null,
+    name: value?.name ?? value?.nome ?? value?.full_name ?? value?.display_name ?? value?.username ?? null,
+  };
+}
+
 function safeShape(payload: any) {
   if (payload == null) return null;
   if (Array.isArray(payload)) {
@@ -16,7 +30,7 @@ function safeShape(payload: any) {
   }
   if (typeof payload !== 'object') return { type: typeof payload, value: String(payload).slice(0, 120) };
 
-  const interesting = /(driver|courier|motoboy|entregador|delivery|rider|logistic|dispatch|route|shipping)/i;
+  const interesting = /(driver|courier|motoboy|entregador|deliver|delivery|rider|logistic|dispatch|route|shipping|user|assigned|responsible)/i;
   const hits: any[] = [];
   const seen = new Set<any>();
   const walk = (node: any, base = '', depth = 0) => {
@@ -26,9 +40,9 @@ function safeShape(payload: any) {
       const path = base ? `${base}.${key}` : key;
       if (interesting.test(key)) {
         if (value && typeof value === 'object') {
-          hits.push({ path, type: Array.isArray(value) ? 'array' : 'object', keys: Object.keys(value as any).slice(0, 40) });
+          hits.push({ path, ...safeActor(value) });
         } else {
-          hits.push({ path, type: typeof value, value: String(value ?? '').slice(0, 120) });
+          hits.push({ path, type: typeof value, value: String(value ?? '').slice(0, 160) });
         }
       }
       if (value && typeof value === 'object') walk(value, path, depth + 1);
@@ -39,6 +53,8 @@ function safeShape(payload: any) {
   return {
     type: 'object',
     keys: Object.keys(payload).sort(),
+    deliveredBy: safeActor(payload?.delivered_by),
+    user: safeActor(payload?.user),
     courierRelated: hits,
   };
 }
@@ -67,7 +83,7 @@ export default async function handler(req: any, res: any) {
     { branch: 'hope_burger', token: CARDAPIO_WEB_HOPE_BURGER_TOKEN },
   ];
 
-  const result: any = { success: true, runtimeMarker: 'cw-courier-probe-v1', branches: [] };
+  const result: any = { success: true, runtimeMarker: 'cw-courier-probe-v2', branches: [] };
 
   for (const entry of branches) {
     const listRes = await getJson(`${BASE}/orders`, entry.token);
