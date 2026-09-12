@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, OPERATIONAL_EPOCH } from './support/fixture';
 import { hashPassword } from '../../src/lib/passwordSecurity';
@@ -54,19 +54,13 @@ test('Cardápio Web fake entra no Rota Fácil sem tocar o cliente', async ({ bro
   let fakeOrderId = '';
 
   try {
-    // IMPORTANTE: não enviamos id, order_id nem data.id.
-    // O webhook só consulta a API real do Cardápio Web quando um desses IDs existe.
+    // Sem id/order_id/data.id: o webhook NÃO consulta a API do Cardápio Web.
     const response = await request.post(`${BASE_URL}/api/webhook-cardapio-web?branch=hope_burger`, {
       data: {
         status: 'new',
         client_name: CLIENT_NAME,
         customer: { name: CLIENT_NAME, phone: '47999990001' },
-        address: {
-          street: 'Rua Playwright Fake',
-          number: '777',
-          neighborhood: 'Centro',
-          city: 'Blumenau',
-        },
+        address: { street: 'Rua Playwright Fake', number: '777', neighborhood: 'Centro', city: 'Blumenau' },
         total: 49.90,
         delivery_fee: 7.90,
         items: [{ name: 'Item fake Cardápio Web', quantity: 1, price: 42 }],
@@ -83,7 +77,6 @@ test('Cardápio Web fake entra no Rota Fácil sem tocar o cliente', async ({ bro
 
     const orderRef = doc(db, 'orders', fakeOrderId);
     await expect.poll(async () => (await getDoc(orderRef)).exists(), { timeout: 20_000 }).toBe(true);
-
     const orderSnap = await getDoc(orderRef);
     const order = { id: orderSnap.id, ...orderSnap.data() } as any;
     expect(order.clientName).toBe(CLIENT_NAME);
@@ -95,40 +88,55 @@ test('Cardápio Web fake entra no Rota Fácil sem tocar o cliente', async ({ bro
     const shiftSnap = await getDoc(doc(db, 'shifts', 'current_shift'));
     const shift = shiftSnap.exists() ? shiftSnap.data() as any : {};
     const belongs = isOrderInCurrentShift(order, shift);
-    console.log('[CWFAKE][diagnostic]', JSON.stringify({
-      orderId: fakeOrderId,
-      projectOrderFound: true,
-      clientName: order.clientName,
-      originChannel: order.originChannel,
-      trackingCode: order.trackingCode,
-      operationalEpoch: order.operationalEpoch,
-      shiftIsOpen: Boolean(shift.isOpen),
-      shiftId: shift.shiftId || null,
-      shiftDate: shift.shiftDate || null,
-      shiftOpenedTimestamp: shift.openedTimestamp || null,
-      orderCreatedTimestamp: order.createdTimestamp || null,
-      orderCreatedDate: order.createdDate || null,
-      belongsToCurrentShift: belongs,
-    }));
+    console.log('[CWFAKE][diagnostic]', JSON.stringify({ orderId: fakeOrderId, projectOrderFound: true, clientName: order.clientName, originChannel: order.originChannel, trackingCode: order.trackingCode, operationalEpoch: order.operationalEpoch, shiftIsOpen: Boolean(shift.isOpen), shiftId: shift.shiftId || null, shiftDate: shift.shiftDate || null, shiftOpenedTimestamp: shift.openedTimestamp || null, orderCreatedTimestamp: order.createdTimestamp || null, orderCreatedDate: order.createdDate || null, belongsToCurrentShift: belongs }));
 
-    // A tela de rastreio só chega neste texto quando o pedido foi realmente
-    // carregado. Não aceitamos mais o código aparecendo apenas em "Carregando...".
     const trackingContext = await browser.newContext();
     const trackingPage = await trackingContext.newPage();
     await trackingPage.goto(`/?rastreio=${order.trackingCode}`, { waitUntil: 'domcontentloaded' });
     await expectVisibleText(trackingPage, /Seu pedido está sendo preparado na cozinha/i, 60_000);
     await expectVisibleText(trackingPage, new RegExp(`Código de Rastreio:\\s*${order.trackingCode}`, 'i'), 60_000);
     await trackingContext.close();
+    console.log('[CWFAKE][tracking] pedido fake carregado integralmente no rastreio público');
 
-    // Se a operação está aberta e a própria regra do Rota Fácil diz que o pedido
-    // pertence ao turno, ele obrigatoriamente precisa aparecer para a loja.
     if (shift.isOpen && belongs) {
       const storeContext = await browser.newContext();
       const storePage = await storeContext.newPage();
+      const browserDiagnostics: string[] = [];
+      storePage.on('console', (msg) => {
+        if (msg.type() === 'warning' || msg.type() === 'error') {
+          const line = `[browser-console][${msg.type()}] ${msg.text()}`;
+          browserDiagnostics.push(line);
+          console.log(line);
+        }
+      });
+      storePage.on('pageerror', (err) => {
+        const line = `[browser-pageerror] ${err.message}`;
+        browserDiagnostics.push(line);
+        console.log(line);
+      });
+      storePage.on('requestfailed', (req) => {
+        const line = `[browser-requestfailed] ${req.method()} ${req.url()} :: ${req.failure()?.errorText || 'unknown'}`;
+        browserDiagnostics.push(line);
+        console.log(line);
+      });
+
       await loginStore(storePage);
-      await expectVisibleText(storePage, CLIENT_NAME, 45_000);
-      await expectVisibleText(storePage, /Cardápio Web/i, 45_000);
+      try {
+        await expectVisibleText(storePage, CLIENT_NAME, 45_000);
+      } catch (error) {
+        const stillThere = await getDoc(orderRef);
+        console.log('[CWFAKE][dashboard-failure]', JSON.stringify({
+          fakeOrderStillExists: stillThere.exists(),
+          fakeOrderStatus: stillThere.exists() ? (stillThere.data() as any).status : null,
+          fakeOrderEpoch: stillThere.exists() ? (stillThere.data() as any).operationalEpoch : null,
+          visibleBodyText: (await storePage.locator('body').innerText().catch(() => '')).slice(0, 5000),
+          browserDiagnostics,
+        }));
+        throw error;
+      }
+      await expectVisibleText(storePage, /Cardápio Web|Cardápio/i, 45_000);
       await storeContext.close();
+      console.log('[CWFAKE][dashboard] pedido fake visível no painel da loja');
     }
   } finally {
     if (fakeOrderId) await deleteDoc(doc(db, 'orders', fakeOrderId)).catch(() => {});
