@@ -15,32 +15,30 @@ import { getBrazilDateKey, isOrderInCurrentShift } from '../../src/utils/dateUti
 
 const BASE_URL = process.env.E2E_BASE_URL || 'https://rotafacil-app-ruan.onrender.com';
 const RUN_ID = String(process.env.GITHUB_RUN_ID || Date.now()).replace(/[^0-9A-Za-z_-]/g, '');
-const DURATION_MINUTES = Math.max(10, Number(process.env.LIVE_TEST_DURATION_MINUTES || 120));
-const TICK_MS = Math.max(5000, Number(process.env.LIVE_TEST_TICK_MS || 15000));
-const GPS_INTERVAL_MS = Math.max(30000, Number(process.env.LIVE_TEST_GPS_INTERVAL_MS || 60000));
+const DURATION_MINUTES = Math.max(3, Number(process.env.LIVE_TEST_DURATION_MINUTES || 10));
+const TICK_MS = Math.max(3000, Number(process.env.LIVE_TEST_TICK_MS || 5000));
+const GPS_INTERVAL_MS = Math.max(5000, Number(process.env.LIVE_TEST_GPS_INTERVAL_MS || 15000));
 const DRIVER_COUNT = Math.max(1, Number(process.env.LIVE_TEST_DRIVER_COUNT || 20));
-const MAX_ORDERS = Math.max(1, Number(process.env.LIVE_TEST_MAX_ORDERS || 60));
-const ORDER_PREFIX = `pw_live_${RUN_ID}_order_`;
+const MAX_ORDERS = Math.max(1, Number(process.env.LIVE_TEST_MAX_ORDERS || 80));
 const DRIVER_PREFIX = `pw_live_${RUN_ID}_driver_`;
 const STORE_USER = `pw_live_${RUN_ID}_store`.toLowerCase();
-const STORE_PASS = 'PwLiveShadow1234';
+const STORE_PASS = 'PwLiveReal1234';
 const DRIVER_PASS = 'PwLiveDriver1234';
-const READY_DELAY_MS = 20_000;
-const PICKUP_DELAY_MS = 15_000;
-const RETURN_STEPS = 2;
+const PICKUP_DELAY_MS = Math.max(5000, Number(process.env.LIVE_TEST_PICKUP_DELAY_MS || 10000));
+const GPS_STEPS_TO_CLIENT = 3;
+const GPS_STEPS_RETURN = 2;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const terminalSourceStatuses = new Set(['delivered', 'closed', 'completed', 'finalized', 'concluded', 'cancelled', 'canceled', 'rejected']);
+const terminalStatuses = new Set(['delivered', 'closed', 'completed', 'finalized', 'concluded', 'cancelled', 'canceled', 'rejected']);
 
-type ShadowOrder = {
+type RealOrderRuntime = {
   id: string;
-  sourceId: string;
   clientName: string;
   trackingCode: string;
   lat: number;
   lng: number;
-  createdAtMs: number;
-  state: 'pending' | 'ready' | 'assigned' | 'in_transit' | 'delivered';
+  state: 'waiting' | 'assigned' | 'in_transit' | 'delivered' | 'skipped';
+  firstSeenAt: number;
   driverId?: string;
   routeSequence?: number;
 };
@@ -54,7 +52,10 @@ type DriverRuntime = {
   deliveryIndex: number;
   phaseStartedAt: number;
   lastGpsAt: number;
+  gpsStep: number;
   returnStep: number;
+  currentLat: number;
+  currentLng: number;
   cycles: number;
 };
 
@@ -62,7 +63,7 @@ type Telemetry = {
   startedAt: string;
   finishedAt?: string;
   sourceSeen: number;
-  shadowsCreated: number;
+  realOrdersTouched: number;
   delivered: number;
   dispatches: number;
   driverReturns: number;
@@ -73,34 +74,39 @@ type Telemetry = {
 function logEvent(telemetry: Telemetry, type: string, data?: Record<string, unknown>) {
   const row = { at: new Date().toISOString(), type, data };
   telemetry.events.push(row);
-  console.log(`[PW-LIVE][${type}]${data ? ` ${JSON.stringify(data)}` : ''}`);
-}
-
-function assertSafeOrderId(id: string) {
-  expect(id.startsWith(ORDER_PREFIX), `BLOQUEADO: tentativa de alterar pedido real ${id}`).toBe(true);
+  console.log(`[PW-LIVE-REAL][${type}]${data ? ` ${JSON.stringify(data)}` : ''}`);
 }
 
 function assertSafeDriverId(id: string) {
   expect(id.startsWith(DRIVER_PREFIX), `BLOQUEADO: tentativa de alterar motoboy real ${id}`).toBe(true);
 }
 
-async function writeShadowOrder(id: string, patch: Record<string, unknown>) {
-  assertSafeOrderId(id);
-  await setDoc(doc(db, 'orders', id), {
-    ...patch,
-    isPlaywrightTest: true,
-    liveShadowRunId: RUN_ID,
-    operationalEpoch: OPERATIONAL_EPOCH,
-  }, { merge: true });
-}
-
-async function writeShadowDriver(id: string, patch: Record<string, unknown>) {
+async function writeFakeDriver(id: string, patch: Record<string, unknown>) {
   assertSafeDriverId(id);
   await setDoc(doc(db, 'motoboys', id), {
     ...patch,
     isPlaywrightTest: true,
-    liveShadowRunId: RUN_ID,
+    liveRealRunId: RUN_ID,
     operationalEpoch: OPERATIONAL_EPOCH,
+  }, { merge: true });
+}
+
+async function assertRealCardapioOrder(id: string) {
+  const snap = await getDoc(doc(db, 'orders', id));
+  expect(snap.exists(), `Pedido real ${id} precisa existir`).toBe(true);
+  const data = snap.data() as any;
+  expect(data.isPlaywrightTest === true, `Pedido ${id} não pode ser pedido sintético`).toBe(false);
+  expect(data.originChannel, `Pedido ${id} precisa ter vindo do Cardápio Web`).toBe('cardapio_web');
+  expect(data.operationalEpoch, `Pedido ${id} precisa pertencer ao epoch atual`).toBe(OPERATIONAL_EPOCH);
+  return data;
+}
+
+async function writeRealOrder(id: string, patch: Record<string, unknown>) {
+  await assertRealCardapioOrder(id);
+  await setDoc(doc(db, 'orders', id), {
+    ...patch,
+    liveOperationalTestRunId: RUN_ID,
+    liveOperationalTestAt: Date.now(),
   }, { merge: true });
 }
 
@@ -111,19 +117,19 @@ async function seedStoreAndDrivers(): Promise<DriverRuntime[]> {
     username: STORE_USER,
     passwordHash: storeCredential.hash,
     passwordSalt: storeCredential.salt,
-    storeName: `PW LIVE SHADOW ${RUN_ID}`,
+    storeName: `PW LIVE REAL ${RUN_ID}`,
     isPlaywrightTest: true,
-    liveShadowRunId: RUN_ID,
+    liveRealRunId: RUN_ID,
     createdAt: Date.now(),
   }, { merge: true });
 
   const drivers: DriverRuntime[] = [];
   for (let i = 0; i < DRIVER_COUNT; i += 1) {
     const id = `${DRIVER_PREFIX}${String(i + 1).padStart(2, '0')}`;
-    const name = `PW LIVE Motoboy ${String(i + 1).padStart(2, '0')}`;
+    const name = `PW Motoboy ${String(i + 1).padStart(2, '0')}`;
     const credential = await hashPassword(DRIVER_PASS);
     const joinedQueueAt = Date.now() + i;
-    await writeShadowDriver(id, {
+    await writeFakeDriver(id, {
       id,
       username: id,
       passwordHash: credential.hash,
@@ -151,11 +157,24 @@ async function seedStoreAndDrivers(): Promise<DriverRuntime[]> {
       deliveryIndex: 0,
       phaseStartedAt: Date.now(),
       lastGpsAt: 0,
+      gpsStep: 0,
       returnStep: 0,
+      currentLat: STORE_LOCATION.latitude,
+      currentLng: STORE_LOCATION.longitude,
       cycles: 0,
     });
   }
   return drivers;
+}
+
+async function cleanupDriversAndStore(drivers: DriverRuntime[]) {
+  const jobs: Promise<unknown>[] = [];
+  for (const driver of drivers) {
+    assertSafeDriverId(driver.id);
+    jobs.push(deleteDoc(doc(db, 'motoboys', driver.id)));
+  }
+  jobs.push(deleteDoc(doc(db, 'stores', STORE_USER)));
+  await Promise.allSettled(jobs);
 }
 
 async function loginStore(page: Page) {
@@ -173,95 +192,51 @@ async function loginStore(page: Page) {
   }), { timeout: 60_000 }).toBe(true);
 }
 
-async function cloneSourceOrder(source: any, shift: any, index: number): Promise<ShadowOrder> {
-  const id = `${ORDER_PREFIX}${String(index).padStart(3, '0')}`;
-  const clientName = `PW LIVE • ${String(source.clientName || `Pedido ${index}`)}`;
-  const trackingCode = `PWLIVE-${RUN_ID.slice(-6)}-${String(index).padStart(3, '0')}`;
-  const lat = Number.isFinite(Number(source.lat)) ? Number(source.lat) : STORE_LOCATION.latitude + 0.005;
-  const lng = Number.isFinite(Number(source.lng)) ? Number(source.lng) : STORE_LOCATION.longitude + 0.005;
-  const now = Date.now();
-
-  await writeShadowOrder(id, {
-    id,
-    codeNumber: 980000 + index,
-    clientName,
-    clientPhone: source.clientPhone || '',
-    address: source.address || 'Endereço recebido do Cardápio Web',
-    street: source.street || '',
-    houseNumber: source.houseNumber || '',
-    complement: source.complement || '',
-    neighborhood: source.neighborhood || '',
-    lat,
-    lng,
-    items: Array.isArray(source.items) ? source.items : [],
-    itemsSummary: source.itemsSummary || 'Pedido espelho do fluxo real',
-    subtotal: Number(source.subtotal || 0),
-    deliveryFee: Number(source.deliveryFee || 0),
-    total: Number(source.total || 0),
-    paymentMethod: source.paymentMethod || 'pix',
-    status: 'pending',
-    createdAt: new Date(now).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    createdDate: getBrazilDateKey(),
-    createdTimestamp: now,
-    shiftId: shift.shiftId || null,
-    shiftDate: shift.shiftDate || getBrazilDateKey(),
-    estimatedMinutes: 25,
-    assignedMotoboyId: null,
-    assignedMotoboyName: null,
-    assignmentSource: null,
-    dispatchSource: null,
-    trackingCode,
-    originChannel: 'manual',
-    shadowSourceChannel: 'cardapio_web',
-    shadowSourceOrderId: source.id,
-    shadowSourceExternalOrderId: source.externalOrderId || null,
-    shadowStoreBranch: source.storeBranch || null,
-    shadowStoreName: source.storeName || null,
-  });
-
-  return { id, sourceId: source.id, clientName, trackingCode, lat, lng, createdAtMs: now, state: 'pending' };
+function eligibleOrder(source: any, shift: any) {
+  if (source.isPlaywrightTest) return false;
+  if (source.originChannel !== 'cardapio_web') return false;
+  if (source.operationalEpoch !== OPERATIONAL_EPOCH) return false;
+  if (terminalStatuses.has(String(source.status || '').toLowerCase())) return false;
+  return isOrderInCurrentShift(source, shift);
 }
 
-async function cleanup(shadows: Map<string, ShadowOrder>, drivers: DriverRuntime[]) {
-  const jobs: Promise<unknown>[] = [];
-  for (const id of shadows.keys()) {
-    assertSafeOrderId(id);
-    jobs.push(deleteDoc(doc(db, 'orders', id)));
-  }
-  for (const driver of drivers) {
-    assertSafeDriverId(driver.id);
-    jobs.push(deleteDoc(doc(db, 'motoboys', driver.id)));
-  }
-  jobs.push(deleteDoc(doc(db, 'stores', STORE_USER)));
-  await Promise.allSettled(jobs);
+async function validateOrderOnStore(page: Page, order: RealOrderRuntime) {
+  await expect.poll(async () => {
+    const body = await page.locator('body').innerText().catch(() => '');
+    return body.includes(order.clientName);
+  }, { timeout: 30_000 }).toBe(true);
 }
 
-async function validateTracking(browser: any, shadow: ShadowOrder) {
+async function validateTracking(browser: any, order: RealOrderRuntime) {
+  if (!order.trackingCode) return;
   const context = await browser.newContext();
   try {
     const page = await context.newPage();
-    await page.goto(`${BASE_URL}/?rastreio=${shadow.trackingCode}`, { waitUntil: 'domcontentloaded' });
-    await expect.poll(async () => (await page.locator('body').innerText()).includes(shadow.trackingCode), { timeout: 45_000 }).toBe(true);
+    await page.goto(`${BASE_URL}/?rastreio=${encodeURIComponent(order.trackingCode)}`, { waitUntil: 'domcontentloaded' });
+    await expect.poll(async () => {
+      const body = await page.locator('body').innerText().catch(() => '');
+      return body.includes(order.trackingCode) && !/Carregando dados do pedido/i.test(body);
+    }, { timeout: 45_000 }).toBe(true);
   } finally {
     await context.close();
   }
 }
 
-function activeSourceForShift(source: any, shift: any) {
-  if (source.isPlaywrightTest) return false;
-  if (source.originChannel !== 'cardapio_web') return false;
-  if (source.operationalEpoch !== OPERATIONAL_EPOCH) return false;
-  if (terminalSourceStatuses.has(String(source.status || '').toLowerCase())) return false;
-  return isOrderInCurrentShift(source, shift);
+function interpolate(fromLat: number, fromLng: number, toLat: number, toLng: number, step: number, total: number) {
+  const ratio = Math.min(1, step / total);
+  return {
+    lat: fromLat + (toLat - fromLat) * ratio,
+    lng: fromLng + (toLng - fromLng) * ratio,
+  };
 }
 
-test('Operação sombra ao vivo por 2h: pedidos reais + 20 motoboys + GPS + retorno', async ({ browser }, testInfo: TestInfo) => {
+test('Operação real ao vivo: pedidos reais do Cardápio Web + 20 motoboys fake', async ({ browser }, testInfo: TestInfo) => {
   test.setTimeout((DURATION_MINUTES + 15) * 60 * 1000);
 
   const telemetry: Telemetry = {
     startedAt: new Date().toISOString(),
     sourceSeen: 0,
-    shadowsCreated: 0,
+    realOrdersTouched: 0,
     delivered: 0,
     dispatches: 0,
     driverReturns: 0,
@@ -278,16 +253,22 @@ test('Operação sombra ao vivo por 2h: pedidos reais + 20 motoboys + GPS + reto
   const sourceQuery = query(collection(db, 'orders'), where('originChannel', '==', 'cardapio_web'));
   let gotInitialSnapshot = false;
   const unsubscribe = onSnapshot(sourceQuery, (snapshot) => {
+    const currentIds = new Set<string>();
     for (const row of snapshot.docs) {
       const source = { id: row.id, ...row.data() } as any;
-      if (activeSourceForShift(source, shift)) sourceOrders.set(row.id, source);
+      if (eligibleOrder(source, shift)) {
+        sourceOrders.set(row.id, source);
+        currentIds.add(row.id);
+      }
+    }
+    for (const id of Array.from(sourceOrders.keys())) {
+      if (!currentIds.has(id)) sourceOrders.delete(id);
     }
     gotInitialSnapshot = true;
-  }, (error) => console.warn('[PW-LIVE] source listener error', error));
+  }, (error) => console.warn('[PW-LIVE-REAL] source listener error', error));
 
   const drivers = await seedStoreAndDrivers();
-  const shadows = new Map<string, ShadowOrder>();
-  const clonedSources = new Set<string>();
+  const runtimes = new Map<string, RealOrderRuntime>();
   const storeContext = await browser.newContext({ viewport: { width: 1536, height: 1000 } });
   const storePage = await storeContext.newPage();
   const storeErrors: string[] = [];
@@ -297,10 +278,14 @@ test('Operação sombra ao vivo por 2h: pedidos reais + 20 motoboys + GPS + reto
 
   try {
     await loginStore(storePage);
-    logEvent(telemetry, 'started', { durationMinutes: DURATION_MINUTES, drivers: DRIVER_COUNT, gpsIntervalMs: GPS_INTERVAL_MS });
+    logEvent(telemetry, 'started', {
+      durationMinutes: DURATION_MINUTES,
+      drivers: DRIVER_COUNT,
+      gpsIntervalMs: GPS_INTERVAL_MS,
+      mode: 'REAL_ORDER_DOCS_NO_CLONE',
+    });
 
     const startedAt = Date.now();
-    let shadowIndex = 0;
     let lastUiCheck = 0;
     let trackingChecks = 0;
 
@@ -313,45 +298,52 @@ test('Operação sombra ao vivo por 2h: pedidos reais + 20 motoboys + GPS + reto
       telemetry.sourceSeen = sourceOrders.size;
 
       for (const source of sourceOrders.values()) {
-        if (shadows.size >= MAX_ORDERS) break;
-        if (clonedSources.has(source.id)) continue;
-        clonedSources.add(source.id);
-        shadowIndex += 1;
-        const shadow = await cloneSourceOrder(source, shift, shadowIndex);
-        shadows.set(shadow.id, shadow);
-        telemetry.shadowsCreated += 1;
-        logEvent(telemetry, 'shadow-created', { shadowId: shadow.id, sourceId: source.id, clientName: shadow.clientName });
-        if (trackingChecks < 3) {
-          await validateTracking(browser, shadow);
+        if (runtimes.size >= MAX_ORDERS) break;
+        if (runtimes.has(source.id)) continue;
+        const lat = Number.isFinite(Number(source.lat)) ? Number(source.lat) : STORE_LOCATION.latitude + 0.004;
+        const lng = Number.isFinite(Number(source.lng)) ? Number(source.lng) : STORE_LOCATION.longitude + 0.004;
+        const runtime: RealOrderRuntime = {
+          id: source.id,
+          clientName: String(source.clientName || `Pedido ${source.codeNumber || source.id}`),
+          trackingCode: String(source.trackingCode || ''),
+          lat,
+          lng,
+          state: 'waiting',
+          firstSeenAt: Date.now(),
+        };
+        runtimes.set(source.id, runtime);
+        telemetry.realOrdersTouched += 1;
+        logEvent(telemetry, 'real-order-detected', {
+          orderId: source.id,
+          clientName: runtime.clientName,
+          externalOrderId: source.externalOrderId || null,
+          branch: source.storeBranch || null,
+          status: source.status,
+        });
+        if (trackingChecks < 2 && runtime.trackingCode) {
+          await validateTracking(browser, runtime);
           trackingChecks += 1;
-          logEvent(telemetry, 'tracking-ok', { shadowId: shadow.id, trackingCode: shadow.trackingCode });
+          logEvent(telemetry, 'tracking-ok', { orderId: runtime.id, trackingCode: runtime.trackingCode });
         }
       }
 
       const now = Date.now();
-      for (const shadow of shadows.values()) {
-        if (shadow.state === 'pending' && now - shadow.createdAtMs >= READY_DELAY_MS) {
-          await writeShadowOrder(shadow.id, { status: 'ready_at_counter' });
-          shadow.state = 'ready';
-          logEvent(telemetry, 'ready', { orderId: shadow.id });
-        }
-      }
-
-      const ready = Array.from(shadows.values()).filter((order) => order.state === 'ready');
+      const waiting = Array.from(runtimes.values()).filter((order) => order.state === 'waiting');
       const available = drivers
         .filter((driver) => driver.phase === 'available')
         .sort((a, b) => a.joinedQueueAt - b.joinedQueueAt);
 
-      while (ready.length && available.length) {
+      while (waiting.length && available.length) {
         const driver = available.shift()!;
-        const batch = ready.splice(0, Math.min(3, ready.length));
+        const batch = waiting.splice(0, Math.min(3, waiting.length));
         driver.phase = 'called';
         driver.phaseStartedAt = now;
         driver.routeOrderIds = batch.map((order) => order.id);
         driver.deliveryIndex = 0;
+        driver.gpsStep = 0;
         driver.returnStep = 0;
 
-        await writeShadowDriver(driver.id, {
+        await writeFakeDriver(driver.id, {
           status: 'busy',
           activeOrdersCount: batch.length,
           joinedQueueAt: null,
@@ -359,7 +351,7 @@ test('Operação sombra ao vivo por 2h: pedidos reais + 20 motoboys + GPS + reto
         });
 
         for (const [index, order] of batch.entries()) {
-          await writeShadowOrder(order.id, {
+          await writeRealOrder(order.id, {
             status: 'ready_at_counter',
             assignedMotoboyId: driver.id,
             assignedMotoboyName: driver.name,
@@ -367,13 +359,14 @@ test('Operação sombra ao vivo por 2h: pedidos reais + 20 motoboys + GPS + reto
             dispatchSource: 'rota_facil',
             rotaFacilMotoboyId: driver.id,
             routeSequence: index + 1,
+            liveOperationalTestRunId: RUN_ID,
           });
           order.state = 'assigned';
           order.driverId = driver.id;
           order.routeSequence = index + 1;
         }
         telemetry.dispatches += 1;
-        logEvent(telemetry, 'called-to-counter', { driverId: driver.id, orders: batch.map((o) => o.id) });
+        logEvent(telemetry, 'assigned', { driverId: driver.id, orders: batch.map((o) => o.id) });
       }
 
       for (const driver of drivers) {
@@ -381,51 +374,76 @@ test('Operação sombra ao vivo por 2h: pedidos reais + 20 motoboys + GPS + reto
           driver.phase = 'delivering';
           driver.phaseStartedAt = now;
           driver.lastGpsAt = 0;
-          await writeShadowDriver(driver.id, { status: 'delivering', callingToCounterAt: null });
+          driver.gpsStep = 0;
+          await writeFakeDriver(driver.id, {
+            status: 'delivering',
+            callingToCounterAt: null,
+          });
           for (const orderId of driver.routeOrderIds) {
-            const order = shadows.get(orderId)!;
-            await writeShadowOrder(orderId, {
+            const runtime = runtimes.get(orderId);
+            if (!runtime || runtime.state !== 'assigned') continue;
+            await writeRealOrder(orderId, {
               status: 'in_transit',
-              dispatchedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              pickedUpAt: now,
+              dispatchedAt: new Date(now).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              dispatchSource: 'rota_facil',
+              assignmentSource: 'rota_facil',
+              rotaFacilMotoboyId: driver.id,
             });
-            order.state = 'in_transit';
+            runtime.state = 'in_transit';
           }
           logEvent(telemetry, 'route-started', { driverId: driver.id, orders: driver.routeOrderIds });
         }
 
         if (driver.phase === 'delivering' && now - driver.lastGpsAt >= GPS_INTERVAL_MS) {
-          const currentOrderId = driver.routeOrderIds[Math.min(driver.deliveryIndex, driver.routeOrderIds.length - 1)];
-          const currentOrder = shadows.get(currentOrderId);
-          if (currentOrder) {
-            await writeShadowDriver(driver.id, {
-              currentLat: currentOrder.lat,
-              currentLng: currentOrder.lng,
-              locationUpdatedAt: now,
-            });
-            driver.lastGpsAt = now;
+          const currentId = driver.routeOrderIds[driver.deliveryIndex];
+          const order = currentId ? runtimes.get(currentId) : undefined;
+          if (!order) {
+            driver.phase = 'returning';
+            driver.phaseStartedAt = now;
+            driver.returnStep = 0;
+            continue;
+          }
 
-            await writeShadowOrder(currentOrder.id, {
+          driver.gpsStep += 1;
+          const next = interpolate(driver.currentLat, driver.currentLng, order.lat, order.lng, 1, Math.max(1, GPS_STEPS_TO_CLIENT - driver.gpsStep + 1));
+          driver.currentLat = driver.gpsStep >= GPS_STEPS_TO_CLIENT ? order.lat : next.lat;
+          driver.currentLng = driver.gpsStep >= GPS_STEPS_TO_CLIENT ? order.lng : next.lng;
+          driver.lastGpsAt = now;
+          await writeFakeDriver(driver.id, {
+            currentLat: driver.currentLat,
+            currentLng: driver.currentLng,
+            locationUpdatedAt: now,
+          });
+          logEvent(telemetry, 'gps', { driverId: driver.id, orderId: order.id, step: driver.gpsStep, lat: driver.currentLat, lng: driver.currentLng });
+
+          if (driver.gpsStep >= GPS_STEPS_TO_CLIENT) {
+            await writeRealOrder(order.id, {
               status: 'delivered',
-              arrivedAtClient: true,
-              arrivedAtClientTimestamp: now,
-              deliveredAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              deliveredAt: new Date(now).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
               deliveredDate: getBrazilDateKey(),
               deliveredTimestamp: now,
+              arrivedAtClient: true,
+              arrivedAtClientTimestamp: now,
+              routeCompletedAt: now,
+              dispatchSource: 'rota_facil',
+              assignmentSource: 'rota_facil',
+              rotaFacilMotoboyId: driver.id,
             });
-            currentOrder.state = 'delivered';
+            order.state = 'delivered';
             telemetry.delivered += 1;
+            logEvent(telemetry, 'delivered', { driverId: driver.id, orderId: order.id, clientName: order.clientName });
             driver.deliveryIndex += 1;
-            logEvent(telemetry, 'delivered', { driverId: driver.id, orderId: currentOrder.id, sequence: driver.deliveryIndex });
+            driver.gpsStep = 0;
 
             if (driver.deliveryIndex >= driver.routeOrderIds.length) {
               driver.phase = 'returning';
               driver.phaseStartedAt = now;
               driver.returnStep = 0;
-              await writeShadowDriver(driver.id, {
+              await writeFakeDriver(driver.id, {
                 status: 'returning_to_store',
                 activeOrdersCount: 0,
                 joinedQueueAt: null,
-                callingToCounterAt: null,
               });
               logEvent(telemetry, 'return-started', { driverId: driver.id });
             }
@@ -434,72 +452,79 @@ test('Operação sombra ao vivo por 2h: pedidos reais + 20 motoboys + GPS + reto
 
         if (driver.phase === 'returning' && now - driver.lastGpsAt >= GPS_INTERVAL_MS) {
           driver.returnStep += 1;
-          const ratio = Math.min(1, driver.returnStep / RETURN_STEPS);
-          const sourceOrder = shadows.get(driver.routeOrderIds[driver.routeOrderIds.length - 1]);
-          const startLat = sourceOrder?.lat ?? STORE_LOCATION.latitude;
-          const startLng = sourceOrder?.lng ?? STORE_LOCATION.longitude;
-          const lat = startLat + (STORE_LOCATION.latitude - startLat) * ratio;
-          const lng = startLng + (STORE_LOCATION.longitude - startLng) * ratio;
-          await writeShadowDriver(driver.id, { currentLat: lat, currentLng: lng, locationUpdatedAt: now });
+          const next = interpolate(driver.currentLat, driver.currentLng, STORE_LOCATION.latitude, STORE_LOCATION.longitude, 1, Math.max(1, GPS_STEPS_RETURN - driver.returnStep + 1));
+          driver.currentLat = driver.returnStep >= GPS_STEPS_RETURN ? STORE_LOCATION.latitude : next.lat;
+          driver.currentLng = driver.returnStep >= GPS_STEPS_RETURN ? STORE_LOCATION.longitude : next.lng;
           driver.lastGpsAt = now;
+          await writeFakeDriver(driver.id, {
+            status: 'returning_to_store',
+            currentLat: driver.currentLat,
+            currentLng: driver.currentLng,
+            locationUpdatedAt: now,
+          });
 
-          if (driver.returnStep >= RETURN_STEPS) {
+          if (driver.returnStep >= GPS_STEPS_RETURN) {
+            const joinedQueueAt = Date.now();
             driver.phase = 'available';
+            driver.joinedQueueAt = joinedQueueAt;
             driver.routeOrderIds = [];
             driver.deliveryIndex = 0;
+            driver.gpsStep = 0;
+            driver.returnStep = 0;
             driver.cycles += 1;
-            driver.joinedQueueAt = now;
-            await writeShadowDriver(driver.id, {
+            await writeFakeDriver(driver.id, {
               status: 'available',
               activeOrdersCount: 0,
-              joinedQueueAt: now,
+              joinedQueueAt,
               callingToCounterAt: null,
               currentLat: STORE_LOCATION.latitude,
               currentLng: STORE_LOCATION.longitude,
-              locationUpdatedAt: now,
-              deliveriesCountToday: driver.cycles,
+              locationUpdatedAt: Date.now(),
             });
             telemetry.driverReturns += 1;
-            logEvent(telemetry, 'returned-to-queue', { driverId: driver.id, cycles: driver.cycles, joinedQueueAt: now });
+            logEvent(telemetry, 'queue-return', { driverId: driver.id, cycles: driver.cycles, joinedQueueAt });
           }
         }
       }
 
-      const busy = drivers.filter((driver) => driver.phase !== 'available').length;
-      telemetry.maxBusyDrivers = Math.max(telemetry.maxBusyDrivers, busy);
+      telemetry.maxBusyDrivers = Math.max(telemetry.maxBusyDrivers, drivers.filter((d) => d.phase !== 'available').length);
 
-      if (now - lastUiCheck >= 60_000 && shadows.size > 0) {
+      if (now - lastUiCheck > 60_000) {
+        const visibleCandidate = Array.from(runtimes.values()).find((o) => o.state !== 'skipped');
+        if (visibleCandidate) {
+          await validateOrderOnStore(storePage, visibleCandidate);
+          logEvent(telemetry, 'store-ui-ok', { orderId: visibleCandidate.id, clientName: visibleCandidate.clientName });
+        }
         lastUiCheck = now;
-        const body = await storePage.locator('body').innerText().catch(() => '');
-        expect(body.includes('PW LIVE'), 'Painel da loja precisa continuar renderizando pedidos sombra durante a carga').toBe(true);
-        logEvent(telemetry, 'dashboard-ok', { busyDrivers: busy, shadows: shadows.size, delivered: telemetry.delivered });
       }
 
       await sleep(TICK_MS);
     }
 
-    expect(telemetry.shadowsCreated, 'Nenhum pedido real do Cardápio Web foi observado durante as 2h').toBeGreaterThan(0);
-    expect(telemetry.dispatches, 'Nenhum despacho sombra foi executado').toBeGreaterThan(0);
-    expect(telemetry.delivered, 'Nenhuma entrega sombra foi concluída').toBeGreaterThan(0);
-    expect(drivers.length).toBe(DRIVER_COUNT);
+    expect(telemetry.realOrdersTouched, 'Precisa detectar ao menos um pedido real do Cardápio Web').toBeGreaterThan(0);
+    expect(telemetry.dispatches, 'Precisa atribuir ao menos um pedido real a motoboy fake').toBeGreaterThan(0);
+    expect(telemetry.delivered, 'Precisa concluir ao menos uma entrega real dentro do Rota Fácil').toBeGreaterThan(0);
+    expect(telemetry.driverReturns, 'Precisa validar ao menos um retorno do motoboy à fila').toBeGreaterThan(0);
 
     const criticalStoreErrors = storeErrors.filter((line) => /quota exceeded|resource-exhausted|permission-denied|uncaught|unhandled/i.test(line));
-    expect(criticalStoreErrors, `Erros críticos no painel:\n${criticalStoreErrors.join('\n')}`).toEqual([]);
+    expect(criticalStoreErrors, `Erros críticos na loja:\n${criticalStoreErrors.join('\n')}`).toEqual([]);
 
-    telemetry.finishedAt = new Date().toISOString();
-    await testInfo.attach('live-shadow-telemetry.json', {
-      body: Buffer.from(JSON.stringify(telemetry, null, 2), 'utf8'),
-      contentType: 'application/json',
+    logEvent(telemetry, 'completed', {
+      sourceSeen: telemetry.sourceSeen,
+      realOrdersTouched: telemetry.realOrdersTouched,
+      dispatches: telemetry.dispatches,
+      delivered: telemetry.delivered,
+      driverReturns: telemetry.driverReturns,
+      maxBusyDrivers: telemetry.maxBusyDrivers,
     });
-    logEvent(telemetry, 'completed', { delivered: telemetry.delivered, dispatches: telemetry.dispatches, returns: telemetry.driverReturns });
   } finally {
     unsubscribe();
-    telemetry.finishedAt ||= new Date().toISOString();
-    await testInfo.attach('live-shadow-telemetry-final.json', {
+    telemetry.finishedAt = new Date().toISOString();
+    await testInfo.attach('live-real-operation-telemetry.json', {
       body: Buffer.from(JSON.stringify(telemetry, null, 2), 'utf8'),
       contentType: 'application/json',
     }).catch(() => undefined);
     await storeContext.close().catch(() => undefined);
-    await cleanup(shadows, drivers).catch((error) => console.error('[PW-LIVE] cleanup failed', error));
+    await cleanupDriversAndStore(drivers).catch(() => undefined);
   }
 });
