@@ -48,8 +48,23 @@ async function loginStore(page: Page) {
 }
 
 async function createOrder(page: Page, input: (typeof ORDER_INPUTS)[number], index: number) {
-  await page.getByRole('button', { name: /\+?\s*Pedido/i }).first().click();
-  await expect(page.getByText(/Lançar Pedido/i)).toBeVisible({ timeout: 20_000 });
+  // IMPORTANT: keep this exact. The old /Pedido/i selector could click
+  // "Pedidos e despacho" instead of the top-right "+ Pedido" action.
+  const openOrder = page.getByRole('button', { name: /^\+?\s*Pedido$/i }).last();
+  await expect(openOrder).toBeVisible({ timeout: 30_000 });
+  await expect(openOrder).toBeEnabled({ timeout: 30_000 });
+  await openOrder.click();
+
+  const modalHeading = page.getByRole('heading', { name: /^Lançar Pedido #\d+/i });
+  try {
+    await expect(modalHeading).toBeVisible({ timeout: 20_000 });
+  } catch (error) {
+    console.log('[createOrder] URL:', page.url());
+    console.log('[createOrder] exact "+ Pedido" count:', await page.getByRole('button', { name: /^\+?\s*Pedido$/i }).count());
+    console.log('[createOrder] page text preview:', (await page.locator('body').innerText()).slice(0, 1500));
+    await page.screenshot({ path: `test-results/create-order-modal-${index + 1}.png`, fullPage: true }).catch(() => undefined);
+    throw error;
+  }
 
   await page.getByPlaceholder('Ex: João Silva').fill(input.name);
   await page.getByPlaceholder('(47) 99999-8888').fill(`47999993${String(index + 1).padStart(3, '0')}`);
@@ -57,11 +72,14 @@ async function createOrder(page: Page, input: (typeof ORDER_INPUTS)[number], ind
   await page.getByPlaceholder('Ex: 653 ou S/N').fill(input.number);
   await page.getByPlaceholder('Ex: Velha Central').fill(input.neighborhood);
 
-  const manual = page.getByRole('button', { name: /Manual/i }).last();
+  const manual = page.getByRole('button', { name: /^Manual$/i }).last();
   if (await manual.isVisible().catch(() => false)) await manual.click();
 
-  await page.getByRole('button', { name: /CONFIRMAR E LANÇAR PEDIDO/i }).click();
-  await expect(page.getByText(/Lançar Pedido/i)).toBeHidden({ timeout: 30_000 });
+  const submit = page.getByRole('button', { name: /CONFIRMAR E LANÇAR PEDIDO/i });
+  await expect(submit).toBeVisible({ timeout: 20_000 });
+  await expect(submit).toBeEnabled({ timeout: 20_000 });
+  await submit.click();
+  await expect(modalHeading).toBeHidden({ timeout: 30_000 });
 }
 
 async function selectLooseOrder(page: Page, clientName: string) {
