@@ -2,6 +2,11 @@ name: Playwright - Fila e múltiplos motoboys
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/nightly-queue-multidrivers.yml'
   schedule:
     - cron: '45 7 * * *'
 
